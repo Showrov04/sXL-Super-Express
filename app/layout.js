@@ -1,3 +1,5 @@
+import './globals.css';
+
 export const metadata = {
   title: 'sXL - Super Express Logistics Center',
   description: 'Ship Faster. Track Smarter.',
