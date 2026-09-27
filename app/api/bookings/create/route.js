@@ -174,7 +174,8 @@ export async function POST(request) {
       updated_by: session.userId,
     });
 
-    let pdfUrl = '/api/pdf/booking/' + trackingNumber;
+    const pdfUrl = '/api/pdf/booking/' + trackingNumber;
+
     try {
       await generateBookingPDF(newShipment);
     } catch (pdfErr) {
