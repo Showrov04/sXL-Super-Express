@@ -15,10 +15,15 @@ export default function DashboardPage() {
   const [counts, setCounts] = useState({ active: 0, awaiting: 0, paid: 0, total: 0 });
   const [outstanding, setOutstanding] = useState(null);
   const [error, setError] = useState('');
+  const [debugInfo, setDebugInfo] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('sxl_user');
-    if (!stored) {
+    const token = localStorage.getItem('sxl_token');
+    console.log('[Dashboard] user:', stored);
+    console.log('[Dashboard] token:', token ? 'present' : 'missing');
+
+    if (!stored || !token) {
       router.push('/login');
       return;
     }
@@ -38,6 +43,7 @@ export default function DashboardPage() {
   async function loadData(activeTab) {
     setLoading(true);
     setError('');
+    setDebugInfo('');
 
     const token = localStorage.getItem('sxl_token');
     if (!token) {
@@ -46,12 +52,17 @@ export default function DashboardPage() {
     }
 
     try {
-      const res = await fetch('/api/customer/shipments?tab=' + activeTab, {
+      const url = '/api/customer/shipments?tab=' + activeTab;
+      console.log('[Dashboard] Fetching:', url);
+
+      const res = await fetch(url, {
         headers: { Authorization: 'Bearer ' + token },
       });
       const data = await res.json();
+      console.log('[Dashboard] Response:', data);
 
       if (!data.success) {
+        setDebugInfo('API error: ' + (data.error || 'unknown'));
         if (data.error === 'Session expired.') {
           localStorage.removeItem('sxl_token');
           localStorage.removeItem('sxl_user');
@@ -63,18 +74,23 @@ export default function DashboardPage() {
         return;
       }
 
+      console.log('[Dashboard] Shipments count:', (data.shipments || []).length);
+      console.log('[Dashboard] Counts:', data.counts);
+
       setShipments(data.shipments || []);
       setCounts(data.counts || { active: 0, awaiting: 0, paid: 0, total: 0 });
       setOutstanding(data.outstanding || null);
       setLoading(false);
     } catch (err) {
+      console.error('[Dashboard] Exception:', err);
+      setDebugInfo('Exception: ' + err.message);
       setError('Connection error. Please try again.');
       setLoading(false);
     }
   }
 
   function formatDate(d) {
-    if (!d) return '—';
+    if (!d) return '-';
     try {
       const date = new Date(d);
       if (isNaN(date.getTime())) return String(d);
@@ -112,10 +128,10 @@ export default function DashboardPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
           <div>
             <h1 style={{ fontSize: '2rem', color: '#003366', fontWeight: 800, marginBottom: '5px' }}>
-              👋 Welcome, {user.name || 'Customer'}
+              Welcome, {user.name || 'Customer'}
             </h1>
             <p style={{ color: '#6C757D', fontSize: '0.95rem' }}>
-              Account ID: <b>{user.userId || '—'}</b>
+              Account ID: <b>{user.userId || '-'}</b>
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -123,16 +139,23 @@ export default function DashboardPage() {
               + New Booking
             </Link>
             <Link href="/account" style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, textDecoration: 'none' }}>
-              ⚙️ My Account
+              My Account
             </Link>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '25px' }}>
-          <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
-          <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Outstanding Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
-          <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="🟢 Paid & Completed" count={counts.paid} badgeBg="#D4EDDA" badgeColor="#155724" />
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
+          <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
+          <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="Outstanding Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
+          <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="Paid & Completed" count={counts.paid} badgeBg="#D4EDDA" badgeColor="#155724" />
         </div>
+
+        {/* Debug info — visible so we can see what's happening */}
+        {debugInfo && (
+          <div style={{ background: '#FFF3CD', color: '#856404', border: '1px solid #FFC107', borderRadius: '8px', padding: '10px 15px', marginBottom: '15px', fontSize: '0.85rem', fontFamily: 'monospace' }}>
+            {debugInfo}
+          </div>
+        )}
 
         {loading && (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
@@ -143,7 +166,7 @@ export default function DashboardPage() {
 
         {error && !loading && (
           <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>
-            ❌ {error}
+            {error}
           </div>
         )}
 
@@ -151,14 +174,14 @@ export default function DashboardPage() {
           <>
             {outstanding.items.length === 0 ? (
               <div style={{ background: '#D4EDDA', color: '#155724', borderLeft: '4px solid #28A745', borderRadius: '10px', padding: '20px' }}>
-                ✅ You have no outstanding payments. Thank you!
+                You have no outstanding payments. Thank you!
               </div>
             ) : (
               <>
                 <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '20px', marginBottom: '15px', borderLeft: '5px solid #FFE5B4' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
-                      <div style={{ fontWeight: 800, color: '#003366', fontSize: '1.1rem' }}>💰 Total Outstanding</div>
+                      <div style={{ fontWeight: 800, color: '#003366', fontSize: '1.1rem' }}>Total Outstanding</div>
                       <div style={{ color: '#6C757D', fontSize: '0.85rem' }}>{outstanding.count} shipment(s) pending payment</div>
                     </div>
                     <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#FF6B00' }}>
@@ -171,7 +194,7 @@ export default function DashboardPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                       <div>
                         <div style={{ fontWeight: 800, color: '#003366', fontSize: '1.05rem' }}>{it.trackingNumber}</div>
-                        <div style={{ color: '#6C757D', fontSize: '0.85rem' }}>{it.recipientName} • {it.destination}</div>
+                        <div style={{ color: '#6C757D', fontSize: '0.85rem' }}>{it.recipientName} - {it.destination}</div>
                       </div>
                       <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#FF6B00' }}>
                         {it.currency} {Number(it.cost).toFixed(2)}
@@ -189,6 +212,9 @@ export default function DashboardPage() {
             {shipments.length === 0 ? (
               <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
                 No shipments in this category.
+                <div style={{ marginTop: '10px', fontSize: '0.85rem', opacity: 0.7 }}>
+                  (Debug: {tab} tab, total counts: {JSON.stringify(counts)})
+                </div>
               </div>
             ) : (
               <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
@@ -196,7 +222,7 @@ export default function DashboardPage() {
                   <thead>
                     <tr style={{ background: '#F8F9FA' }}>
                       {['Tracking #', 'Service', 'Route', 'Status', 'Cost', 'Payment', 'Booked', 'Actions'].map((h) => (
-                        <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.8rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF' }}>
+                        <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #E9ECEF' }}>
                           {h}
                         </th>
                       ))}
@@ -207,19 +233,28 @@ export default function DashboardPage() {
                       const sc = statusClass(s.status);
                       return (
                         <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
-                          <td style={{ padding: '14px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                          <td style={{ padding: '14px 16px' }}>{s.serviceType || '—'}</td>
-                          <td style={{ padding: '14px 16px' }}>{s.origin || '—'} → {s.destination || '—'}</td>
-                          <td style={{ padding: '14px 16px' }}>
-                            <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase' }}>{s.status}</span>
+                          <td style={{ padding: '14px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>
+                            {s.trackingNumber}
                           </td>
-                          <td style={{ padding: '14px 16px' }}>{s.cost ? `${Number(s.cost).toFixed(2)} ${s.currency}` : '—'}</td>
-                          <td style={{ padding: '14px 16px' }}>{s.paymentStatus || '—'}</td>
+                          <td style={{ padding: '14px 16px' }}>{s.serviceType || '-'}</td>
+                          <td style={{ padding: '14px 16px' }}>{s.origin || '-'} - {s.destination || '-'}</td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase' }}>
+                              {s.status}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>
+                            {s.cost ? `${Number(s.cost).toFixed(2)} ${s.currency}` : '-'}
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>{s.paymentStatus || '-'}</td>
                           <td style={{ padding: '14px 16px' }}>{formatDate(s.bookedAt)}</td>
                           <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                            <Link href={'/track?tn=' + s.trackingNumber} style={{ padding: '6px 12px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none' }}>
+                            <Link href={'/track?tn=' + s.trackingNumber} style={{ padding: '6px 12px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none', marginRight: '5px' }}>
                               View
                             </Link>
+                            <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none' }}>
+                              PDF
+                            </a>
                           </td>
                         </tr>
                       );
@@ -239,29 +274,16 @@ export default function DashboardPage() {
 
 function TabButton({ active, onClick, label, count, badgeBg, badgeColor }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        cursor: 'pointer',
-        padding: '12px 22px',
-        borderRadius: '10px',
-        fontWeight: 700,
-        fontSize: '0.9rem',
-        border: '2px solid ' + (active ? '#FF6B00' : '#E9ECEF'),
-        background: active ? '#FFF5EB' : 'white',
-        color: active ? '#FF6B00' : '#343A40',
-        fontFamily: 'inherit'
-      }}
-    >
+    <button onClick={onClick} style={{
+      cursor: 'pointer', padding: '12px 22px', borderRadius: '10px',
+      fontWeight: 700, fontSize: '0.9rem',
+      border: '2px solid ' + (active ? '#FF6B00' : '#E9ECEF'),
+      background: active ? '#FFF5EB' : 'white',
+      color: active ? '#FF6B00' : '#343A40',
+      fontFamily: 'inherit'
+    }}>
       {label}{' '}
-      <span style={{
-        background: active ? '#FF6B00' : badgeBg,
-        color: active ? 'white' : badgeColor,
-        padding: '2px 8px',
-        borderRadius: '10px',
-        marginLeft: '6px',
-        fontSize: '0.8rem'
-      }}>
+      <span style={{ background: active ? '#FF6B00' : badgeBg, color: active ? 'white' : badgeColor, padding: '2px 8px', borderRadius: '10px', marginLeft: '6px', fontSize: '0.8rem' }}>
         {count}
       </span>
     </button>
