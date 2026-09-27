@@ -52,11 +52,7 @@ export default function BookPage() {
     ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Payment', 'Review']
     : ['Ship Mode', 'Parcel Type', 'Shipper & Consignee', 'Shipment Details', 'Payment', 'Review'];
 
-  function getNextStep(current) {
-    if (current === 1 && isSea) return 2;
-    if (current === 1 && !isSea) return 2;
-    return current + 1;
-  }
+  function getNextStep(current) { return current + 1; }
   function getPrevStep(current) {
     if (current === 2 && isSea) return 1;
     return current - 1;
@@ -113,12 +109,23 @@ export default function BookPage() {
   async function handleSubmit() {
     setError('');
     setLoading(true);
+
     const token = localStorage.getItem('sxl_token');
+    console.log('[Booking submit] Token present:', !!token, 'Length:', token ? token.length : 0);
+
+    if (!token) {
+      setError('Your session has expired. Please logout and login again.');
+      setLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch('/api/bookings/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+        },
         body: JSON.stringify({
           shipMode, parcelType, parcelTypeCustom,
           shipper, consignee, shipment,
@@ -126,6 +133,7 @@ export default function BookPage() {
         }),
       });
       const data = await res.json();
+      console.log('[Booking submit] Response:', data);
 
       if (!data.success) {
         setError(data.error || 'Booking failed.');
@@ -136,6 +144,7 @@ export default function BookPage() {
       setSuccess({ trackingNumber: data.trackingNumber });
       setLoading(false);
     } catch (err) {
+      console.error('[Booking submit] Error:', err);
       setError('Connection error. Please try again.');
       setLoading(false);
     }
@@ -184,7 +193,7 @@ export default function BookPage() {
               background: '#E8F7EF', borderRadius: '12px', border: '2px solid #00A86B'
             }}>
               <p style={{ fontWeight: 700, color: '#003366', marginBottom: '12px' }}>
-                📄 Save your booking confirmation
+                Save your booking confirmation
               </p>
               <a
                 href={'/api/pdf/booking/' + success.trackingNumber}
@@ -197,10 +206,10 @@ export default function BookPage() {
                   textAlign: 'center', boxSizing: 'border-box'
                 }}
               >
-                ⬇️ Download Booking PDF
+                Download Booking PDF
               </a>
               <p style={{ fontSize: '0.8rem', color: '#6C757D', marginTop: '10px' }}>
-                Tip: right-click the button → &quot;Save link as...&quot; to save to your device.
+                Tip: right-click the button and choose &quot;Save link as...&quot; to save to your device.
               </p>
             </div>
 
@@ -227,7 +236,6 @@ export default function BookPage() {
       <Header />
 
       <div style={{ maxWidth: '1000px', margin: '30px auto', padding: '0 20px 60px' }}>
-        {/* Stepper */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '30px', overflowX: 'auto', paddingBottom: '5px' }}>
           {steps.map((label, idx) => {
             const num = idx + 1;
@@ -260,7 +268,7 @@ export default function BookPage() {
           {/* STEP 1 */}
           {step === 1 && (
             <>
-              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>Step 1 — Select Ship Mode</h3>
+              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>Step 1 - Select Ship Mode</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
                 {[{ value: 'SEA', icon: '🚢', label: 'SEA Freight', sub: 'Cost-effective ocean shipping' },
                   { value: 'AIR', icon: '✈️', label: 'AIR Freight', sub: 'Fast air delivery' }].map((m) => (
@@ -277,7 +285,7 @@ export default function BookPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <Link href="/dashboard" style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, textDecoration: 'none' }}>Cancel</Link>
-                <button onClick={goNext} disabled={!shipMode} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: shipMode ? 'pointer' : 'not-allowed', opacity: shipMode ? 1 : 0.5, fontFamily: 'inherit' }}>Next →</button>
+                <button onClick={goNext} disabled={!shipMode} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: shipMode ? 'pointer' : 'not-allowed', opacity: shipMode ? 1 : 0.5, fontFamily: 'inherit' }}>Next</button>
               </div>
             </>
           )}
@@ -285,7 +293,7 @@ export default function BookPage() {
           {/* STEP 2 (AIR only) */}
           {step === 2 && !isSea && (
             <>
-              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>Step 2 — Parcel Type</h3>
+              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>Step 2 - Parcel Type</h3>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 {['Document', 'No-Document (Sample)', 'Hand Carry', 'Others'].map((p) => (
                   <button key={p} onClick={() => setParcelType(p)} style={{
@@ -305,8 +313,8 @@ export default function BookPage() {
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
-                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>← Back</button>
-                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next →</button>
+                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
+                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
               </div>
             </>
           )}
@@ -315,7 +323,7 @@ export default function BookPage() {
           {((step === 2 && isSea) || (step === 3 && !isSea)) && (
             <>
               <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
-                {isSea ? 'Step 2' : 'Step 3'} — Shipper & Consignee
+                {isSea ? 'Step 2' : 'Step 3'} - Shipper & Consignee
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div>
@@ -345,8 +353,8 @@ export default function BookPage() {
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
-                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>← Back</button>
-                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next →</button>
+                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
+                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
               </div>
             </>
           )}
@@ -355,7 +363,7 @@ export default function BookPage() {
           {((step === 3 && isSea) || (step === 4 && !isSea)) && (
             <>
               <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
-                {isSea ? 'Step 3' : 'Step 4'} — Shipment Details
+                {isSea ? 'Step 3' : 'Step 4'} - Shipment Details
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <Field label="Shipper Reference Number" value={shipment.shipperRef} onChange={(v) => setShipmentField('shipperRef', v)} />
@@ -416,8 +424,8 @@ export default function BookPage() {
                 )}
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
-                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>← Back</button>
-                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next →</button>
+                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
+                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
               </div>
             </>
           )}
@@ -426,7 +434,7 @@ export default function BookPage() {
           {((step === 4 && isSea) || (step === 5 && !isSea)) && (
             <>
               <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
-                {isSea ? 'Step 4' : 'Step 5'} — Payment Terms
+                {isSea ? 'Step 4' : 'Step 5'} - Payment Terms
               </h3>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px' }}>Payment Type *</label>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
@@ -453,11 +461,11 @@ export default function BookPage() {
                 ))}
               </div>
               <div style={{ background: '#FFF5EB', padding: '15px', borderRadius: '8px', fontSize: '0.85rem', color: '#6C757D', borderLeft: '3px solid #FF6B00' }}>
-                ℹ️ Shipping cost will be provided by our team after review.
+                Shipping cost will be provided by our team after review.
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
-                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>← Back</button>
-                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next →</button>
+                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
+                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
               </div>
             </>
           )}
@@ -466,19 +474,19 @@ export default function BookPage() {
           {((step === 5 && isSea) || (step === 6 && !isSea)) && (
             <>
               <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
-                {isSea ? 'Step 5' : 'Step 6'} — Review & Submit
+                {isSea ? 'Step 5' : 'Step 6'} - Review & Submit
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '0.9rem', lineHeight: 1.8 }}>
                 <div>
-                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>📤 Shipment</h4>
+                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>Shipment</h4>
                   <div><b>Mode:</b> {shipMode}</div>
-                  {!isSea && <div><b>Parcel Type:</b> {parcelType === 'Others' ? `Others: ${parcelTypeCustom}` : parcelType}</div>}
-                  <div><b>Description:</b> {shipment.description || '—'}</div>
+                  {!isSea && <div><b>Parcel Type:</b> {parcelType === 'Others' ? 'Others: ' + parcelTypeCustom : parcelType}</div>}
+                  <div><b>Description:</b> {shipment.description || '-'}</div>
                   <div><b>Packages:</b> {shipment.packages}</div>
                   <div><b>Weight:</b> {shipment.totalWeight} kg</div>
                 </div>
                 <div>
-                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>👤 Shipper</h4>
+                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>Shipper</h4>
                   <div>{shipper.name}</div>
                   <div>{shipper.city}, {shipper.country}</div>
                   <div>{shipper.phone}</div>
@@ -487,30 +495,30 @@ export default function BookPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '0.9rem', lineHeight: 1.8, marginTop: '20px' }}>
                 <div>
-                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>👥 Consignee</h4>
+                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>Consignee</h4>
                   <div>{consignee.name}</div>
                   <div>{consignee.city}, {consignee.country}</div>
                   <div>{consignee.phone}</div>
                   <div>{consignee.email}</div>
                 </div>
                 <div>
-                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>💳 Payment</h4>
+                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>Payment</h4>
                   <div><b>Type:</b> {paymentTerms}</div>
                   <div><b>Method:</b> {paymentMethod}</div>
                   <div><b>Currency:</b> USD</div>
                 </div>
               </div>
               <div style={{ background: '#FFF5EB', padding: '15px', borderRadius: '8px', marginTop: '20px', fontSize: '0.9rem', borderLeft: '3px solid #FF6B00' }}>
-                ℹ️ After submission, our admin team will review your booking and provide the shipping cost.
+                After submission, our admin team will review your booking and provide the shipping cost.
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
-                <button onClick={goPrev} disabled={loading} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>← Back</button>
+                <button onClick={goPrev} disabled={loading} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
                 <button onClick={handleSubmit} disabled={loading} style={{
                   padding: '14px 26px', background: '#FF6B00', color: 'white',
                   border: 'none', borderRadius: '8px', fontWeight: 700,
                   cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit'
                 }}>
-                  {loading ? 'Submitting...' : '✅ Submit Booking'}
+                  {loading ? 'Submitting...' : 'Submit Booking'}
                 </button>
               </div>
             </>
