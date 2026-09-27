@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { generateBookingPDF } from '@/lib/pdf';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 const serviceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -20,10 +22,8 @@ async function getSessionUser(request) {
     .maybeSingle();
 
   if (!session) return null;
-
   const expiresAt = new Date(session.expires_at).getTime();
   if (isNaN(expiresAt) || expiresAt < Date.now()) return null;
-
   return { userId: session.user_id, role: session.role };
 }
 
@@ -45,13 +45,9 @@ function mapServiceType(shipMode) {
 export async function POST(request) {
   try {
     const session = await getSessionUser(request);
-    if (!session) {
-      return NextResponse.json({ success: false, error: 'Session expired.' });
-    }
+    if (!session) return NextResponse.json({ success: false, error: 'Session expired.' });
 
     const body = await request.json();
-
-    // Extract data
     const shipMode = String(body.shipMode || '').toUpperCase();
     const shipper = body.shipper || {};
     const consignee = body.consignee || {};
@@ -59,53 +55,32 @@ export async function POST(request) {
     const paymentTerms = body.paymentTerms || '';
     const paymentMethod = body.paymentMethod || '';
 
-    // Validate
-    if (!['AIR', 'SEA'].includes(shipMode)) {
-      return NextResponse.json({ success: false, error: 'Ship mode is required.' });
-    }
+    // Validation
+    if (!['AIR', 'SEA'].includes(shipMode)) return NextResponse.json({ success: false, error: 'Ship mode is required.' });
     if (!shipper.name || !shipper.fullAddress || !shipper.country || !shipper.email || !shipper.phone) {
       return NextResponse.json({ success: false, error: 'Shipper details incomplete.' });
     }
     if (!consignee.name || !consignee.fullAddress || !consignee.country || !consignee.email || !consignee.phone) {
       return NextResponse.json({ success: false, error: 'Consignee details incomplete.' });
     }
-    if (!shipment.description || !String(shipment.description).trim()) {
-      return NextResponse.json({ success: false, error: 'Description of goods is required.' });
-    }
-    if (!shipment.totalWeight || parseFloat(shipment.totalWeight) <= 0) {
-      return NextResponse.json({ success: false, error: 'Total weight is required.' });
-    }
-    if (!paymentTerms || !paymentMethod) {
-      return NextResponse.json({ success: false, error: 'Payment type and method are required.' });
-    }
+    if (!shipment.description || !String(shipment.description).trim()) return NextResponse.json({ success: false, error: 'Description required.' });
+    if (!shipment.totalWeight || parseFloat(shipment.totalWeight) <= 0) return NextResponse.json({ success: false, error: 'Weight required.' });
+    if (!paymentTerms || !paymentMethod) return NextResponse.json({ success: false, error: 'Payment required.' });
 
-    // Get or create shipper short form
+    // Tracking number
     const shortForm = generateShortForm(shipper.name);
-
-    // Generate tracking number using counter
     const today = new Date();
-    const ddmmyyyy = String(today.getDate()).padStart(2, '0') +
-                     String(today.getMonth() + 1).padStart(2, '0') +
-                     today.getFullYear();
+    const ddmmyyyy = String(today.getDate()).padStart(2, '0') + String(today.getMonth() + 1).padStart(2, '0') + today.getFullYear();
 
-    // Get or create counter for this short form
     const { data: existingCounter } = await serviceSupabase
-      .from('counters')
-      .select('*')
-      .eq('short_form', shortForm)
-      .maybeSingle();
+      .from('counters').select('*').eq('short_form', shortForm).maybeSingle();
 
     let nextNum = 1;
     if (existingCounter) {
       nextNum = (parseInt(existingCounter.last_number, 10) || 0) + 1;
-      await serviceSupabase
-        .from('counters')
-        .update({ last_number: nextNum, updated_at: new Date().toISOString() })
-        .eq('short_form', shortForm);
+      await serviceSupabase.from('counters').update({ last_number: nextNum, updated_at: new Date().toISOString() }).eq('short_form', shortForm);
     } else {
-      await serviceSupabase
-        .from('counters')
-        .insert({ short_form: shortForm, last_number: 1 });
+      await serviceSupabase.from('counters').insert({ short_form: shortForm, last_number: 1 });
     }
 
     const modeSuffix = shipMode === 'SEA' ? 'S' : '';
@@ -160,11 +135,9 @@ export async function POST(request) {
       .select()
       .single();
 
-    if (insertError) {
-      return NextResponse.json({ success: false, error: insertError.message });
-    }
+    if (insertError) return NextResponse.json({ success: false, error: insertError.message });
 
-    // Insert initial tracking history
+    // Tracking history
     await serviceSupabase.from('tracking_history').insert({
       tracking_number: trackingNumber,
       status: 'Booked',
@@ -173,10 +146,29 @@ export async function POST(request) {
       updated_by: session.userId,
     });
 
+    // ---- Generate Booking PDF ----
+    let pdfUrl = null;
+    try {
+      const pdfBytes = await generateBookingPDF(newShipment);
+      const filename = `bookings/${trackingNumber}.pdf`;
+      const { error: uploadError } = await serviceSupabase.storage
+        .from('documents')
+        .upload(filename, pdfBytes, { contentType: 'application/pdf', upsert: true });
+
+      if (!uploadError) {
+        const { data: publicUrl } = serviceSupabase.storage.from('documents').getPublicUrl(filename);
+        pdfUrl = publicUrl.publicUrl;
+        await serviceSupabase.from('shipments').update({ pdf_url: pdfUrl }).eq('id', newShipment.id);
+      }
+    } catch (pdfErr) {
+      console.error('PDF generation failed:', pdfErr);
+    }
+
     return NextResponse.json({
       success: true,
       trackingNumber,
       shipmentId: newShipment.id,
+      pdfUrl,
     });
 
   } catch (err) {
