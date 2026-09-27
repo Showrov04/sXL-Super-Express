@@ -467,7 +467,305 @@ export default function BillingPanel() {
   );
 }
 
-function StatCard({ num, label, color }) {
+/* ============================================================
+ *  INVOICE MODAL + LIST
+ * ============================================================ */
+
+function InvoiceSection({ tab, onRefresh }) {
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [invoiceMode, setInvoiceMode] = useState('individual');
+  const [indTn, setIndTn] = useState('');
+  const [shipperList, setShipperList] = useState([]);
+  const [monthOptions, setMonthOptions] = useState({});
+  const [selShipper, setSelShipper] = useState('');
+  const [selMonth, setSelMonth] = useState('');
+  const [localCurrency, setLocalCurrency] = useState('');
+  const [localAmount, setLocalAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    loadInvoices();
+  }, []);
+
+  async function loadInvoices() {
+    setLoading(true);
+    const token = localStorage.getItem('sxl_token');
+    try {
+      const res = await fetch('/api/admin/invoices', {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const data = await res.json();
+      if (data.success) setInvoices(data.invoices || []);
+    } catch (e) { /* silent */ }
+    setLoading(false);
+  }
+
+  // Load shippers with unpaid shipments for monthly modal
+  async function openMonthlyModal() {
+    setMsg('');
+    const token = localStorage.getItem('sxl_token');
+    try {
+      const res = await fetch('/api/admin/billing?filter=due', {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const data = await res.json();
+      if (!data.success) { setMsg('Failed to load shippers.'); return; }
+
+      const byShipper = {};
+      (data.shipments || []).forEach((s) => {
+        if (!s.shipperName) return;
+        if (!byShipper[s.shipperName]) byShipper[s.shipperName] = { count: 0, months: {} };
+        byShipper[s.shipperName].count++;
+        const d = new Date(s.bookedAt);
+        if (!isNaN(d.getTime())) {
+          const m = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+          byShipper[s.shipperName].months[m] = (byShipper[s.shipperName].months[m] || 0) + 1;
+        }
+      });
+      setShipperList(Object.keys(byShipper).sort());
+      setMonthOptions(byShipper);
+      setInvoiceMode('monthly');
+      setShowModal(true);
+    } catch (err) {
+      setMsg('Connection error.');
+    }
+  }
+
+  async function submitIndividual() {
+    if (!indTn.trim()) { setMsg('Enter a tracking number.'); return; }
+    setBusy(true);
+    setMsg('');
+    const token = localStorage.getItem('sxl_token');
+    try {
+      const res = await fetch('/api/admin/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ action: 'createIndividual', trackingNumber: indTn.trim() }),
+      });
+      const data = await res.json();
+      if (!data.success) { setMsg('❌ ' + data.error); setBusy(false); return; }
+      setMsg('✅ Invoice ' + data.invoiceNumber + ' created!');
+      setIndTn('');
+      setBusy(false);
+      setShowModal(false);
+      loadInvoices();
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setMsg('❌ Connection error.');
+      setBusy(false);
+    }
+  }
+
+  async function submitMonthly() {
+    if (!selShipper) { setMsg('Select a shipper.'); return; }
+    if (!selMonth) { setMsg('Select a month.'); return; }
+    setBusy(true);
+    setMsg('');
+    const token = localStorage.getItem('sxl_token');
+    try {
+      const res = await fetch('/api/admin/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          action: 'createMonthly',
+          shipperName: selShipper,
+          month: selMonth,
+          localCurrency,
+          localAmount,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) { setMsg('❌ ' + data.error); setBusy(false); return; }
+      setMsg('✅ Invoice ' + data.invoiceNumber + ' created (' + data.shipmentCount + ' shipments, $' + data.total + ')');
+      setSelShipper(''); setSelMonth(''); setLocalCurrency(''); setLocalAmount('');
+      setBusy(false);
+      setShowModal(false);
+      loadInvoices();
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setMsg('❌ Connection error.');
+      setBusy(false);
+    }
+  }
+
+  function formatDate(d) {
+    if (!d) return '—';
+    try {
+      const date = new Date(d);
+      if (isNaN(date.getTime())) return String(d);
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch (e) { return String(d); }
+  }
+
+  return (
+    <div style={{ marginTop: '35px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
+        <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>📄 Invoices</h2>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button onClick={() => { setInvoiceMode('individual'); setShowModal(true); setMsg(''); }} style={{
+            padding: '10px 18px', background: '#FF6B00', color: 'white', border: 'none',
+            borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit'
+          }}>📄 Individual Invoice</button>
+          <button onClick={openMonthlyModal} style={{
+            padding: '10px 18px', background: '#003366', color: 'white', border: 'none',
+            borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit'
+          }}>📅 Monthly Summary</button>
+          <button onClick={loadInvoices} style={{
+            padding: '10px 18px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF',
+            borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit'
+          }}>🔄 Refresh</button>
+        </div>
+      </div>
+
+      {msg && (
+        <div style={{
+          marginBottom: '15px', padding: '12px 18px', borderRadius: '8px', fontSize: '0.9rem',
+          background: msg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA',
+          color: msg.startsWith('✅') ? '#155724' : '#721C24'
+        }}>{msg}</div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <div style={{ width: '40px', height: '40px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
+        </div>
+      ) : invoices.length === 0 ? (
+        <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
+          No invoices yet. Click "Individual Invoice" or "Monthly Summary" to generate one.
+        </div>
+      ) : (
+        <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', minWidth: '900px' }}>
+            <thead>
+              <tr style={{ background: '#F8F9FA' }}>
+                {['Invoice #', 'Type', 'Shipper', 'Amount', 'Status', 'Issued', 'Due', 'PDF'].map((h) => (
+                  <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.78rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((inv, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
+                  <td style={{ padding: '12px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{inv.invoiceNumber}</td>
+                  <td style={{ padding: '12px 16px' }}>{inv.type}</td>
+                  <td style={{ padding: '12px 16px' }}>{inv.shipperName || '—'}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 700 }}>{inv.currency} {Number(inv.amount).toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{
+                      background: String(inv.status).toLowerCase() === 'paid' ? '#D4EDDA' : '#FFE5B4',
+                      color: String(inv.status).toLowerCase() === 'paid' ? '#155724' : '#8B4500',
+                      padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem'
+                    }}>{inv.status}</span>
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>{formatDate(inv.issueDate)}</td>
+                  <td style={{ padding: '12px 16px' }}>{formatDate(inv.dueDate)}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    {inv.pdfUrl ? (
+                      <a href={inv.pdfUrl} target="_blank" rel="noopener noreferrer" style={{
+                        padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px',
+                        fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none'
+                      }}>📄 PDF</a>
+                    ) : (
+                      <span style={{ color: '#ADB5BD', fontSize: '0.75rem', fontStyle: 'italic' }}>Day 13</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Modal */}
+      {showModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', overflowY: 'auto'
+        }}>
+          <div style={{ background: 'white', maxWidth: '600px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ color: '#003366', fontSize: '1.3rem' }}>
+                {invoiceMode === 'individual' ? '📄 Individual Invoice' : '📅 Monthly Summary Invoice'}
+              </h2>
+              <button onClick={() => setShowModal(false)} style={{
+                background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D'
+              }}>✕</button>
+            </div>
+
+            {invoiceMode === 'individual' ? (
+              <>
+                <p style={{ color: '#6C757D', fontSize: '0.9rem', marginBottom: '15px' }}>
+                  Creates one invoice for a single shipment. The cost must be saved first.
+                </p>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Tracking Number *</label>
+                <input type="text" value={indTn} onChange={(e) => setIndTn(e.target.value)}
+                  placeholder="e.g., TSH2510202601"
+                  style={{ width: '100%', padding: '12px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', marginBottom: '20px' }} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button onClick={() => setShowModal(false)} style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                  <button onClick={submitIndividual} disabled={busy} style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: 'inherit' }}>
+                    {busy ? 'Creating...' : '📄 Create Invoice'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ color: '#6C757D', fontSize: '0.9rem', marginBottom: '15px' }}>
+                  Creates a single summary invoice for all unpaid delivered shipments in a month.
+                </p>
+
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Shipper *</label>
+                <select value={selShipper} onChange={(e) => { setSelShipper(e.target.value); setSelMonth(''); }}
+                  style={{ width: '100%', padding: '12px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', marginBottom: '15px' }}>
+                  <option value="">-- Select Shipper --</option>
+                  {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+
+                {selShipper && monthOptions[selShipper] && (
+                  <>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Month *</label>
+                    <select value={selMonth} onChange={(e) => setSelMonth(e.target.value)}
+                      style={{ width: '100%', padding: '12px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', marginBottom: '15px' }}>
+                      <option value="">-- Select Month --</option>
+                      {Object.keys(monthOptions[selShipper].months).sort().reverse().map((m) => (
+                        <option key={m} value={m}>{m} ({monthOptions[selShipper].months[m]} shipments)</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Local Currency</label>
+                    <input type="text" value={localCurrency} onChange={(e) => setLocalCurrency(e.target.value)}
+                      placeholder="e.g., HKD"
+                      style={{ width: '100%', padding: '12px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Local Amount</label>
+                    <input type="number" step="0.01" value={localAmount} onChange={(e) => setLocalAmount(e.target.value)}
+                      placeholder="e.g., 5000"
+                      style={{ width: '100%', padding: '12px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit' }} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button onClick={() => setShowModal(false)} style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                  <button onClick={submitMonthly} disabled={busy} style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: 'inherit' }}>
+                    {busy ? 'Creating...' : '📅 Create Invoice'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}) {
   return (
     <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', borderLeft: '4px solid ' + color }}>
       <div style={{ fontSize: '2rem', fontWeight: 800, color: '#003366' }}>{num}</div>
