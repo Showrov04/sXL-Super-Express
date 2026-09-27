@@ -517,4 +517,112 @@ function InvoiceSection({ tab, onRefresh }) {
       )}
 
       {loading ? (
-        <
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <div style={{ width: '40px', height: '40px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
+        </div>
+      ) : invoices.length === 0 ? (
+        <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
+          No invoices yet. Click "Individual Invoice" or "Monthly Summary" to generate one.
+        </div>
+      ) : (
+        <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', minWidth: '900px' }}>
+            <thead>
+              <tr style={{ background: '#F8F9FA' }}>
+                {['Invoice #', 'Type', 'Shipper', 'Amount', 'Status', 'Issued', 'Due', 'PDF'].map((h) => (
+                  <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.78rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((inv, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
+                  <td style={{ padding: '12px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{inv.invoiceNumber}</td>
+                  <td style={{ padding: '12px 16px' }}>{inv.type}</td>
+                  <td style={{ padding: '12px 16px' }}>{inv.shipperName || '—'}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 700 }}>{inv.currency} {Number(inv.amount).toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{ background: String(inv.status).toLowerCase() === 'paid' ? '#D4EDDA' : '#FFE5B4', color: String(inv.status).toLowerCase() === 'paid' ? '#155724' : '#8B4500', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem' }}>{inv.status}</span>
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>{formatDate(inv.issueDate)}</td>
+                  <td style={{ padding: '12px 16px' }}>{formatDate(inv.dueDate)}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <a href={'/api/pdf/invoice/' + inv.invoiceID} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none' }}>📄 PDF</a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', overflowY: 'auto' }}>
+          <div style={{ background: 'white', maxWidth: '600px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ color: '#003366', fontSize: '1.3rem' }}>
+                {invoiceMode === 'individual' ? '📄 Individual Invoice' : '📅 Monthly Summary Invoice'}
+              </h2>
+              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+            </div>
+
+            {invoiceMode === 'individual' ? (
+              <>
+                <p style={{ color: '#6C757D', fontSize: '0.9rem', marginBottom: '15px' }}>Creates one invoice for a single shipment. The cost must be saved first.</p>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Tracking Number *</label>
+                <input type="text" value={indTn} onChange={(e) => setIndTn(e.target.value)} placeholder="e.g., TSH2510202601"
+                  style={{ width: '100%', padding: '12px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', marginBottom: '20px' }} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button onClick={() => setShowModal(false)} style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                  <button onClick={submitIndividual} disabled={busy} style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: 'inherit' }}>
+                    {busy ? 'Creating...' : '📄 Create Invoice'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ color: '#6C757D', fontSize: '0.9rem', marginBottom: '15px' }}>Creates a single summary invoice for all unpaid delivered shipments in a month.</p>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Shipper *</label>
+                <select value={selShipper} onChange={(e) => { setSelShipper(e.target.value); setSelMonth(''); }}
+                  style={{ width: '100%', padding: '12px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', marginBottom: '15px' }}>
+                  <option value="">-- Select Shipper --</option>
+                  {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+                {selShipper && monthOptions[selShipper] && (
+                  <>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Month *</label>
+                    <select value={selMonth} onChange={(e) => setSelMonth(e.target.value)}
+                      style={{ width: '100%', padding: '12px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', marginBottom: '15px' }}>
+                      <option value="">-- Select Month --</option>
+                      {Object.keys(monthOptions[selShipper].months).sort().reverse().map((m) => (
+                        <option key={m} value={m}>{m} ({monthOptions[selShipper].months[m]} shipments)</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Local Currency</label>
+                    <input type="text" value={localCurrency} onChange={(e) => setLocalCurrency(e.target.value)} placeholder="e.g., HKD"
+                      style={{ width: '100%', padding: '12px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Local Amount</label>
+                    <input type="number" step="0.01" value={localAmount} onChange={(e) => setLocalAmount(e.target.value)} placeholder="e.g., 5000"
+                      style={{ width: '100%', padding: '12px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button onClick={() => setShowModal(false)} style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                  <button onClick={submitMonthly} disabled={busy} style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: 'inherit' }}>
+                    {busy ? 'Creating...' : '📅 Create Invoice'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
