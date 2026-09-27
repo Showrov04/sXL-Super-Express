@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import BillingPanel from '../components/BillingPanel';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -55,16 +56,12 @@ export default function AdminPage() {
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '25px', borderBottom: '2px solid #E9ECEF' }}>
           <TopTab active={adminTab === 'shipments'} onClick={() => setAdminTab('shipments')} label="📦 Management Shipment" />
           <TopTab active={adminTab === 'shippers'} onClick={() => setAdminTab('shippers')} label="🚚 Management Shipper" />
-          <TopTab active={adminTab === 'billing'} onClick={() => setAdminTab('billing')} label="💰 Financial & Billing" disabled />
+          <TopTab active={adminTab === 'billing'} onClick={() => setAdminTab('billing')} label="💰 Financial & Billing" />
         </div>
 
         {adminTab === 'shipments' && <ShipmentsPanel />}
         {adminTab === 'shippers' && <ShippersPanel />}
-        {adminTab === 'billing' && (
-          <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', borderRadius: '10px', padding: '20px' }}>
-            🚧 Coming on Day 12.
-          </div>
-        )}
+        {adminTab === 'billing' && <BillingPanel />}
       </div>
 
       <Footer />
