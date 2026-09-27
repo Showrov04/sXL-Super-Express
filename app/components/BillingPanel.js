@@ -12,7 +12,6 @@ export default function BillingPanel() {
   const [outstanding, setOutstanding] = useState({ shippers: [], grandTotal: 0, totalShipments: 0 });
   const [error, setError] = useState('');
 
-  // Cost form state
   const [costTn, setCostTn] = useState('');
   const [costActualWeight, setCostActualWeight] = useState('');
   const [costRate, setCostRate] = useState('');
@@ -80,7 +79,6 @@ export default function BillingPanel() {
     setTimeout(loadData, 50);
   }
 
-  // Cost calculator
   const calculatedTotal = (() => {
     const aw = parseFloat(costActualWeight) || 0;
     const rate = parseFloat(costRate) || 0;
@@ -201,14 +199,12 @@ export default function BillingPanel() {
 
   return (
     <div>
-      {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
         <StatCard num={counts.total} label="Total Shipments" color="#FF6B00" />
         <StatCard num={counts.due} label="Due Payment" color="#FFE5B4" />
         <StatCard num={counts.paid} label="Paid" color="#D4EDDA" />
       </div>
 
-      {/* Outstanding summary */}
       {outstanding.shippers.length > 0 && (
         <div style={{
           background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
@@ -244,7 +240,6 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {/* Filter bar */}
       <form onSubmit={applyFilters} style={{
         display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center',
         marginBottom: '20px', background: 'white', padding: '15px',
@@ -267,14 +262,12 @@ export default function BillingPanel() {
         <button type="button" onClick={clearFilters} style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
       </form>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <TabButton active={tab === 'all'} onClick={() => setTab('all')} label="📋 All Shipments" count={counts.total} />
         <TabButton active={tab === 'due'} onClick={() => setTab('due')} label="💳 Due Payment" count={counts.due} />
         <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="✅ Paid" count={counts.paid} />
       </div>
 
-      {/* Cost entry form (only on due tab) */}
       {tab === 'due' && (
         <form onSubmit={handleSaveCost} style={{
           background: 'white', padding: '20px', borderRadius: '12px',
@@ -463,14 +456,40 @@ export default function BillingPanel() {
           )}
         </>
       )}
+
+      <InvoiceSection tab={tab} onRefresh={loadData} />
     </div>
   );
 }
 
-/* ============================================================
- *  INVOICE MODAL + LIST
- * ============================================================ */
+function StatCard({ num, label, color }) {
+  return (
+    <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', borderLeft: '4px solid ' + color }}>
+      <div style={{ fontSize: '2rem', fontWeight: 800, color: '#003366' }}>{num}</div>
+      <div style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#6C757D', marginTop: '5px' }}>{label}</div>
+    </div>
+  );
+}
 
+function TabButton({ active, onClick, label, count }) {
+  return (
+    <button onClick={onClick} style={{
+      cursor: 'pointer', padding: '12px 22px', borderRadius: '10px',
+      fontWeight: 700, fontSize: '0.9rem',
+      border: '2px solid ' + (active ? '#FF6B00' : '#E9ECEF'),
+      background: active ? '#FFF5EB' : 'white',
+      color: active ? '#FF6B00' : '#343A40',
+      fontFamily: 'inherit'
+    }}>
+      {label}{' '}
+      <span style={{ background: active ? '#FF6B00' : '#E9ECEF', color: active ? 'white' : '#333', padding: '2px 8px', borderRadius: '10px', marginLeft: '6px', fontSize: '0.8rem' }}>{count}</span>
+    </button>
+  );
+}
+
+/* ============================================================
+ *  INVOICE SECTION
+ * ============================================================ */
 function InvoiceSection({ tab, onRefresh }) {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -503,7 +522,6 @@ function InvoiceSection({ tab, onRefresh }) {
     setLoading(false);
   }
 
-  // Load shippers with unpaid shipments for monthly modal
   async function openMonthlyModal() {
     setMsg('');
     const token = localStorage.getItem('sxl_token');
@@ -679,7 +697,6 @@ function InvoiceSection({ tab, onRefresh }) {
         </div>
       )}
 
-      {/* Modal */}
       {showModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
@@ -764,28 +781,5 @@ function InvoiceSection({ tab, onRefresh }) {
         </div>
       )}
     </div>
-  );
-}) {
-  return (
-    <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', borderLeft: '4px solid ' + color }}>
-      <div style={{ fontSize: '2rem', fontWeight: 800, color: '#003366' }}>{num}</div>
-      <div style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#6C757D', marginTop: '5px' }}>{label}</div>
-    </div>
-  );
-}
-
-function TabButton({ active, onClick, label, count }) {
-  return (
-    <button onClick={onClick} style={{
-      cursor: 'pointer', padding: '12px 22px', borderRadius: '10px',
-      fontWeight: 700, fontSize: '0.9rem',
-      border: '2px solid ' + (active ? '#FF6B00' : '#E9ECEF'),
-      background: active ? '#FFF5EB' : 'white',
-      color: active ? '#FF6B00' : '#343A40',
-      fontFamily: 'inherit'
-    }}>
-      {label}{' '}
-      <span style={{ background: active ? '#FF6B00' : '#E9ECEF', color: active ? 'white' : '#333', padding: '2px 8px', borderRadius: '10px', marginLeft: '6px', fontSize: '0.8rem' }}>{count}</span>
-    </button>
   );
 }
