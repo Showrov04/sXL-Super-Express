@@ -6,11 +6,12 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import BillingPanel from '../components/BillingPanel';
+import CancellationPanel from '../components/CancellationPanel';
 
 export default function AdminPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [adminTab, setAdminTab] = useState('shipments'); // 'shipments' | 'shippers'
+  const [adminTab, setAdminTab] = useState('shipments');
 
   useEffect(() => {
     const stored = localStorage.getItem('sxl_user');
@@ -49,7 +50,7 @@ export default function AdminPage() {
 
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '30px 20px 60px' }}>
         <h1 style={{ fontSize: '2rem', color: '#003366', fontWeight: 800, marginBottom: '25px' }}>
-          🔧 Admin Panel
+          Admin Panel
         </h1>
 
         {/* Top-level tabs */}
@@ -57,11 +58,13 @@ export default function AdminPage() {
           <TopTab active={adminTab === 'shipments'} onClick={() => setAdminTab('shipments')} label="📦 Management Shipment" />
           <TopTab active={adminTab === 'shippers'} onClick={() => setAdminTab('shippers')} label="🚚 Management Shipper" />
           <TopTab active={adminTab === 'billing'} onClick={() => setAdminTab('billing')} label="💰 Financial & Billing" />
+          <TopTab active={adminTab === 'cancellations'} onClick={() => setAdminTab('cancellations')} label="⚠️ Cancellation Requests" />
         </div>
 
         {adminTab === 'shipments' && <ShipmentsPanel />}
         {adminTab === 'shippers' && <ShippersPanel />}
         {adminTab === 'billing' && <BillingPanel />}
+        {adminTab === 'cancellations' && <CancellationPanel />}
       </div>
 
       <Footer />
@@ -72,17 +75,17 @@ export default function AdminPage() {
 /* ============================================================
    TOP TAB
    ============================================================ */
-function TopTab({ active, onClick, label, disabled }) {
+function TopTab({ active, onClick, label }) {
   return (
-    <button onClick={disabled ? undefined : onClick} style={{
-      cursor: disabled ? 'not-allowed' : 'pointer',
+    <button onClick={onClick} style={{
+      cursor: 'pointer',
       padding: '12px 22px',
       borderRadius: '10px 10px 0 0',
       fontWeight: 700,
       fontSize: '0.95rem',
       border: 'none',
-      background: active ? '#FF6B00' : (disabled ? '#F1F3F5' : '#E9ECEF'),
-      color: active ? 'white' : (disabled ? '#ADB5BD' : '#003366'),
+      background: active ? '#FF6B00' : '#E9ECEF',
+      color: active ? 'white' : '#003366',
       fontFamily: 'inherit'
     }}>
       {label}
@@ -202,7 +205,7 @@ function ShipmentsPanel() {
   }
 
   function formatDate(d) {
-    if (!d) return '—';
+    if (!d) return '-';
     try {
       const date = new Date(d);
       if (isNaN(date.getTime())) return String(d);
@@ -212,6 +215,8 @@ function ShipmentsPanel() {
 
   function statusClass(status) {
     const s = String(status || '').toLowerCase();
+    if (s.includes('cancelled')) return { bg: '#E9ECEF', color: '#495057' };
+    if (s.includes('cancellation requested')) return { bg: '#FFE5B4', color: '#8B4500' };
     if (s.includes('delivered')) return { bg: '#D4EDDA', color: '#155724' };
     if (s.includes('out for delivery')) return { bg: '#FFE5B4', color: '#8B4500' };
     if (s.includes('transit') || s.includes('picked')) return { bg: '#CCE5FF', color: '#004085' };
@@ -221,7 +226,6 @@ function ShipmentsPanel() {
 
   return (
     <div>
-      {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
         <StatCard num={counts.total} label="Total" color="#FF6B00" />
         <StatCard num={counts.active} label="Active" color="#CCE5FF" />
@@ -229,7 +233,6 @@ function ShipmentsPanel() {
         <StatCard num={counts.paid} label="Paid & Completed" color="#D4EDDA" />
       </div>
 
-      {/* Filter bar */}
       <form onSubmit={handleSearch} style={{
         display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center',
         marginBottom: '20px', background: 'white', padding: '15px',
@@ -252,14 +255,12 @@ function ShipmentsPanel() {
         <button type="button" onClick={() => { setShipperFilter(''); setSearch(''); setTimeout(loadShipments, 50); }} style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
       </form>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
         <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Awaiting Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
         <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="🟢 Paid & Completed" count={counts.paid} badgeBg="#D4EDDA" badgeColor="#155724" />
       </div>
 
-      {/* Quick Update */}
       {tab === 'active' && (
         <form onSubmit={handleQuickUpdate} style={{
           background: 'white', padding: '20px', borderRadius: '12px',
@@ -349,15 +350,15 @@ function ShipmentsPanel() {
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
                         <td style={{ padding: '12px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.shipMode || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.origin || '—'} → {s.destination || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.senderName || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.recipientName || '—'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.shipMode || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.origin || '-'} → {s.destination || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.senderName || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.recipientName || '-'}</td>
                         <td style={{ padding: '12px 16px' }}>
-                          <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase' }}>{s.status}</span>
+                          <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
                         </td>
-                        <td style={{ padding: '12px 16px' }}>{s.weight || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.paymentStatus || '—'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.weight || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.paymentStatus || '-'}</td>
                         <td style={{ padding: '12px 16px' }}>{formatDate(s.estimatedDelivery)}</td>
                         {tab === 'active' && (
                           <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
@@ -398,11 +399,8 @@ function ShippersPanel() {
     setLoading(true);
     setError('');
     const token = localStorage.getItem('sxl_token');
-
     try {
-      const res = await fetch('/api/admin/shippers', {
-        headers: { Authorization: 'Bearer ' + token },
-      });
+      const res = await fetch('/api/admin/shippers', { headers: { Authorization: 'Bearer ' + token } });
       const data = await res.json();
 
       if (!data.success) {
@@ -410,7 +408,6 @@ function ShippersPanel() {
         setLoading(false);
         return;
       }
-
       setShippers(data.shippers || []);
       setCounts(data.counts || { total: 0, active: 0, suspended: 0 });
       setLoading(false);
@@ -421,15 +418,11 @@ function ShippersPanel() {
   }
 
   async function toggleStatus(shipperID, newStatus) {
-    const msg = newStatus === 'Suspended'
-      ? 'Suspend this shipper? They will be locked out.'
-      : 'Activate this shipper?';
-
+    const msg = newStatus === 'Suspended' ? 'Suspend this shipper? They will be locked out.' : 'Activate this shipper?';
     if (!window.confirm(msg)) return;
 
     setActionLoading(shipperID);
     const token = localStorage.getItem('sxl_token');
-
     try {
       const res = await fetch('/api/admin/shippers', {
         method: 'POST',
@@ -437,13 +430,7 @@ function ShippersPanel() {
         body: JSON.stringify({ shipperID, newStatus }),
       });
       const data = await res.json();
-
-      if (!data.success) {
-        window.alert('Error: ' + (data.error || 'Failed'));
-        setActionLoading('');
-        return;
-      }
-
+      if (!data.success) { window.alert('Error: ' + (data.error || 'Failed')); setActionLoading(''); return; }
       window.alert('Shipper ' + newStatus.toLowerCase() + ' successfully!');
       setActionLoading('');
       loadShippers();
@@ -451,15 +438,6 @@ function ShippersPanel() {
       window.alert('Error: ' + err.message);
       setActionLoading('');
     }
-  }
-
-  function formatDate(d) {
-    if (!d) return '—';
-    try {
-      const date = new Date(d);
-      if (isNaN(date.getTime())) return String(d);
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    } catch (e) { return String(d); }
   }
 
   return (
@@ -471,11 +449,7 @@ function ShippersPanel() {
       </div>
 
       <div style={{ marginBottom: '15px' }}>
-        <button onClick={loadShippers} style={{
-          padding: '10px 20px', background: 'transparent', color: '#003366',
-          border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700,
-          cursor: 'pointer', fontFamily: 'inherit'
-        }}>🔄 Refresh</button>
+        <button onClick={loadShippers} style={{ padding: '10px 20px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 Refresh</button>
       </div>
 
       {error && <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>❌ {error}</div>}
@@ -508,34 +482,24 @@ function ShippersPanel() {
                     const isActive = s.status === 'Active';
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
-                        <td style={{ padding: '12px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.shortForm || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.name || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.contactPerson || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.email || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.phone || '—'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.country || '—'}</td>
+                        <td style={{ padding: '12px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.shortForm || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.name || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.contactPerson || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.email || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.phone || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.country || '-'}</td>
                         <td style={{ padding: '12px 16px' }}>
                           <span style={{
                             background: isActive ? '#D4EDDA' : '#F8D7DA',
                             color: isActive ? '#155724' : '#721C24',
                             padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem'
-                          }}>
-                            {s.status}
-                          </span>
+                          }}>{s.status}</span>
                         </td>
                         <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                           {isActive ? (
-                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Suspended')} style={{
-                              padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none',
-                              borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem',
-                              cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1
-                            }}>🚫 Suspend</button>
+                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Suspended')} style={{ padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>🚫 Suspend</button>
                           ) : (
-                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Active')} style={{
-                              padding: '6px 12px', background: '#28A745', color: 'white', border: 'none',
-                              borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem',
-                              cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1
-                            }}>✅ Activate</button>
+                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Active')} style={{ padding: '6px 12px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>✅ Activate</button>
                           )}
                         </td>
                       </tr>
