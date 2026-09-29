@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 const serviceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -78,19 +80,26 @@ export async function GET(request) {
   try {
     const session = await getSessionUser(request);
     if (!session) {
-      return NextResponse.json({ success: false, error: 'Session expired.' });
+      return NextResponse.json(
+        { success: false, error: 'Session expired.' },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
     }
 
     const { searchParams } = new URL(request.url);
     const tab = searchParams.get('tab') || 'active';
 
+    // Read directly from Supabase — no cache
     const { data: all, error } = await serviceSupabase
       .from('shipments')
       .select('*')
       .eq('booked_by', session.userId);
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message });
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
     }
 
     const shipments = all || [];
@@ -101,7 +110,6 @@ export async function GET(request) {
       return db - da;
     });
 
-    // Counts — cancelled shipments are separate
     const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: shipments.length };
     shipments.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
@@ -115,7 +123,6 @@ export async function GET(request) {
       else counts.paid++;
     });
 
-    // Filter by tab
     const filtered = shipments.filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
@@ -132,12 +139,11 @@ export async function GET(request) {
       return true;
     });
 
-    // Map with pass-through status
     const list = filtered.map((s) => ({
       trackingNumber: s.tracking_number,
       serviceType: s.service_type,
       shipMode: s.ship_mode,
-      status: s.status,                          // ← pass-through, no transformation
+      status: s.status,
       origin: countryName(s.origin),
       destination: countryName(s.destination),
       recipientName: s.recipient_name,
@@ -176,14 +182,15 @@ export async function GET(request) {
       outstanding = { total: Math.round(total * 100) / 100, currency: 'USD', count: items.length, items };
     }
 
-    return NextResponse.json({
-      success: true,
-      shipments: list,
-      counts,
-      outstanding,
-    });
+    return NextResponse.json(
+      { success: true, shipments: list, counts, outstanding },
+      { headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' } }
+    );
 
   } catch (err) {
-    return NextResponse.json({ success: false, error: err.message });
+    return NextResponse.json(
+      { success: false, error: err.message },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+    );
   }
 }
