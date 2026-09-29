@@ -16,8 +16,7 @@ export default function DashboardPage() {
   const [outstanding, setOutstanding] = useState(null);
   const [error, setError] = useState('');
 
-  // Cancel modal state
-  const [cancelModal, setCancelModal] = useState(null); // { trackingNumber }
+  const [cancelModal, setCancelModal] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState('');
@@ -42,7 +41,7 @@ export default function DashboardPage() {
     if (!token) { router.push('/login'); return; }
 
     try {
-      const url = '/api/customer/shipments?tab=' + activeTab;
+      const url = '/api/customer/shipments?tab=' + activeTab + '&_t=' + Date.now();
       const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
       const data = await res.json();
 
@@ -84,6 +83,8 @@ export default function DashboardPage() {
         body: JSON.stringify({ trackingNumber: cancelModal.trackingNumber, reason: cancelReason.trim() }),
       });
       const data = await res.json();
+      console.log('[Cancel] API response:', data);
+
       if (!data.success) {
         setCancelError(data.error || 'Failed to submit request.');
         setCancelLoading(false);
@@ -93,10 +94,11 @@ export default function DashboardPage() {
       setCancelModal(null);
       setCancelReason('');
       setCancelLoading(false);
-      // Refresh
-      loadData(tab);
+      // Force full reload to get fresh data
+      window.location.reload();
     } catch (err) {
-      setCancelError('Connection error.');
+      console.error('[Cancel] Error:', err);
+      setCancelError('Connection error: ' + err.message);
       setCancelLoading(false);
     }
   }
@@ -158,7 +160,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
           <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
           <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Outstanding Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
@@ -179,7 +180,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* OUTSTANDING TAB */}
         {!loading && !error && tab === 'awaiting' && outstanding && (
           <>
             {outstanding.items.length === 0 ? (
@@ -217,7 +217,6 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* ACTIVE / PAID / CANCELLED TABS */}
         {!loading && !error && tab !== 'awaiting' && (
           <>
             {shipments.length === 0 ? (
@@ -239,9 +238,10 @@ export default function DashboardPage() {
                   <tbody>
                     {shipments.map((s, i) => {
                       const sc = statusClass(s.status);
-                      const isBooked = String(s.status).toLowerCase() === 'booked';
-                      const isCancellationPending = String(s.status).toLowerCase() === 'cancellation requested';
-                      const isCancelled = String(s.status).toLowerCase() === 'cancelled';
+                      const statusLower = String(s.status).toLowerCase();
+                      const isBooked = statusLower === 'booked';
+                      const isCancellationPending = statusLower === 'cancellation requested';
+                      const isCancelled = statusLower === 'cancelled';
 
                       return (
                         <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
@@ -311,7 +311,6 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Cancel Modal */}
       {cancelModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
