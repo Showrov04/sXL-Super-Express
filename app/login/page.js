@@ -10,6 +10,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -51,6 +52,17 @@ export default function LoginPage() {
       setLoading(false);
     }
   }
+
+  const inputStyle = {
+    width: '100%',
+    padding: '13px 45px 13px 15px',
+    fontSize: '0.95rem',
+    border: '2px solid #E9ECEF',
+    borderRadius: '8px',
+    outline: 'none',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box'
+  };
 
   return (
     <>
@@ -97,15 +109,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 autoComplete="email"
-                style={{
-                  width: '100%',
-                  padding: '13px 15px',
-                  fontSize: '0.95rem',
-                  border: '2px solid #E9ECEF',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
+                style={{ ...inputStyle, paddingRight: '15px' }}
               />
             </div>
 
@@ -113,22 +117,36 @@ export default function LoginPage() {
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
                 Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
-                style={{
-                  width: '100%',
-                  padding: '13px 15px',
-                  fontSize: '0.95rem',
-                  border: '2px solid #E9ECEF',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                  style={inputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '1.2rem',
+                    padding: '4px',
+                    color: '#6C757D',
+                    lineHeight: 1
+                  }}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
             </div>
 
             <button
@@ -145,7 +163,7 @@ export default function LoginPage() {
                 color: 'white',
                 cursor: loading ? 'not-allowed' : 'pointer',
                 opacity: loading ? 0.6 : 1,
-                transition: 'all 0.2s'
+                fontFamily: 'inherit'
               }}
             >
               {loading ? 'Logging in...' : 'Login'}
