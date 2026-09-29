@@ -12,26 +12,21 @@ export default function DashboardPage() {
   const [tab, setTab] = useState('active');
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
-  const [counts, setCounts] = useState({ active: 0, awaiting: 0, paid: 0, total: 0 });
+  const [counts, setCounts] = useState({ active: 0, awaiting: 0, paid: 0, cancelled: 0, total: 0 });
   const [outstanding, setOutstanding] = useState(null);
   const [error, setError] = useState('');
-  const [debugInfo, setDebugInfo] = useState('');
+
+  // Cancel modal state
+  const [cancelModal, setCancelModal] = useState(null); // { trackingNumber }
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('sxl_user');
     const token = localStorage.getItem('sxl_token');
-    console.log('[Dashboard] user:', stored);
-    console.log('[Dashboard] token:', token ? 'present' : 'missing');
-
-    if (!stored || !token) {
-      router.push('/login');
-      return;
-    }
-    try {
-      setUser(JSON.parse(stored));
-    } catch (e) {
-      router.push('/login');
-    }
+    if (!stored || !token) { router.push('/login'); return; }
+    try { setUser(JSON.parse(stored)); } catch (e) { router.push('/login'); }
   }, [router]);
 
   useEffect(() => {
@@ -43,26 +38,15 @@ export default function DashboardPage() {
   async function loadData(activeTab) {
     setLoading(true);
     setError('');
-    setDebugInfo('');
-
     const token = localStorage.getItem('sxl_token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    if (!token) { router.push('/login'); return; }
 
     try {
       const url = '/api/customer/shipments?tab=' + activeTab;
-      console.log('[Dashboard] Fetching:', url);
-
-      const res = await fetch(url, {
-        headers: { Authorization: 'Bearer ' + token },
-      });
+      const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
       const data = await res.json();
-      console.log('[Dashboard] Response:', data);
 
       if (!data.success) {
-        setDebugInfo('API error: ' + (data.error || 'unknown'));
         if (data.error === 'Session expired.') {
           localStorage.removeItem('sxl_token');
           localStorage.removeItem('sxl_user');
@@ -74,18 +58,46 @@ export default function DashboardPage() {
         return;
       }
 
-      console.log('[Dashboard] Shipments count:', (data.shipments || []).length);
-      console.log('[Dashboard] Counts:', data.counts);
-
       setShipments(data.shipments || []);
-      setCounts(data.counts || { active: 0, awaiting: 0, paid: 0, total: 0 });
+      setCounts(data.counts || { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: 0 });
       setOutstanding(data.outstanding || null);
       setLoading(false);
     } catch (err) {
-      console.error('[Dashboard] Exception:', err);
-      setDebugInfo('Exception: ' + err.message);
       setError('Connection error. Please try again.');
       setLoading(false);
+    }
+  }
+
+  async function submitCancel() {
+    setCancelError('');
+    if (!cancelReason.trim()) {
+      setCancelError('Please provide a reason for cancellation.');
+      return;
+    }
+    setCancelLoading(true);
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const res = await fetch('/api/customer/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ trackingNumber: cancelModal.trackingNumber, reason: cancelReason.trim() }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setCancelError(data.error || 'Failed to submit request.');
+        setCancelLoading(false);
+        return;
+      }
+
+      setCancelModal(null);
+      setCancelReason('');
+      setCancelLoading(false);
+      // Refresh
+      loadData(tab);
+    } catch (err) {
+      setCancelError('Connection error.');
+      setCancelLoading(false);
     }
   }
 
@@ -100,6 +112,8 @@ export default function DashboardPage() {
 
   function statusClass(status) {
     const s = String(status || '').toLowerCase();
+    if (s.includes('cancelled')) return { bg: '#E9ECEF', color: '#495057' };
+    if (s.includes('cancellation requested')) return { bg: '#FFE5B4', color: '#8B4500' };
     if (s.includes('delivered')) return { bg: '#D4EDDA', color: '#155724' };
     if (s.includes('out for delivery')) return { bg: '#FFE5B4', color: '#8B4500' };
     if (s.includes('transit') || s.includes('picked')) return { bg: '#CCE5FF', color: '#004085' };
@@ -144,18 +158,13 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Tabs */}
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
-          <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
-          <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="Outstanding Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
-          <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="Paid & Completed" count={counts.paid} badgeBg="#D4EDDA" badgeColor="#155724" />
+          <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
+          <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Outstanding Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
+          <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="🟢 Paid & Completed" count={counts.paid} badgeBg="#D4EDDA" badgeColor="#155724" />
+          <TabButton active={tab === 'cancelled'} onClick={() => setTab('cancelled')} label="⚫ Cancelled" count={counts.cancelled} badgeBg="#E9ECEF" badgeColor="#495057" />
         </div>
-
-        {/* Debug info — visible so we can see what's happening */}
-        {debugInfo && (
-          <div style={{ background: '#FFF3CD', color: '#856404', border: '1px solid #FFC107', borderRadius: '8px', padding: '10px 15px', marginBottom: '15px', fontSize: '0.85rem', fontFamily: 'monospace' }}>
-            {debugInfo}
-          </div>
-        )}
 
         {loading && (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
@@ -170,6 +179,7 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* OUTSTANDING TAB */}
         {!loading && !error && tab === 'awaiting' && outstanding && (
           <>
             {outstanding.items.length === 0 ? (
@@ -207,22 +217,20 @@ export default function DashboardPage() {
           </>
         )}
 
+        {/* ACTIVE / PAID / CANCELLED TABS */}
         {!loading && !error && tab !== 'awaiting' && (
           <>
             {shipments.length === 0 ? (
               <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
                 No shipments in this category.
-                <div style={{ marginTop: '10px', fontSize: '0.85rem', opacity: 0.7 }}>
-                  (Debug: {tab} tab, total counts: {JSON.stringify(counts)})
-                </div>
               </div>
             ) : (
               <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '700px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '900px' }}>
                   <thead>
                     <tr style={{ background: '#F8F9FA' }}>
                       {['Tracking #', 'Service', 'Route', 'Status', 'Cost', 'Payment', 'Booked', 'Actions'].map((h) => (
-                        <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #E9ECEF' }}>
+                        <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.78rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF' }}>
                           {h}
                         </th>
                       ))}
@@ -231,6 +239,10 @@ export default function DashboardPage() {
                   <tbody>
                     {shipments.map((s, i) => {
                       const sc = statusClass(s.status);
+                      const isBooked = String(s.status).toLowerCase() === 'booked';
+                      const isCancellationPending = String(s.status).toLowerCase() === 'cancellation requested';
+                      const isCancelled = String(s.status).toLowerCase() === 'cancelled';
+
                       return (
                         <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
                           <td style={{ padding: '14px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>
@@ -239,7 +251,7 @@ export default function DashboardPage() {
                           <td style={{ padding: '14px 16px' }}>{s.serviceType || '-'}</td>
                           <td style={{ padding: '14px 16px' }}>{s.origin || '-'} - {s.destination || '-'}</td>
                           <td style={{ padding: '14px 16px' }}>
-                            <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase' }}>
+                            <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                               {s.status}
                             </span>
                           </td>
@@ -249,12 +261,44 @@ export default function DashboardPage() {
                           <td style={{ padding: '14px 16px' }}>{s.paymentStatus || '-'}</td>
                           <td style={{ padding: '14px 16px' }}>{formatDate(s.bookedAt)}</td>
                           <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                            <Link href={'/track?tn=' + s.trackingNumber} style={{ padding: '6px 12px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none', marginRight: '5px' }}>
+                            <Link href={'/track?tn=' + s.trackingNumber} style={{
+                              padding: '6px 12px', background: 'transparent', color: '#003366',
+                              border: '2px solid #E9ECEF', borderRadius: '6px',
+                              fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none', marginRight: '5px'
+                            }}>
                               View
                             </Link>
-                            <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none' }}>
+                            <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{
+                              padding: '6px 12px', background: '#00A86B', color: 'white', borderRadius: '6px',
+                              fontSize: '0.8rem', fontWeight: 700, textDecoration: 'none', marginRight: '5px'
+                            }}>
                               PDF
                             </a>
+                            {isBooked && (
+                              <button onClick={() => { setCancelModal({ trackingNumber: s.trackingNumber }); setCancelReason(''); setCancelError(''); }} style={{
+                                padding: '6px 12px', background: 'transparent', color: '#DC3545',
+                                border: '2px solid #DC3545', borderRadius: '6px',
+                                fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
+                              }}>
+                                Request Cancel
+                              </button>
+                            )}
+                            {isCancellationPending && (
+                              <span style={{
+                                padding: '6px 12px', background: '#FFE5B4', color: '#8B4500',
+                                borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, fontStyle: 'italic'
+                              }}>
+                                Cancellation Pending
+                              </span>
+                            )}
+                            {isCancelled && (
+                              <span style={{
+                                padding: '6px 12px', background: '#E9ECEF', color: '#495057',
+                                borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, fontStyle: 'italic'
+                              }}>
+                                Cancelled
+                              </span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -266,6 +310,68 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+
+      {/* Cancel Modal */}
+      {cancelModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div style={{
+            background: 'white', maxWidth: '500px', width: '100%',
+            borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>Request Cancellation</h2>
+              <button onClick={() => setCancelModal(null)} style={{
+                background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D'
+              }}>✕</button>
+            </div>
+
+            <div style={{ background: '#FFF5EB', padding: '12px 15px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9rem', borderLeft: '3px solid #FF6B00' }}>
+              Tracking: <b>{cancelModal.trackingNumber}</b>
+            </div>
+
+            <p style={{ color: '#6C757D', fontSize: '0.9rem', marginBottom: '15px' }}>
+              Please tell us why you want to cancel this booking. Our admin team will review your request.
+            </p>
+
+            {cancelError && (
+              <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '15px', fontSize: '0.85rem' }}>
+                {cancelError}
+              </div>
+            )}
+
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>
+              Reason for Cancellation *
+            </label>
+            <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g., Incorrect address, changed mind, shipment delayed too long..."
+              style={{
+                width: '100%', padding: '12px', fontSize: '0.9rem',
+                border: '2px solid #E9ECEF', borderRadius: '8px',
+                outline: 'none', fontFamily: 'inherit', minHeight: '100px',
+                resize: 'vertical', boxSizing: 'border-box'
+              }} />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button onClick={() => setCancelModal(null)} disabled={cancelLoading} style={{
+                padding: '12px 24px', background: 'transparent', color: '#003366',
+                border: '2px solid #E9ECEF', borderRadius: '8px',
+                fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
+              }}>Cancel</button>
+              <button onClick={submitCancel} disabled={cancelLoading} style={{
+                padding: '12px 24px', background: '#DC3545', color: 'white',
+                border: 'none', borderRadius: '8px', fontWeight: 700,
+                cursor: cancelLoading ? 'not-allowed' : 'pointer',
+                opacity: cancelLoading ? 0.6 : 1, fontFamily: 'inherit'
+              }}>
+                {cancelLoading ? 'Submitting...' : 'Submit Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </>
