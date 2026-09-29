@@ -42,7 +42,10 @@ export default function DashboardPage() {
 
     try {
       const url = '/api/customer/shipments?tab=' + activeTab + '&_t=' + Date.now();
-      const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      const res = await fetch(url, {
+        headers: { Authorization: 'Bearer ' + token },
+        cache: 'no-store',
+      });
       const data = await res.json();
 
       if (!data.success) {
@@ -60,7 +63,6 @@ export default function DashboardPage() {
       setShipments(data.shipments || []);
       setCounts(data.counts || { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: 0 });
       setOutstanding(data.outstanding || null);
-      setError('DEBUG — API returned statuses: ' + (data.shipments || []).map(s => s.trackingNumber + '=' + s.status).join(' | '));
       setLoading(false);
     } catch (err) {
       setError('Connection error. Please try again.');
@@ -84,7 +86,6 @@ export default function DashboardPage() {
         body: JSON.stringify({ trackingNumber: cancelModal.trackingNumber, reason: cancelReason.trim() }),
       });
       const data = await res.json();
-      console.log('[Cancel] API response:', data);
 
       if (!data.success) {
         setCancelError(data.error || 'Failed to submit request.');
@@ -95,10 +96,8 @@ export default function DashboardPage() {
       setCancelModal(null);
       setCancelReason('');
       setCancelLoading(false);
-      // Force full reload to get fresh data
       window.location.reload();
     } catch (err) {
-      console.error('[Cancel] Error:', err);
       setCancelError('Connection error: ' + err.message);
       setCancelLoading(false);
     }
@@ -115,8 +114,8 @@ export default function DashboardPage() {
 
   function statusClass(status) {
     const s = String(status || '').toLowerCase();
-    if (s.includes('cancelled')) return { bg: '#E9ECEF', color: '#495057' };
     if (s.includes('cancellation requested')) return { bg: '#FFE5B4', color: '#8B4500' };
+    if (s.includes('cancelled')) return { bg: '#E9ECEF', color: '#495057' };
     if (s.includes('delivered')) return { bg: '#D4EDDA', color: '#155724' };
     if (s.includes('out for delivery')) return { bg: '#FFE5B4', color: '#8B4500' };
     if (s.includes('transit') || s.includes('picked')) return { bg: '#CCE5FF', color: '#004085' };
@@ -241,7 +240,7 @@ export default function DashboardPage() {
                       const sc = statusClass(s.status);
                       const statusLower = String(s.status).toLowerCase();
                       const isBooked = statusLower === 'booked';
-                      const isCancellationPending = statusLower === 'cancellation requested';
+                      const isCancellationPending = statusLower.includes('cancellation');
                       const isCancelled = statusLower === 'cancelled';
 
                       return (
@@ -252,7 +251,7 @@ export default function DashboardPage() {
                           <td style={{ padding: '14px 16px' }}>{s.serviceType || '-'}</td>
                           <td style={{ padding: '14px 16px' }}>{s.origin || '-'} - {s.destination || '-'}</td>
                           <td style={{ padding: '14px 16px' }}>
-                            <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                            <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                               {s.status}
                             </span>
                           </td>
@@ -289,7 +288,7 @@ export default function DashboardPage() {
                                 padding: '6px 12px', background: '#FFE5B4', color: '#8B4500',
                                 borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, fontStyle: 'italic'
                               }}>
-                                Cancellation Pending
+                                Pending Review
                               </span>
                             )}
                             {isCancelled && (
