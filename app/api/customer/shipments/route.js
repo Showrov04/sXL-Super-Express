@@ -102,22 +102,29 @@ export async function GET(request) {
       return db - da;
     });
 
-    const counts = { active: 0, awaiting: 0, paid: 0, total: shipments.length };
+        const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: shipments.length };
     shipments.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
+      const isCancelled = status === 'cancelled';
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
+      if (isCancelled) { counts.cancelled++; return; }
       if (!isDelivered) counts.active++;
       else if (!isPaid) counts.awaiting++;
       else counts.paid++;
     });
 
-    const filtered = shipments.filter((s) => {
+      const filtered = shipments.filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
+      const isCancelled = status === 'cancelled';
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
+
+      if (tab === 'cancelled') return isCancelled;
+      if (isCancelled) return false; // Exclude cancelled from other tabs
+
       if (tab === 'active') return !isDelivered;
       if (tab === 'awaiting') return isDelivered && !isPaid;
       if (tab === 'paid') return isDelivered && isPaid;
