@@ -15,11 +15,19 @@ export default function BookPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
 
+  // Saved addresses
+  const [savedShippers, setSavedShippers] = useState([]);
+  const [savedConsignees, setSavedConsignees] = useState([]);
+  const [selectedShipper, setSelectedShipper] = useState('');
+  const [selectedConsignee, setSelectedConsignee] = useState('');
+
   const [shipMode, setShipMode] = useState('');
   const [parcelType, setParcelType] = useState('');
   const [parcelTypeCustom, setParcelTypeCustom] = useState('');
   const [shipper, setShipper] = useState({ name: '', fullAddress: '', city: '', state: '', country: '', email: '', phone: '' });
   const [consignee, setConsignee] = useState({ name: '', fullAddress: '', city: '', state: '', country: '', email: '', phone: '', bin: '' });
+  const [saveShipper, setSaveShipper] = useState(false);
+  const [saveConsignee, setSaveConsignee] = useState(false);
   const [shipment, setShipment] = useState({
     shipperRef: '', shipmentDate: new Date().toISOString().slice(0, 10),
     description: '', packages: 1, totalWeight: '', totalValue: '',
@@ -41,11 +49,57 @@ export default function BookPage() {
       .then((r) => r.json())
       .then((d) => setCountries(d.countries || []))
       .catch(() => setCountries([]));
+
+    loadAddresses();
   }, [router]);
+
+  async function loadAddresses() {
+    const token = localStorage.getItem('sxl_token');
+    if (!token) return;
+    try {
+      const [r1, r2] = await Promise.all([
+        fetch('/api/customer/addresses?type=Shipper', { headers: { Authorization: 'Bearer ' + token } }).then((r) => r.json()),
+        fetch('/api/customer/addresses?type=Consignee', { headers: { Authorization: 'Bearer ' + token } }).then((r) => r.json()),
+      ]);
+      if (r1.success) setSavedShippers(r1.addresses || []);
+      if (r2.success) setSavedConsignees(r2.addresses || []);
+    } catch (e) { /* silent */ }
+  }
 
   function setShipperField(k, v) { setShipper((s) => ({ ...s, [k]: v })); }
   function setConsigneeField(k, v) { setConsignee((s) => ({ ...s, [k]: v })); }
   function setShipmentField(k, v) { setShipment((s) => ({ ...s, [k]: v })); }
+
+  function pickShipper(id) {
+    setSelectedShipper(id);
+    const a = savedShippers.find((x) => x.addressId === id);
+    if (!a) return;
+    setShipper({
+      name: a.name || '',
+      fullAddress: a.fullAddress || '',
+      city: a.city || '',
+      state: a.state || '',
+      country: a.country || '',
+      email: a.email || '',
+      phone: a.phone || '',
+    });
+  }
+
+  function pickConsignee(id) {
+    setSelectedConsignee(id);
+    const a = savedConsignees.find((x) => x.addressId === id);
+    if (!a) return;
+    setConsignee({
+      name: a.name || '',
+      fullAddress: a.fullAddress || '',
+      city: a.city || '',
+      state: a.state || '',
+      country: a.country || '',
+      email: a.email || '',
+      phone: a.phone || '',
+      bin: a.bin || '',
+    });
+  }
 
   const isSea = shipMode === 'SEA';
   const steps = isSea
@@ -106,18 +160,32 @@ export default function BookPage() {
 
   function goPrev() { setError(''); setStep(getPrevStep(step)); }
 
+  async function saveAddressIfChecked(type, data, checked) {
+    if (!checked) return;
+    const token = localStorage.getItem('sxl_token');
+    try {
+      await fetch('/api/customer/addresses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ type, ...data }),
+      });
+    } catch (e) { /* silent */ }
+  }
+
   async function handleSubmit() {
     setError('');
     setLoading(true);
 
     const token = localStorage.getItem('sxl_token');
-    console.log('[Booking submit] Token present:', !!token, 'Length:', token ? token.length : 0);
-
     if (!token) {
       setError('Your session has expired. Please logout and login again.');
       setLoading(false);
       return;
     }
+
+    // Save addresses if requested
+    await saveAddressIfChecked('Shipper', shipper, saveShipper);
+    await saveAddressIfChecked('Consignee', consignee, saveConsignee);
 
     try {
       const res = await fetch('/api/bookings/create', {
@@ -133,7 +201,6 @@ export default function BookPage() {
         }),
       });
       const data = await res.json();
-      console.log('[Booking submit] Response:', data);
 
       if (!data.success) {
         setError(data.error || 'Booking failed.');
@@ -144,13 +211,11 @@ export default function BookPage() {
       setSuccess({ trackingNumber: data.trackingNumber });
       setLoading(false);
     } catch (err) {
-      console.error('[Booking submit] Error:', err);
       setError('Connection error. Please try again.');
       setLoading(false);
     }
   }
 
-  // ==================== LOADING STATE ====================
   if (!user) {
     return (
       <>
@@ -164,64 +229,25 @@ export default function BookPage() {
     );
   }
 
-  // ==================== SUCCESS SCREEN ====================
   if (success) {
     return (
       <>
         <Header />
         <div style={{ maxWidth: '700px', margin: '60px auto', padding: '0 20px 60px' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
-            <div style={{
-              width: '80px', height: '80px', background: '#00A86B', borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '2.5rem', margin: '0 auto 20px', color: 'white'
-            }}>✓</div>
-
+            <div style={{ width: '80px', height: '80px', background: '#00A86B', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 20px', color: 'white' }}>✓</div>
             <h2 style={{ color: '#003366', fontSize: '1.6rem', marginBottom: '10px' }}>Booking Confirmed!</h2>
             <p style={{ color: '#6C757D', marginBottom: '25px' }}>Your shipment has been registered.</p>
-
-            <div style={{
-              fontFamily: 'Consolas, monospace', fontSize: '1.8rem', fontWeight: 800,
-              color: '#FF6B00', margin: '15px 0', padding: '15px', background: '#FFF5EB',
-              borderRadius: '10px', border: '2px dashed #FF6B00'
-            }}>
+            <div style={{ fontFamily: 'Consolas, monospace', fontSize: '1.8rem', fontWeight: 800, color: '#FF6B00', margin: '15px 0', padding: '15px', background: '#FFF5EB', borderRadius: '10px', border: '2px dashed #FF6B00' }}>
               {success.trackingNumber}
             </div>
-
-            <div style={{
-              margin: '25px auto', maxWidth: '400px', padding: '20px',
-              background: '#E8F7EF', borderRadius: '12px', border: '2px solid #00A86B'
-            }}>
-              <p style={{ fontWeight: 700, color: '#003366', marginBottom: '12px' }}>
-                Save your booking confirmation
-              </p>
-              <a
-                href={'/api/pdf/booking/' + success.trackingNumber}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-block', width: '100%', padding: '14px 26px',
-                  background: '#00A86B', color: 'white', borderRadius: '8px',
-                  fontWeight: 700, textDecoration: 'none', fontSize: '1rem',
-                  textAlign: 'center', boxSizing: 'border-box'
-                }}
-              >
-                Download Booking PDF
-              </a>
-              <p style={{ fontSize: '0.8rem', color: '#6C757D', marginTop: '10px' }}>
-                Tip: right-click the button and choose &quot;Save link as...&quot; to save to your device.
-              </p>
+            <div style={{ margin: '25px auto', maxWidth: '400px', padding: '20px', background: '#E8F7EF', borderRadius: '12px', border: '2px solid #00A86B' }}>
+              <p style={{ fontWeight: 700, color: '#003366', marginBottom: '12px' }}>Save your booking confirmation</p>
+              <a href={'/api/pdf/booking/' + success.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', width: '100%', padding: '14px 26px', background: '#00A86B', color: 'white', borderRadius: '8px', fontWeight: 700, textDecoration: 'none', fontSize: '1rem', textAlign: 'center', boxSizing: 'border-box' }}>Download Booking PDF</a>
             </div>
-
             <div style={{ marginTop: '25px', display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <Link href="/dashboard" style={{
-                padding: '12px 24px', background: '#FF6B00', color: 'white',
-                borderRadius: '8px', fontWeight: 700, textDecoration: 'none'
-              }}>Go to Dashboard</Link>
-              <Link href={'/track?tn=' + success.trackingNumber} style={{
-                padding: '12px 24px', background: 'transparent', color: '#003366',
-                border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, textDecoration: 'none'
-              }}>Track Shipment</Link>
+              <Link href="/dashboard" style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', borderRadius: '8px', fontWeight: 700, textDecoration: 'none' }}>Go to Dashboard</Link>
+              <Link href={'/track?tn=' + success.trackingNumber} style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, textDecoration: 'none' }}>Track Shipment</Link>
             </div>
           </div>
         </div>
@@ -230,7 +256,6 @@ export default function BookPage() {
     );
   }
 
-  // ==================== WIZARD ====================
   return (
     <>
       <Header />
@@ -325,9 +350,32 @@ export default function BookPage() {
               <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
                 {isSea ? 'Step 2' : 'Step 3'} - Shipper & Consignee
               </h3>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                {/* SHIPPER */}
                 <div>
                   <h4 style={{ color: '#003366', marginBottom: '10px' }}>FROM (Shipper)</h4>
+
+                  {savedShippers.length > 0 && (
+                    <div style={{ marginBottom: '15px' }}>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#FF6B00', marginBottom: '6px' }}>
+                        Choose from saved shippers
+                      </label>
+                      <select value={selectedShipper} onChange={(e) => pickShipper(e.target.value)} style={{
+                        width: '100%', padding: '12px', fontSize: '0.9rem',
+                        border: '2px solid #FF6B00', borderRadius: '8px', outline: 'none',
+                        background: '#FFF5EB', fontFamily: 'inherit', color: '#003366', fontWeight: 600
+                      }}>
+                        <option value="">-- Select a saved shipper --</option>
+                        {savedShippers.map((a) => (
+                          <option key={a.addressId} value={a.addressId}>
+                            {a.name} - {a.city || a.country}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <Field label="Name *" value={shipper.name} onChange={(v) => setShipperField('name', v)} />
                   <Field label="Full Address *" value={shipper.fullAddress} onChange={(v) => setShipperField('fullAddress', v)} textarea />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -337,9 +385,37 @@ export default function BookPage() {
                   <SelectField label="Country *" value={shipper.country} onChange={(v) => setShipperField('country', v)} countries={countries} />
                   <Field label="Email *" value={shipper.email} onChange={(v) => setShipperField('email', v)} type="email" />
                   <Field label="Phone *" value={shipper.phone} onChange={(v) => setShipperField('phone', v)} type="tel" />
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer', marginTop: '5px' }}>
+                    <input type="checkbox" checked={saveShipper} onChange={(e) => setSaveShipper(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#FF6B00', cursor: 'pointer' }} />
+                    Save to my address book
+                  </label>
                 </div>
+
+                {/* CONSIGNEE */}
                 <div>
                   <h4 style={{ color: '#003366', marginBottom: '10px' }}>TO (Consignee)</h4>
+
+                  {savedConsignees.length > 0 && (
+                    <div style={{ marginBottom: '15px' }}>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#FF6B00', marginBottom: '6px' }}>
+                        Choose from saved consignees
+                      </label>
+                      <select value={selectedConsignee} onChange={(e) => pickConsignee(e.target.value)} style={{
+                        width: '100%', padding: '12px', fontSize: '0.9rem',
+                        border: '2px solid #FF6B00', borderRadius: '8px', outline: 'none',
+                        background: '#FFF5EB', fontFamily: 'inherit', color: '#003366', fontWeight: 600
+                      }}>
+                        <option value="">-- Select a saved consignee --</option>
+                        {savedConsignees.map((a) => (
+                          <option key={a.addressId} value={a.addressId}>
+                            {a.name} - {a.city || a.country}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <Field label="Name *" value={consignee.name} onChange={(v) => setConsigneeField('name', v)} />
                   <Field label="Full Address *" value={consignee.fullAddress} onChange={(v) => setConsigneeField('fullAddress', v)} textarea />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -350,8 +426,14 @@ export default function BookPage() {
                   <Field label="Email *" value={consignee.email} onChange={(v) => setConsigneeField('email', v)} type="email" />
                   <Field label="Phone *" value={consignee.phone} onChange={(v) => setConsigneeField('phone', v)} type="tel" />
                   <Field label="BIN *" value={consignee.bin} onChange={(v) => setConsigneeField('bin', v)} placeholder="Business Identification Number" />
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer', marginTop: '5px' }}>
+                    <input type="checkbox" checked={saveConsignee} onChange={(e) => setSaveConsignee(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#FF6B00', cursor: 'pointer' }} />
+                    Save to my address book
+                  </label>
                 </div>
               </div>
+
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
                 <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
@@ -397,20 +479,8 @@ export default function BookPage() {
               <div style={{ marginTop: '20px' }}>
                 <h4 style={{ marginBottom: '10px', color: '#003366' }}>Pickup Address</h4>
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <button onClick={() => setShipmentField('pickupSameAsShipper', true)} style={{
-                    padding: '10px 20px', borderRadius: '30px',
-                    border: '2px solid ' + (shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'),
-                    background: shipment.pickupSameAsShipper ? '#FF6B00' : 'white',
-                    color: shipment.pickupSameAsShipper ? 'white' : '#343A40',
-                    fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
-                  }}>Same as Shipper</button>
-                  <button onClick={() => setShipmentField('pickupSameAsShipper', false)} style={{
-                    padding: '10px 20px', borderRadius: '30px',
-                    border: '2px solid ' + (!shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'),
-                    background: !shipment.pickupSameAsShipper ? '#FF6B00' : 'white',
-                    color: !shipment.pickupSameAsShipper ? 'white' : '#343A40',
-                    fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
-                  }}>Different Address</button>
+                  <button onClick={() => setShipmentField('pickupSameAsShipper', true)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'), background: shipment.pickupSameAsShipper ? '#FF6B00' : 'white', color: shipment.pickupSameAsShipper ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Same as Shipper</button>
+                  <button onClick={() => setShipmentField('pickupSameAsShipper', false)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (!shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'), background: !shipment.pickupSameAsShipper ? '#FF6B00' : 'white', color: !shipment.pickupSameAsShipper ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Different Address</button>
                 </div>
                 {!shipment.pickupSameAsShipper && (
                   <div style={{ marginTop: '15px' }}>
@@ -439,29 +509,14 @@ export default function BookPage() {
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px' }}>Payment Type *</label>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
                 {['Prepaid', 'Collect', 'Credit Account'].map((t) => (
-                  <button key={t} onClick={() => setPaymentTerms(t)} style={{
-                    padding: '10px 20px', borderRadius: '30px',
-                    border: '2px solid ' + (paymentTerms === t ? '#FF6B00' : '#E9ECEF'),
-                    background: paymentTerms === t ? '#FF6B00' : 'white',
-                    color: paymentTerms === t ? 'white' : '#343A40',
-                    fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
-                  }}>{t}</button>
+                  <button key={t} onClick={() => setPaymentTerms(t)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (paymentTerms === t ? '#FF6B00' : '#E9ECEF'), background: paymentTerms === t ? '#FF6B00' : 'white', color: paymentTerms === t ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>{t}</button>
                 ))}
               </div>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px' }}>Payment Method *</label>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
                 {['Bank Transfer', 'Cash'].map((m) => (
-                  <button key={m} onClick={() => setPaymentMethod(m)} style={{
-                    padding: '10px 20px', borderRadius: '30px',
-                    border: '2px solid ' + (paymentMethod === m ? '#FF6B00' : '#E9ECEF'),
-                    background: paymentMethod === m ? '#FF6B00' : 'white',
-                    color: paymentMethod === m ? 'white' : '#343A40',
-                    fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
-                  }}>{m}</button>
+                  <button key={m} onClick={() => setPaymentMethod(m)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (paymentMethod === m ? '#FF6B00' : '#E9ECEF'), background: paymentMethod === m ? '#FF6B00' : 'white', color: paymentMethod === m ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>{m}</button>
                 ))}
-              </div>
-              <div style={{ background: '#FFF5EB', padding: '15px', borderRadius: '8px', fontSize: '0.85rem', color: '#6C757D', borderLeft: '3px solid #FF6B00' }}>
-                Shipping cost will be provided by our team after review.
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
@@ -470,54 +525,105 @@ export default function BookPage() {
             </>
           )}
 
-          {/* REVIEW */}
+          {/* REVIEW — Professional layout */}
           {((step === 5 && isSea) || (step === 6 && !isSea)) && (
             <>
               <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
                 {isSea ? 'Step 5' : 'Step 6'} - Review & Submit
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '0.9rem', lineHeight: 1.8 }}>
-                <div>
-                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>Shipment</h4>
-                  <div><b>Mode:</b> {shipMode}</div>
-                  {!isSea && <div><b>Parcel Type:</b> {parcelType === 'Others' ? 'Others: ' + parcelTypeCustom : parcelType}</div>}
-                  <div><b>Description:</b> {shipment.description || '-'}</div>
-                  <div><b>Packages:</b> {shipment.packages}</div>
-                  <div><b>Weight:</b> {shipment.totalWeight} kg</div>
+
+              <div style={{
+                background: 'linear-gradient(135deg, #FFF5EB 0%, #FFE8D1 100%)',
+                border: '2px solid #FF6B00',
+                borderRadius: '12px',
+                padding: '20px 25px',
+                marginBottom: '25px'
+              }}>
+                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#8B4500', fontWeight: 700, marginBottom: '8px' }}>
+                  Tracking Number (will be assigned)
                 </div>
-                <div>
-                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>Shipper</h4>
-                  <div>{shipper.name}</div>
-                  <div>{shipper.city}, {shipper.country}</div>
-                  <div>{shipper.phone}</div>
-                  <div>{shipper.email}</div>
+                <div style={{ fontFamily: 'Consolas, monospace', fontSize: '1.6rem', fontWeight: 800, color: '#FF6B00', letterSpacing: '1px' }}>
+                  {shipMode === 'SEA' ? 'Auto-generated on submit' : 'Auto-generated on submit'}
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '0.9rem', lineHeight: 1.8, marginTop: '20px' }}>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                {/* LEFT: Shipment + Shipper */}
                 <div>
-                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>Consignee</h4>
-                  <div>{consignee.name}</div>
-                  <div>{consignee.city}, {consignee.country}</div>
-                  <div>{consignee.phone}</div>
-                  <div>{consignee.email}</div>
+                  <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px', marginBottom: '15px' }}>
+                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>📦</span> SHIPMENT
+                    </div>
+                    <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
+                      <div><b>Mode:</b> {shipMode}</div>
+                      {!isSea && parcelType && <div><b>Parcel:</b> {parcelType === 'Others' ? 'Others: ' + parcelTypeCustom : parcelType}</div>}
+                      <div><b>Description:</b> {shipment.description || '-'}</div>
+                      {isSea && <div><b>HS Code:</b> {shipment.hsCode}</div>}
+                      {isSea && <div><b>CBM:</b> {shipment.totalCbm} m³</div>}
+                      {isSea && <div><b>Dimensions:</b> {shipment.dimensions} cm</div>}
+                      <div><b>Packages:</b> {shipment.packages}</div>
+                      <div><b>Weight:</b> {shipment.totalWeight} kg</div>
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px' }}>
+                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>📤</span> SHIPPER
+                    </div>
+                    <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
+                      <div><b>{shipper.name}</b></div>
+                      <div>{shipper.fullAddress}</div>
+                      <div>{shipper.city}{shipper.state ? ', ' + shipper.state : ''}</div>
+                      <div>{shipper.country}</div>
+                      <div>{shipper.phone}</div>
+                      <div>{shipper.email}</div>
+                    </div>
+                  </div>
                 </div>
+
+                {/* RIGHT: Consignee + Pickup + Payment */}
                 <div>
-                  <h4 style={{ color: '#003366', marginBottom: '8px' }}>Payment</h4>
-                  <div><b>Type:</b> {paymentTerms}</div>
-                  <div><b>Method:</b> {paymentMethod}</div>
-                  <div><b>Currency:</b> USD</div>
+                  <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px', marginBottom: '15px' }}>
+                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>📥</span> CONSIGNEE
+                    </div>
+                    <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
+                      <div><b>{consignee.name}</b></div>
+                      <div>{consignee.fullAddress}</div>
+                      <div>{consignee.city}{consignee.state ? ', ' + consignee.state : ''}</div>
+                      <div>{consignee.country}</div>
+                      <div>{consignee.phone}</div>
+                      <div>{consignee.email}</div>
+                      {consignee.bin && <div>BIN: {consignee.bin}</div>}
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px', marginBottom: '15px' }}>
+                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>🚚</span> PICKUP
+                    </div>
+                    <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
+                      <div>{shipment.pickupSameAsShipper ? 'Same as shipper' : shipment.pickupAddress}</div>
+                      <div><b>Goods Ready:</b> {shipment.parcelReadyDate} at {shipment.parcelReadyTime}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px' }}>
+                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>💳</span> PAYMENT
+                    </div>
+                    <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
+                      <div><b>Type:</b> {paymentTerms}</div>
+                      <div><b>Method:</b> {paymentMethod}</div>
+                      <div><b>Currency:</b> USD</div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div style={{ background: '#FFF5EB', padding: '15px', borderRadius: '8px', marginTop: '20px', fontSize: '0.9rem', borderLeft: '3px solid #FF6B00' }}>
-                After submission, our admin team will review your booking and provide the shipping cost.
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
+
+              <div style={{ marginTop: '25px', display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
                 <button onClick={goPrev} disabled={loading} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
-                <button onClick={handleSubmit} disabled={loading} style={{
-                  padding: '14px 26px', background: '#FF6B00', color: 'white',
-                  border: 'none', borderRadius: '8px', fontWeight: 700,
-                  cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit'
-                }}>
+                <button onClick={handleSubmit} disabled={loading} style={{ padding: '14px 30px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit' }}>
                   {loading ? 'Submitting...' : 'Submit Booking'}
                 </button>
               </div>
@@ -534,7 +640,7 @@ export default function BookPage() {
 function Field({ label, value, onChange, type = 'text', placeholder = '', textarea = false }) {
   const baseStyle = {
     width: '100%', padding: '13px 15px', fontSize: '0.95rem',
-    border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit'
+    border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box'
   };
   return (
     <div style={{ marginBottom: '15px' }}>
@@ -555,7 +661,7 @@ function SelectField({ label, value, onChange, countries, options }) {
       <select value={value} onChange={(e) => onChange(e.target.value)} style={{
         width: '100%', padding: '13px 15px', fontSize: '0.95rem',
         border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none',
-        background: 'white', fontFamily: 'inherit'
+        background: 'white', fontFamily: 'inherit', boxSizing: 'border-box'
       }}>
         <option value="">-- Select --</option>
         {countries && countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
