@@ -60,6 +60,7 @@ export default function DashboardPage() {
       setShipments(data.shipments || []);
       setCounts(data.counts || { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: 0 });
       setOutstanding(data.outstanding || null);
+      setError('DEBUG — API returned statuses: ' + (data.shipments || []).map(s => s.trackingNumber + '=' + s.status).join(' | '));
       setLoading(false);
     } catch (err) {
       setError('Connection error. Please try again.');
