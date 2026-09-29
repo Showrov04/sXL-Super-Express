@@ -15,7 +15,6 @@ export default function BookPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
 
-  // Saved addresses
   const [savedShippers, setSavedShippers] = useState([]);
   const [savedConsignees, setSavedConsignees] = useState([]);
   const [selectedShipper, setSelectedShipper] = useState('');
@@ -75,13 +74,8 @@ export default function BookPage() {
     const a = savedShippers.find((x) => x.addressId === id);
     if (!a) return;
     setShipper({
-      name: a.name || '',
-      fullAddress: a.fullAddress || '',
-      city: a.city || '',
-      state: a.state || '',
-      country: a.country || '',
-      email: a.email || '',
-      phone: a.phone || '',
+      name: a.name || '', fullAddress: a.fullAddress || '', city: a.city || '',
+      state: a.state || '', country: a.country || '', email: a.email || '', phone: a.phone || '',
     });
   }
 
@@ -90,14 +84,9 @@ export default function BookPage() {
     const a = savedConsignees.find((x) => x.addressId === id);
     if (!a) return;
     setConsignee({
-      name: a.name || '',
-      fullAddress: a.fullAddress || '',
-      city: a.city || '',
-      state: a.state || '',
-      country: a.country || '',
-      email: a.email || '',
-      phone: a.phone || '',
-      bin: a.bin || '',
+      name: a.name || '', fullAddress: a.fullAddress || '', city: a.city || '',
+      state: a.state || '', country: a.country || '', email: a.email || '',
+      phone: a.phone || '', bin: a.bin || '',
     });
   }
 
@@ -183,7 +172,6 @@ export default function BookPage() {
       return;
     }
 
-    // Save addresses if requested
     await saveAddressIfChecked('Shipper', shipper, saveShipper);
     await saveAddressIfChecked('Consignee', consignee, saveConsignee);
 
@@ -352,7 +340,6 @@ export default function BookPage() {
               </h3>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                {/* SHIPPER */}
                 <div>
                   <h4 style={{ color: '#003366', marginBottom: '10px' }}>FROM (Shipper)</h4>
 
@@ -392,7 +379,6 @@ export default function BookPage() {
                   </label>
                 </div>
 
-                {/* CONSIGNEE */}
                 <div>
                   <h4 style={{ color: '#003366', marginBottom: '10px' }}>TO (Consignee)</h4>
 
@@ -525,7 +511,7 @@ export default function BookPage() {
             </>
           )}
 
-          {/* REVIEW — Professional layout */}
+          {/* REVIEW */}
           {((step === 5 && isSea) || (step === 6 && !isSea)) && (
             <>
               <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
@@ -543,23 +529,20 @@ export default function BookPage() {
                   Tracking Number (will be assigned)
                 </div>
                 <div style={{ fontFamily: 'Consolas, monospace', fontSize: '1.6rem', fontWeight: 800, color: '#FF6B00', letterSpacing: '1px' }}>
-                  {shipMode === 'SEA' ? 'Auto-generated on submit' : 'Auto-generated on submit'}
+                  Auto-generated on submit
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                {/* LEFT: Shipment + Shipper */}
                 <div>
                   <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px', marginBottom: '15px' }}>
-                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>📦</span> SHIPMENT
-                    </div>
+                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem' }}>SHIPMENT</div>
                     <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
                       <div><b>Mode:</b> {shipMode}</div>
                       {!isSea && parcelType && <div><b>Parcel:</b> {parcelType === 'Others' ? 'Others: ' + parcelTypeCustom : parcelType}</div>}
                       <div><b>Description:</b> {shipment.description || '-'}</div>
                       {isSea && <div><b>HS Code:</b> {shipment.hsCode}</div>}
-                      {isSea && <div><b>CBM:</b> {shipment.totalCbm} m³</div>}
+                      {isSea && <div><b>CBM:</b> {shipment.totalCbm} m3</div>}
                       {isSea && <div><b>Dimensions:</b> {shipment.dimensions} cm</div>}
                       <div><b>Packages:</b> {shipment.packages}</div>
                       <div><b>Weight:</b> {shipment.totalWeight} kg</div>
@@ -567,9 +550,7 @@ export default function BookPage() {
                   </div>
 
                   <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px' }}>
-                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>📤</span> SHIPPER
-                    </div>
+                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem' }}>SHIPPER</div>
                     <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
                       <div><b>{shipper.name}</b></div>
                       <div>{shipper.fullAddress}</div>
@@ -581,12 +562,9 @@ export default function BookPage() {
                   </div>
                 </div>
 
-                {/* RIGHT: Consignee + Pickup + Payment */}
                 <div>
                   <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px', marginBottom: '15px' }}>
-                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>📥</span> CONSIGNEE
-                    </div>
+                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem' }}>CONSIGNEE</div>
                     <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
                       <div><b>{consignee.name}</b></div>
                       <div>{consignee.fullAddress}</div>
@@ -599,9 +577,7 @@ export default function BookPage() {
                   </div>
 
                   <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px', marginBottom: '15px' }}>
-                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>🚚</span> PICKUP
-                    </div>
+                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem' }}>PICKUP</div>
                     <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
                       <div>{shipment.pickupSameAsShipper ? 'Same as shipper' : shipment.pickupAddress}</div>
                       <div><b>Goods Ready:</b> {shipment.parcelReadyDate} at {shipment.parcelReadyTime}</div>
@@ -609,9 +585,7 @@ export default function BookPage() {
                   </div>
 
                   <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px' }}>
-                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>💳</span> PAYMENT
-                    </div>
+                    <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem' }}>PAYMENT</div>
                     <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
                       <div><b>Type:</b> {paymentTerms}</div>
                       <div><b>Method:</b> {paymentMethod}</div>
@@ -621,7 +595,11 @@ export default function BookPage() {
                 </div>
               </div>
 
-              <div style={{ marginTop: '25px', display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ background: '#FFF5EB', padding: '15px', borderRadius: '8px', marginTop: '20px', fontSize: '0.9rem', color: '#6C757D', borderLeft: '4px solid #FF6B00' }}>
+                After submission, our admin team will review your booking and confirm the shipping cost.
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <button onClick={goPrev} disabled={loading} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
                 <button onClick={handleSubmit} disabled={loading} style={{ padding: '14px 30px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit' }}>
                   {loading ? 'Submitting...' : 'Submit Booking'}
