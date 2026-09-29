@@ -8,7 +8,6 @@ const serviceSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Country code → full name
 const COUNTRY_NAMES = {
   AF: 'Afghanistan', AL: 'Albania', DZ: 'Algeria', AD: 'Andorra', AO: 'Angola',
   AR: 'Argentina', AM: 'Armenia', AU: 'Australia', AT: 'Austria', AZ: 'Azerbaijan',
@@ -102,7 +101,8 @@ export async function GET(request) {
       return db - da;
     });
 
-        const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: shipments.length };
+    // Counts — cancelled shipments are separate
+    const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: shipments.length };
     shipments.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
@@ -115,7 +115,8 @@ export async function GET(request) {
       else counts.paid++;
     });
 
-      const filtered = shipments.filter((s) => {
+    // Filter by tab
+    const filtered = shipments.filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
       const isCancelled = status === 'cancelled';
@@ -123,7 +124,7 @@ export async function GET(request) {
       const isPaid = payment === 'paid';
 
       if (tab === 'cancelled') return isCancelled;
-      if (isCancelled) return false; // Exclude cancelled from other tabs
+      if (isCancelled) return false;
 
       if (tab === 'active') return !isDelivered;
       if (tab === 'awaiting') return isDelivered && !isPaid;
@@ -131,13 +132,14 @@ export async function GET(request) {
       return true;
     });
 
+    // Map with pass-through status
     const list = filtered.map((s) => ({
       trackingNumber: s.tracking_number,
       serviceType: s.service_type,
       shipMode: s.ship_mode,
-      status: s.status,
-      origin: countryName(s.origin),         // ← full country name
-      destination: countryName(s.destination), // ← full country name
+      status: s.status,                          // ← pass-through, no transformation
+      origin: countryName(s.origin),
+      destination: countryName(s.destination),
       recipientName: s.recipient_name,
       weight: s.total_weight,
       cost: s.shipping_cost,
