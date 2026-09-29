@@ -12,6 +12,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [notifySMS, setNotifySMS] = useState(true);
   const [notifyWhatsApp, setNotifyWhatsApp] = useState(true);
@@ -68,6 +69,13 @@ export default function RegisterPage() {
     border: '2px solid #E9ECEF',
     borderRadius: '8px',
     outline: 'none',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box'
+  };
+
+  const passwordInputStyle = {
+    ...inputStyle,
+    paddingRight: '45px'
   };
 
   const labelStyle = {
@@ -75,7 +83,7 @@ export default function RegisterPage() {
     fontSize: '0.85rem',
     fontWeight: 600,
     color: '#343A40',
-    marginBottom: '6px',
+    marginBottom: '6px'
   };
 
   return (
@@ -130,11 +138,39 @@ export default function RegisterPage() {
 
             <div style={{ marginBottom: '20px' }}>
               <label style={labelStyle}>Password * (min 6 chars)</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={inputStyle} />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  style={passwordInputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '1.2rem',
+                    padding: '4px',
+                    color: '#6C757D',
+                    lineHeight: 1
+                  }}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
             </div>
 
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px', color: '#343A40' }}>
+              <label style={{ ...labelStyle, marginBottom: '10px' }}>
                 Notification Preferences
               </label>
               {[
@@ -172,6 +208,7 @@ export default function RegisterPage() {
                 color: 'white',
                 cursor: loading ? 'not-allowed' : 'pointer',
                 opacity: loading ? 0.6 : 1,
+                fontFamily: 'inherit'
               }}
             >
               {loading ? 'Creating account...' : 'Create Account'}
