@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { sendCancellationApproved, sendCancellationRejected } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,9 +28,6 @@ async function requireAdmin(request) {
   return { userId: session.user_id, role: session.role };
 }
 
-/**
- * GET: List cancellation requests
- */
 export async function GET(request) {
   try {
     const session = await requireAdmin(request);
@@ -62,10 +60,6 @@ export async function GET(request) {
   }
 }
 
-/**
- * POST: Approve or reject cancellation
- * Body: { trackingNumber, action: 'approve'|'reject', adminNote }
- */
 export async function POST(request) {
   try {
     const session = await requireAdmin(request);
@@ -100,7 +94,6 @@ export async function POST(request) {
       historyNote = 'Cancellation REJECTED by admin.' + (adminNote ? ' Note: ' + adminNote : '');
     }
 
-    // Update shipment
     const { error: updateErr } = await serviceSupabase
       .from('shipments')
       .update({
@@ -111,7 +104,6 @@ export async function POST(request) {
 
     if (updateErr) return NextResponse.json({ success: false, error: updateErr.message });
 
-    // Tracking history
     await serviceSupabase.from('tracking_history').insert({
       tracking_number: trackingNumber,
       status: newStatus,
@@ -119,6 +111,19 @@ export async function POST(request) {
       notes: historyNote,
       updated_by: session.userId,
     });
+
+    // Send email to customer
+    try {
+      if (action === 'approve') {
+        const result = await sendCancellationApproved(shipment);
+        console.log('[Cancel Email] Approved notification:', result.success ? 'sent' : 'failed', result.error || '');
+      } else {
+        const result = await sendCancellationRejected(shipment, adminNote);
+        console.log('[Cancel Email] Rejected notification:', result.success ? 'sent' : 'failed', result.error || '');
+      }
+    } catch (emailErr) {
+      console.error('[Cancel Email] Exception:', emailErr.message);
+    }
 
     return NextResponse.json({ success: true, newStatus });
 
