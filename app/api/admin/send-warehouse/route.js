@@ -1,0 +1,110 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { sendWarehouseDetails } from '@/lib/email';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
+
+const serviceSupabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+async function requireAdmin(request) {
+  const authHeader = request.headers.get('authorization') || '';
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (!token) return null;
+
+  const { data: session } = await serviceSupabase
+    .from('sessions')
+    .select('*')
+    .eq('token', token)
+    .maybeSingle();
+
+  if (!session) return null;
+  const expiresAt = new Date(session.expires_at).getTime();
+  if (isNaN(expiresAt) || expiresAt < Date.now()) return null;
+  if (session.role !== 'admin' && session.role !== 'staff') return null;
+
+  return { userId: session.user_id, role: session.role };
+}
+
+/**
+ * POST — send warehouse details email
+ * Body: { trackingNumber }
+ */
+export async function POST(request) {
+  try {
+    const session = await requireAdmin(request);
+    if (!session) return NextResponse.json({ success: false, error: 'Permission denied.' });
+
+    const body = await request.json();
+    const trackingNumber = String(body.trackingNumber || '').trim().toUpperCase();
+
+    if (!trackingNumber) {
+      return NextResponse.json({ success: false, error: 'Tracking number required.' });
+    }
+
+    // Fetch shipment
+    const { data: shipment, error: fetchErr } = await serviceSupabase
+      .from('shipments')
+      .select('*')
+      .eq('tracking_number', trackingNumber)
+      .maybeSingle();
+
+    if (fetchErr) return NextResponse.json({ success: false, error: fetchErr.message });
+    if (!shipment) return NextResponse.json({ success: false, error: 'Shipment not found.' });
+
+    // Must be a "No pickup" shipment
+    if (shipment.pickup_service !== false) {
+      return NextResponse.json({
+        success: false,
+        error: 'This shipment has pickup service. Warehouse email is only for self-delivery shipments.',
+      });
+    }
+
+    // Fetch warehouse settings
+    const { data: settingsRows } = await serviceSupabase
+      .from('settings')
+      .select('key, value')
+      .in('key', [
+        'warehouse_name', 'warehouse_address', 'warehouse_city',
+        'warehouse_state', 'warehouse_country', 'warehouse_phone',
+        'warehouse_email', 'warehouse_hours',
+      ]);
+
+    const settings = {};
+    (settingsRows || []).forEach((row) => { settings[row.key] = row.value; });
+
+    const warehouse = {
+      name: settings.warehouse_name || 'sXL Warehouse',
+      address: settings.warehouse_address || '',
+      city: settings.warehouse_city || '',
+      state: settings.warehouse_state || '',
+      country: settings.warehouse_country || '',
+      phone: settings.warehouse_phone || '',
+      email: settings.warehouse_email || '',
+      hours: settings.warehouse_hours || '',
+    };
+
+    // Send email
+    const result = await sendWarehouseDetails(shipment, warehouse);
+    if (!result.success) {
+      return NextResponse.json({ success: false, error: result.error || 'Email failed.' });
+    }
+
+    // Update timestamp
+    await serviceSupabase
+      .from('shipments')
+      .update({
+        warehouse_sent_at: new Date().toISOString(),
+        last_update: new Date().toISOString(),
+      })
+      .eq('tracking_number', trackingNumber);
+
+    return NextResponse.json({ success: true });
+
+  } catch (err) {
+    return NextResponse.json({ success: false, error: err.message });
+  }
+}
