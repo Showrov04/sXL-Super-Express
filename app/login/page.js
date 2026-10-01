@@ -14,16 +14,19 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Unverified user state
+  // Verify state
   const [needsVerify, setNeedsVerify] = useState(null); // { userId, email }
+  const [code, setCode] = useState('');
+  const [verifyError, setVerifyError] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendMsg, setResendMsg] = useState('');
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setVerifyError('');
     setResendMsg('');
-    setNeedsVerify(null);
 
     if (!email || !password) {
       setError('Please enter email and password.');
@@ -40,7 +43,6 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!data.success) {
-        // Special case — user needs to verify
         if (data.needsVerification) {
           setNeedsVerify({ userId: data.userId, email: data.email });
           setLoading(false);
@@ -63,6 +65,46 @@ export default function LoginPage() {
     } catch (err) {
       setError('Connection error. Please try again.');
       setLoading(false);
+    }
+  }
+
+  async function handleVerify(e) {
+    e.preventDefault();
+    setVerifyError('');
+
+    if (!code.trim() || code.trim().length !== 6) {
+      setVerifyError('Please enter the 6-digit code from your email.');
+      return;
+    }
+
+    setVerifyLoading(true);
+    try {
+      const res = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: needsVerify.userId, code: code.trim() }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setVerifyError(data.error || 'Verification failed.');
+        setVerifyLoading(false);
+        return;
+      }
+
+      // Success — save auth + redirect
+      if (data.token && data.user) {
+        localStorage.setItem('sxl_token', data.token);
+        localStorage.setItem('sxl_user', JSON.stringify(data.user));
+        window.dispatchEvent(new Event('sxl-auth-change'));
+        router.push('/dashboard');
+      } else {
+        // Already verified previously — send to login
+        router.push('/login?verified=1');
+      }
+    } catch (err) {
+      setVerifyError('Connection error. Please try again.');
+      setVerifyLoading(false);
     }
   }
 
@@ -90,11 +132,11 @@ export default function LoginPage() {
     }
   }
 
-  function goToVerify() {
-    if (!needsVerify) return;
-    // Navigate to register page with the verify screen prefilled via query params
-    // We'll just tell user to verify through the register page
-    router.push('/register');
+  function resetToForm() {
+    setNeedsVerify(null);
+    setCode('');
+    setVerifyError('');
+    setResendMsg('');
   }
 
   const inputStyle = {
@@ -121,181 +163,236 @@ export default function LoginPage() {
           maxWidth: '460px',
           width: '100%'
         }}>
-          <h2 style={{ fontSize: '1.75rem', color: '#003366', marginBottom: '8px', textAlign: 'center', fontWeight: 800 }}>
-            Welcome Back
-          </h2>
-          <p style={{ textAlign: 'center', color: '#6C757D', marginBottom: '30px', fontSize: '0.95rem' }}>
-            Login to manage your shipments
-          </p>
 
-          {error && (
-            <div style={{
-              padding: '12px 16px',
-              background: '#F8D7DA',
-              color: '#721C24',
-              borderLeft: '4px solid #DC3545',
-              borderRadius: '8px',
-              marginBottom: '20px',
-              fontSize: '0.9rem'
-            }}>
-              {error}
-            </div>
-          )}
-
-          {/* ====================== UNVERIFIED USER BANNER ====================== */}
-          {needsVerify && (
-            <div style={{
-              padding: '18px 20px',
-              background: '#FFF5EB',
-              border: '2px solid #FF6B00',
-              borderRadius: '10px',
-              marginBottom: '20px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                <span style={{ fontSize: '1.5rem' }}>⚠️</span>
-                <div style={{ fontWeight: 800, color: '#8B4500', fontSize: '0.95rem' }}>
-                  Email Not Verified
-                </div>
-              </div>
-
-              <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px', lineHeight: 1.5 }}>
-                Your account for <b>{needsVerify.email}</b> hasn&apos;t been verified yet.
-                Please verify your email to continue.
+          {/* ====================== FORM ====================== */}
+          {!needsVerify && (
+            <>
+              <h2 style={{ fontSize: '1.75rem', color: '#003366', marginBottom: '8px', textAlign: 'center', fontWeight: 800 }}>
+                Welcome Back
+              </h2>
+              <p style={{ textAlign: 'center', color: '#6C757D', marginBottom: '30px', fontSize: '0.95rem' }}>
+                Login to manage your shipments
               </p>
 
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {error && (
+                <div style={{
+                  padding: '12px 16px',
+                  background: '#F8D7DA',
+                  color: '#721C24',
+                  borderLeft: '4px solid #DC3545',
+                  borderRadius: '8px',
+                  marginBottom: '20px',
+                  fontSize: '0.9rem'
+                }}>
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit}>
+                <div style={{ marginBottom: '18px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={{ marginBottom: '18px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
+                    Password
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      autoComplete="current-password"
+                      style={{ ...inputStyle, paddingRight: '45px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute', right: '12px', top: '50%',
+                        transform: 'translateY(-50%)', background: 'transparent',
+                        border: 'none', cursor: 'pointer', fontSize: '1.2rem',
+                        padding: '4px', color: '#6C757D', lineHeight: 1
+                      }}
+                    >
+                      {showPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
+
                 <button
-                  onClick={goToVerify}
+                  type="submit"
+                  disabled={loading}
                   style={{
-                    padding: '10px 18px',
-                    background: '#FF6B00',
-                    color: 'white',
+                    width: '100%',
+                    padding: '14px 26px',
+                    fontSize: '1rem',
+                    fontWeight: 700,
                     border: 'none',
                     borderRadius: '8px',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
+                    background: '#FF6B00',
+                    color: 'white',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    opacity: loading ? 0.6 : 1,
                     fontFamily: 'inherit'
                   }}
                 >
-                  Verify My Email
+                  {loading ? 'Logging in...' : 'Login'}
                 </button>
+              </form>
+
+              <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9rem', color: '#6C757D' }}>
+                Don&apos;t have an account?{' '}
+                <Link href="/register" style={{ color: '#FF6B00', fontWeight: 600 }}>
+                  Sign up here
+                </Link>
+              </div>
+            </>
+          )}
+
+          {/* ====================== VERIFY SCREEN ====================== */}
+          {needsVerify && (
+            <>
+              <div style={{
+                width: '64px', height: '64px', borderRadius: '50%',
+                background: 'linear-gradient(135deg, #FF6B00 0%, #FF8C33 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '2rem', margin: '0 auto 20px', color: 'white',
+                boxShadow: '0 8px 20px rgba(255,107,0,0.3)'
+              }}>
+                ✉️
+              </div>
+
+              <h2 style={{ fontSize: '1.6rem', color: '#003366', marginBottom: '8px', textAlign: 'center', fontWeight: 800 }}>
+                Verify Your Email
+              </h2>
+
+              <p style={{ textAlign: 'center', color: '#6C757D', marginBottom: '25px', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                Please enter the 6-digit code sent to<br />
+                <b style={{ color: '#003366' }}>{needsVerify.email}</b>
+              </p>
+
+              {verifyError && (
+                <div style={{
+                  padding: '12px 16px',
+                  background: '#F8D7DA',
+                  color: '#721C24',
+                  borderLeft: '4px solid #DC3545',
+                  borderRadius: '8px',
+                  marginBottom: '20px',
+                  fontSize: '0.9rem'
+                }}>
+                  {verifyError}
+                </div>
+              )}
+
+              {resendMsg && (
+                <div style={{
+                  padding: '12px 16px',
+                  background: resendMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA',
+                  color: resendMsg.startsWith('✅') ? '#155724' : '#721C24',
+                  borderLeft: '4px solid ' + (resendMsg.startsWith('✅') ? '#28A745' : '#DC3545'),
+                  borderRadius: '8px',
+                  marginBottom: '20px',
+                  fontSize: '0.9rem'
+                }}>
+                  {resendMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleVerify}>
+                <div style={{ marginBottom: '20px' }}>
+                  <input
+                    type="text"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '16px',
+                      fontSize: '1.8rem',
+                      fontWeight: 800,
+                      letterSpacing: '8px',
+                      textAlign: 'center',
+                      border: '2px solid #FF6B00',
+                      borderRadius: '10px',
+                      outline: 'none',
+                      fontFamily: 'Courier New, monospace',
+                      boxSizing: 'border-box',
+                      background: '#FFF5EB',
+                      color: '#003366'
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={verifyLoading || code.length !== 6}
+                  style={{
+                    width: '100%',
+                    padding: '14px 26px',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    border: 'none',
+                    borderRadius: '8px',
+                    background: '#FF6B00',
+                    color: 'white',
+                    cursor: (verifyLoading || code.length !== 6) ? 'not-allowed' : 'pointer',
+                    opacity: (verifyLoading || code.length !== 6) ? 0.6 : 1,
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  {verifyLoading ? 'Verifying...' : 'Verify & Login'}
+                </button>
+              </form>
+
+              <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9rem', color: '#6C757D' }}>
+                Didn&apos;t receive it?{' '}
                 <button
                   onClick={handleResend}
                   disabled={resending}
                   style={{
-                    padding: '10px 18px',
-                    background: 'transparent',
-                    color: '#003366',
-                    border: '2px solid #E9ECEF',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
+                    background: 'transparent', border: 'none',
+                    color: '#FF6B00', fontWeight: 700,
                     cursor: resending ? 'not-allowed' : 'pointer',
-                    fontFamily: 'inherit'
+                    textDecoration: 'underline', fontSize: '0.9rem',
+                    fontFamily: 'inherit', padding: 0
                   }}
                 >
                   {resending ? 'Sending...' : 'Resend Code'}
                 </button>
               </div>
 
-              {resendMsg && (
-                <div style={{
-                  marginTop: '12px',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  fontSize: '0.85rem',
-                  background: resendMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA',
-                  color: resendMsg.startsWith('✅') ? '#155724' : '#721C24'
-                }}>
-                  {resendMsg}
-                </div>
-              )}
-
-              <p style={{ color: '#999', fontSize: '0.8rem', marginTop: '12px', marginBottom: 0 }}>
-                💡 The verification screen will ask for the 6-digit code.
-              </p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
-                Password
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  style={{ ...inputStyle, paddingRight: '45px' }}
-                />
+              <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '0.85rem', color: '#999' }}>
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={resetToForm}
                   style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '1.2rem',
-                    padding: '4px',
-                    color: '#6C757D',
-                    lineHeight: 1
+                    background: 'transparent', border: 'none',
+                    color: '#6C757D', textDecoration: 'underline',
+                    cursor: 'pointer', fontSize: '0.85rem',
+                    fontFamily: 'inherit', padding: 0
                   }}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPassword ? '🙈' : '👁️'}
+                  ← Back to login
                 </button>
               </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '14px 26px',
-                fontSize: '1rem',
-                fontWeight: 700,
-                border: 'none',
-                borderRadius: '8px',
-                background: '#FF6B00',
-                color: 'white',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.6 : 1,
-                fontFamily: 'inherit'
-              }}
-            >
-              {loading ? 'Logging in...' : 'Login'}
-            </button>
-          </form>
-
-          <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9rem', color: '#6C757D' }}>
-            Don&apos;t have an account?{' '}
-            <Link href="/register" style={{ color: '#FF6B00', fontWeight: 600 }}>
-              Sign up here
-            </Link>
-          </div>
+            </>
+          )}
         </div>
       </div>
 
