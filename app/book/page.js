@@ -226,7 +226,6 @@ export default function BookPage() {
       if (!shipment.hsCode.trim()) return 'HS Code is required for SEA shipments.';
       if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) return 'Total CBM is required.';
     }
-    // Pickup: if pickupService is true and NOT same as shipper, require address fields
     if (shipment.pickupService && !shipment.pickupSameAsShipper) {
       if (!shipment.pickupAddress.trim()) return 'Pickup Address is required.';
       if (!shipment.pickupCity.trim()) return 'Pickup City is required.';
@@ -661,9 +660,7 @@ export default function BookPage() {
                 <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Time'} type="time" value={shipment.parcelReadyTime} onChange={(v) => setShipmentField('parcelReadyTime', v)} />
               </div>
 
-              {/* ============================================================
-                  PICKUP SERVICE — REDESIGNED
-              ============================================================ */}
+              {/* PICKUP SERVICE */}
               <div style={{ marginTop: '25px', paddingTop: '20px', borderTop: '2px solid #F1F3F5' }}>
                 <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>🚚 Pickup Service</h4>
                 <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
@@ -708,7 +705,6 @@ export default function BookPage() {
                   </button>
                 </div>
 
-                {/* YES — sub-options */}
                 {shipment.pickupService === true && (
                   <>
                     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>
@@ -729,7 +725,6 @@ export default function BookPage() {
                   </>
                 )}
 
-                {/* NO — warehouse info */}
                 {shipment.pickupService === false && (
                   <div style={{
                     background: '#FFF5EB', borderLeft: '4px solid #FF6B00',
@@ -739,6 +734,12 @@ export default function BookPage() {
                     Our team will email you the full warehouse address and operating hours so you can deliver your goods.
                   </div>
                 )}
+              </div>
+
+              {/* Back/Next for Shipment Details step */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
+                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
+                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
               </div>
             </>
           )}
