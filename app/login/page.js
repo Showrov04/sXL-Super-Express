@@ -14,9 +14,16 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Unverified user state
+  const [needsVerify, setNeedsVerify] = useState(null); // { userId, email }
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState('');
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setResendMsg('');
+    setNeedsVerify(null);
 
     if (!email || !password) {
       setError('Please enter email and password.');
@@ -33,6 +40,12 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!data.success) {
+        // Special case — user needs to verify
+        if (data.needsVerification) {
+          setNeedsVerify({ userId: data.userId, email: data.email });
+          setLoading(false);
+          return;
+        }
         setError(data.error || 'Login failed.');
         setLoading(false);
         return;
@@ -53,9 +66,40 @@ export default function LoginPage() {
     }
   }
 
+  async function handleResend() {
+    if (!needsVerify) return;
+    setResendMsg('');
+    setResending(true);
+    try {
+      const res = await fetch('/api/auth/resend-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: needsVerify.userId }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setResendMsg('❌ ' + (data.error || 'Failed to resend.'));
+        setResending(false);
+        return;
+      }
+      setResendMsg('✅ New code sent to ' + needsVerify.email);
+      setResending(false);
+    } catch (err) {
+      setResendMsg('❌ Connection error.');
+      setResending(false);
+    }
+  }
+
+  function goToVerify() {
+    if (!needsVerify) return;
+    // Navigate to register page with the verify screen prefilled via query params
+    // We'll just tell user to verify through the register page
+    router.push('/register');
+  }
+
   const inputStyle = {
     width: '100%',
-    padding: '13px 45px 13px 15px',
+    padding: '13px 15px',
     fontSize: '0.95rem',
     border: '2px solid #E9ECEF',
     borderRadius: '8px',
@@ -98,6 +142,82 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* ====================== UNVERIFIED USER BANNER ====================== */}
+          {needsVerify && (
+            <div style={{
+              padding: '18px 20px',
+              background: '#FFF5EB',
+              border: '2px solid #FF6B00',
+              borderRadius: '10px',
+              marginBottom: '20px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                <span style={{ fontSize: '1.5rem' }}>⚠️</span>
+                <div style={{ fontWeight: 800, color: '#8B4500', fontSize: '0.95rem' }}>
+                  Email Not Verified
+                </div>
+              </div>
+
+              <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px', lineHeight: 1.5 }}>
+                Your account for <b>{needsVerify.email}</b> hasn&apos;t been verified yet.
+                Please verify your email to continue.
+              </p>
+
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={goToVerify}
+                  style={{
+                    padding: '10px 18px',
+                    background: '#FF6B00',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  Verify My Email
+                </button>
+                <button
+                  onClick={handleResend}
+                  disabled={resending}
+                  style={{
+                    padding: '10px 18px',
+                    background: 'transparent',
+                    color: '#003366',
+                    border: '2px solid #E9ECEF',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: resending ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  {resending ? 'Sending...' : 'Resend Code'}
+                </button>
+              </div>
+
+              {resendMsg && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  background: resendMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA',
+                  color: resendMsg.startsWith('✅') ? '#155724' : '#721C24'
+                }}>
+                  {resendMsg}
+                </div>
+              )}
+
+              <p style={{ color: '#999', fontSize: '0.8rem', marginTop: '12px', marginBottom: 0 }}>
+                💡 The verification screen will ask for the 6-digit code.
+              </p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: '18px' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
@@ -109,7 +229,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 autoComplete="email"
-                style={{ ...inputStyle, paddingRight: '15px' }}
+                style={inputStyle}
               />
             </div>
 
@@ -124,7 +244,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   autoComplete="current-password"
-                  style={inputStyle}
+                  style={{ ...inputStyle, paddingRight: '45px' }}
                 />
                 <button
                   type="button"
