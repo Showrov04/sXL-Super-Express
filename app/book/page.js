@@ -24,7 +24,6 @@ export default function BookPage() {
   const [creditLimit, setCreditLimit] = useState(0);
   const [creditTermsDays, setCreditTermsDays] = useState(30);
 
-  // Profile completeness check
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [profileChecked, setProfileChecked] = useState(false);
 
@@ -86,11 +85,9 @@ export default function BookPage() {
         setCreditLimit(p.creditLimit || 0);
         setCreditTermsDays(p.creditTermsDays || 30);
 
-        // Check if profile is incomplete
         const missing = !p.companyName || !p.companyAddress || !p.companyCity || !p.companyCountry || !p.contactPerson || !p.phone;
         setProfileIncomplete(missing);
 
-        // Prefill shipper form with saved company info (helpful!)
         if (p.companyName && !shipper.name) {
           setShipper({
             name: p.companyName || '',
@@ -297,10 +294,6 @@ export default function BookPage() {
 
       <div style={{ maxWidth: '1000px', margin: '30px auto', padding: '0 20px 60px' }}>
 
-        {/* ============================================================
-            SOFT REMINDER — Profile incomplete
-            Only shows on Step 1 to keep it non-intrusive
-        ============================================================ */}
         {step === 1 && profileChecked && profileIncomplete && (
           <div style={{
             background: '#FFF3CD',
@@ -438,14 +431,14 @@ export default function BookPage() {
                   {savedShippers.length > 0 && (
                     <div style={{ marginBottom: '15px' }}>
                       <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#FF6B00', marginBottom: '6px' }}>
-                        Choose from saved shippers
+                        📒 Shipper Address Book
                       </label>
                       <select value={selectedShipper} onChange={(e) => pickShipper(e.target.value)} style={{
                         width: '100%', padding: '12px', fontSize: '0.9rem',
                         border: '2px solid #FF6B00', borderRadius: '8px', outline: 'none',
                         background: '#FFF5EB', fontFamily: 'inherit', color: '#003366', fontWeight: 600
                       }}>
-                        <option value="">-- Select a saved shipper --</option>
+                        <option value="">-- Choose a Saved Address --</option>
                         {savedShippers.map((a) => (
                           <option key={a.addressId} value={a.addressId}>
                             {a.name} - {a.city || a.country}
@@ -477,14 +470,14 @@ export default function BookPage() {
                   {savedConsignees.length > 0 && (
                     <div style={{ marginBottom: '15px' }}>
                       <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#FF6B00', marginBottom: '6px' }}>
-                        Choose from saved consignees
+                        📒 Consignee Address Book
                       </label>
                       <select value={selectedConsignee} onChange={(e) => pickConsignee(e.target.value)} style={{
                         width: '100%', padding: '12px', fontSize: '0.9rem',
                         border: '2px solid #FF6B00', borderRadius: '8px', outline: 'none',
                         background: '#FFF5EB', fontFamily: 'inherit', color: '#003366', fontWeight: 600
                       }}>
-                        <option value="">-- Select a saved consignee --</option>
+                        <option value="">-- Choose a Saved Address --</option>
                         {savedConsignees.map((a) => (
                           <option key={a.addressId} value={a.addressId}>
                             {a.name} - {a.city || a.country}
