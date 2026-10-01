@@ -325,9 +325,7 @@ export default function AccountPage() {
           My Account
         </h1>
 
-        {/* ============================================================
-            SHIPPER INFORMATION
-        ============================================================ */}
+        {/* SHIPPER INFORMATION */}
         <div style={{
           background: 'white', borderRadius: '12px', padding: '30px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px'
@@ -363,15 +361,15 @@ export default function AccountPage() {
             <div style={{ background: '#D4EDDA', color: '#155724', borderLeft: '4px solid #28A745', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem' }}>{successMsg}</div>
           )}
 
-          <form onSubmit={handleSave}>
+          <form onSubmit={handleSave} autoComplete="off">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '18px' }}>
               <div>
                 <label style={labelStyle}>Account ID</label>
-                <input type="text" value={userId} disabled style={readOnlyStyle} />
+                <input type="text" value={userId} disabled style={readOnlyStyle} autoComplete="off" />
               </div>
               <div>
                 <label style={labelStyle}>Email</label>
-                <input type="email" value={email} disabled style={readOnlyStyle} />
+                <input type="email" value={email} disabled style={readOnlyStyle} autoComplete="off" />
               </div>
             </div>
 
@@ -381,6 +379,8 @@ export default function AccountPage() {
                 <input type="text" value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                   disabled={!editMode}
+                  autoComplete="off"
+                  name={'companyname_' + Math.random().toString(36).substring(7)}
                   style={editMode ? inputStyle : readOnlyStyle} />
               </div>
               <div>
@@ -388,6 +388,8 @@ export default function AccountPage() {
                 <input type="text" value={contactPerson}
                   onChange={(e) => setContactPerson(e.target.value)}
                   disabled={!editMode}
+                  autoComplete="off"
+                  name={'contactperson_' + Math.random().toString(36).substring(7)}
                   style={editMode ? inputStyle : readOnlyStyle} />
               </div>
             </div>
@@ -397,6 +399,8 @@ export default function AccountPage() {
               <input type="tel" value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 disabled={!editMode}
+                autoComplete="off"
+                name={'phone_' + Math.random().toString(36).substring(7)}
                 style={editMode ? inputStyle : readOnlyStyle} />
             </div>
 
@@ -405,6 +409,8 @@ export default function AccountPage() {
               <textarea value={companyAddress}
                 onChange={(e) => setCompanyAddress(e.target.value)}
                 disabled={!editMode}
+                autoComplete="off"
+                name={'address_' + Math.random().toString(36).substring(7)}
                 style={{
                   ...(editMode ? inputStyle : readOnlyStyle),
                   minHeight: '80px',
@@ -418,6 +424,8 @@ export default function AccountPage() {
                 <input type="text" value={companyCity}
                   onChange={(e) => setCompanyCity(e.target.value)}
                   disabled={!editMode}
+                  autoComplete="off"
+                  name={'city_' + Math.random().toString(36).substring(7)}
                   style={editMode ? inputStyle : readOnlyStyle} />
               </div>
               <div>
@@ -425,6 +433,8 @@ export default function AccountPage() {
                 <input type="text" value={companyState}
                   onChange={(e) => setCompanyState(e.target.value)}
                   disabled={!editMode}
+                  autoComplete="off"
+                  name={'state_' + Math.random().toString(36).substring(7)}
                   style={editMode ? inputStyle : readOnlyStyle} />
               </div>
             </div>
@@ -436,6 +446,8 @@ export default function AccountPage() {
                   value={companyCountry}
                   onChange={(e) => setCompanyCountry(e.target.value)}
                   disabled={!editMode}
+                  autoComplete="off"
+                  name={'country_' + Math.random().toString(36).substring(7)}
                   style={editMode ? inputStyle : readOnlyStyle}>
                   <option value="">-- Select Country --</option>
                   {countries.map((c) => (
@@ -448,6 +460,8 @@ export default function AccountPage() {
                 <input type="text" value={companyBin}
                   onChange={(e) => setCompanyBin(e.target.value)}
                   disabled={!editMode}
+                  autoComplete="off"
+                  name={'bin_' + Math.random().toString(36).substring(7)}
                   style={editMode ? inputStyle : readOnlyStyle} />
               </div>
             </div>
@@ -473,9 +487,7 @@ export default function AccountPage() {
           </form>
         </div>
 
-        {/* ============================================================
-            CREDIT ACCOUNT
-        ============================================================ */}
+        {/* CREDIT ACCOUNT */}
         <div style={{
           background: 'white', borderRadius: '12px', padding: '30px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px',
@@ -572,7 +584,7 @@ export default function AccountPage() {
           )}
 
           {!creditApproved && showCreditForm && (
-            <form onSubmit={handleCreditSubmit} style={{ marginTop: '20px' }}>
+            <form onSubmit={handleCreditSubmit} autoComplete="off" style={{ marginTop: '20px' }}>
               <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.85rem', color: '#6C757D' }}>
                 Please provide the following details. Our team will review your application within 1-2 business days.
               </div>
@@ -588,33 +600,33 @@ export default function AccountPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '18px' }}>
                 <div>
                   <label style={labelStyle}>Company Name *</label>
-                  <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} style={inputStyle} />
+                  <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} style={inputStyle} autoComplete="off" name={'c1_' + Math.random().toString(36).substring(7)} />
                 </div>
                 <div>
                   <label style={labelStyle}>BIN *</label>
-                  <input type="text" value={companyBin} onChange={(e) => setCompanyBin(e.target.value)} style={inputStyle} />
+                  <input type="text" value={companyBin} onChange={(e) => setCompanyBin(e.target.value)} style={inputStyle} autoComplete="off" name={'c2_' + Math.random().toString(36).substring(7)} />
                 </div>
               </div>
 
               <div style={{ marginBottom: '18px' }}>
                 <label style={labelStyle}>Company Full Address *</label>
-                <textarea value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} style={{ ...inputStyle, minHeight: '70px', resize: 'vertical' }} />
+                <textarea value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} style={{ ...inputStyle, minHeight: '70px', resize: 'vertical' }} autoComplete="off" name={'c3_' + Math.random().toString(36).substring(7)} />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '18px' }}>
                 <div>
                   <label style={labelStyle}>City</label>
-                  <input type="text" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} style={inputStyle} />
+                  <input type="text" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} style={inputStyle} autoComplete="off" name={'c4_' + Math.random().toString(36).substring(7)} />
                 </div>
                 <div>
                   <label style={labelStyle}>State</label>
-                  <input type="text" value={companyState} onChange={(e) => setCompanyState(e.target.value)} style={inputStyle} />
+                  <input type="text" value={companyState} onChange={(e) => setCompanyState(e.target.value)} style={inputStyle} autoComplete="off" name={'c5_' + Math.random().toString(36).substring(7)} />
                 </div>
               </div>
 
               <div style={{ marginBottom: '20px' }}>
                 <label style={labelStyle}>Country *</label>
-                <select value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value)} style={inputStyle}>
+                <select value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value)} style={inputStyle} autoComplete="off" name={'c6_' + Math.random().toString(36).substring(7)}>
                   <option value="">-- Select Country --</option>
                   {countries.map((c) => (
                     <option key={c.code} value={c.code}>{c.name}</option>
@@ -626,28 +638,28 @@ export default function AccountPage() {
 
               <div style={{ marginBottom: '18px' }}>
                 <label style={labelStyle}>Bank Name *</label>
-                <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} style={inputStyle} />
+                <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} style={inputStyle} autoComplete="off" name={'b1_' + Math.random().toString(36).substring(7)} />
               </div>
 
               <div style={{ marginBottom: '18px' }}>
                 <label style={labelStyle}>Account Holder Name *</label>
-                <input type="text" value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} style={inputStyle} />
+                <input type="text" value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} style={inputStyle} autoComplete="off" name={'b2_' + Math.random().toString(36).substring(7)} />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '18px' }}>
                 <div>
                   <label style={labelStyle}>Account Number *</label>
-                  <input type="text" value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)} style={inputStyle} />
+                  <input type="text" value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)} style={inputStyle} autoComplete="off" name={'b3_' + Math.random().toString(36).substring(7)} />
                 </div>
                 <div>
                   <label style={labelStyle}>SWIFT / IBAN</label>
-                  <input type="text" value={bankSwift} onChange={(e) => setBankSwift(e.target.value)} style={inputStyle} />
+                  <input type="text" value={bankSwift} onChange={(e) => setBankSwift(e.target.value)} style={inputStyle} autoComplete="off" name={'b4_' + Math.random().toString(36).substring(7)} />
                 </div>
               </div>
 
               <div style={{ marginBottom: '25px' }}>
                 <label style={labelStyle}>Branch</label>
-                <input type="text" value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} style={inputStyle} />
+                <input type="text" value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} style={inputStyle} autoComplete="off" name={'b5_' + Math.random().toString(36).substring(7)} />
               </div>
 
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -671,9 +683,7 @@ export default function AccountPage() {
           )}
         </div>
 
-        {/* ============================================================
-            CHANGE PASSWORD
-        ============================================================ */}
+        {/* CHANGE PASSWORD */}
         <div style={{ background: 'white', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
           <div style={{ marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #F1F3F5' }}>
             <h2 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>🔒 Change Password</h2>
@@ -685,18 +695,18 @@ export default function AccountPage() {
             </div>
           )}
 
-          <form onSubmit={handlePasswordChange}>
+          <form onSubmit={handlePasswordChange} autoComplete="off">
             <div style={{ marginBottom: '18px' }}>
               <label style={labelStyle}>Current Password</label>
-              <input type="password" value={curPwd} onChange={(e) => setCurPwd(e.target.value)} style={inputStyle} />
+              <input type="password" value={curPwd} onChange={(e) => setCurPwd(e.target.value)} style={inputStyle} autoComplete="new-password" name={'p1_' + Math.random().toString(36).substring(7)} />
             </div>
             <div style={{ marginBottom: '18px' }}>
               <label style={labelStyle}>New Password (min 6 chars)</label>
-              <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} style={inputStyle} />
+              <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} style={inputStyle} autoComplete="new-password" name={'p2_' + Math.random().toString(36).substring(7)} />
             </div>
             <div style={{ marginBottom: '20px' }}>
               <label style={labelStyle}>Confirm New Password</label>
-              <input type="password" value={newPwd2} onChange={(e) => setNewPwd2(e.target.value)} style={inputStyle} />
+              <input type="password" value={newPwd2} onChange={(e) => setNewPwd2(e.target.value)} style={inputStyle} autoComplete="new-password" name={'p3_' + Math.random().toString(36).substring(7)} />
             </div>
             <button type="submit" disabled={pwdLoading} style={{
               padding: '14px 30px', background: '#003366', color: 'white',
