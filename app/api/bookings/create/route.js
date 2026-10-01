@@ -73,6 +73,16 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Payment required.' });
     }
 
+    // AIR-specific required fields
+    if (shipMode === 'AIR') {
+      if (!body.parcelType) {
+        return NextResponse.json({ success: false, error: 'Parcel Type is required for AIR shipments.' });
+      }
+      if (!shipment.deliveryTimeline || !String(shipment.deliveryTimeline).trim()) {
+        return NextResponse.json({ success: false, error: 'Delivery Timeline is required for AIR shipments.' });
+      }
+    }
+
     // Credit Account check
     if (paymentTerms === 'Credit Account') {
       const { data: userRecord } = await serviceSupabase
@@ -109,10 +119,10 @@ export async function POST(request) {
     }
 
     // Pickup service
-    const pickupService = shipment.pickupService !== false; // default true
+    const pickupService = shipment.pickupService !== false;
     const pickupSameAsShipper = pickupService && shipment.pickupSameAsShipper !== false;
 
-    // Dimensions — combine L/W/H
+    // Dimensions
     const dimLength = parseFloat(shipment.dimLength) || 0;
     const dimWidth = parseFloat(shipment.dimWidth) || 0;
     const dimHeight = parseFloat(shipment.dimHeight) || 0;
@@ -121,9 +131,12 @@ export async function POST(request) {
       dimensionsStr = dimLength + 'x' + dimWidth + 'x' + dimHeight;
     }
 
-    // Packaging type
+    // Packaging
     const packagingType = String(shipment.packagingType || '').trim();
     const packagingTypeCustom = String(shipment.packagingTypeCustom || '').trim();
+
+    // Delivery Timeline (AIR only)
+    const deliveryTimeline = shipment.deliveryTimeline ? String(shipment.deliveryTimeline).trim() : null;
 
     // Tracking number
     const shortForm = generateShortForm(shipper.name);
@@ -148,7 +161,7 @@ export async function POST(request) {
     const modeSuffix = shipMode === 'SEA' ? 'S' : '';
     const trackingNumber = shortForm + ddmmyyyy + nextNum + modeSuffix;
 
-    // Pickup address decision
+    // Pickup address
     let pickupAddress = '';
     let pickupCity = '';
     let pickupState = '';
@@ -167,9 +180,8 @@ export async function POST(request) {
         pickupCountry = shipment.pickupCountry || '';
       }
     }
-    // If pickupService = false → leave all pickup fields empty
 
-    // Insert shipment
+    // Insert
     const { data: newShipment, error: insertError } = await serviceSupabase
       .from('shipments')
       .insert({
@@ -179,6 +191,7 @@ export async function POST(request) {
         service_type: mapServiceType(shipMode),
         parcel_type: body.parcelType || null,
         parcel_type_custom: body.parcelTypeCustom || null,
+        delivery_timeline: deliveryTimeline,
         status: 'Booked',
         shipper_ref: shipment.shipperRef || null,
         shipment_date: shipment.shipmentDate || null,
