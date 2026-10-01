@@ -15,10 +15,16 @@ export default function BookPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
 
+  // Saved addresses
   const [savedShippers, setSavedShippers] = useState([]);
   const [savedConsignees, setSavedConsignees] = useState([]);
   const [selectedShipper, setSelectedShipper] = useState('');
   const [selectedConsignee, setSelectedConsignee] = useState('');
+
+  // Credit status (for conditional payment)
+  const [creditApproved, setCreditApproved] = useState(false);
+  const [creditLimit, setCreditLimit] = useState(0);
+  const [creditTermsDays, setCreditTermsDays] = useState(30);
 
   const [shipMode, setShipMode] = useState('');
   const [parcelType, setParcelType] = useState('');
@@ -50,6 +56,7 @@ export default function BookPage() {
       .catch(() => setCountries([]));
 
     loadAddresses();
+    loadCreditStatus();
   }, [router]);
 
   async function loadAddresses() {
@@ -62,6 +69,20 @@ export default function BookPage() {
       ]);
       if (r1.success) setSavedShippers(r1.addresses || []);
       if (r2.success) setSavedConsignees(r2.addresses || []);
+    } catch (e) { /* silent */ }
+  }
+
+  async function loadCreditStatus() {
+    const token = localStorage.getItem('sxl_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/customer/profile', { headers: { Authorization: 'Bearer ' + token } });
+      const data = await res.json();
+      if (data.success && data.profile) {
+        setCreditApproved(data.profile.creditApproved === true);
+        setCreditLimit(data.profile.creditLimit || 0);
+        setCreditTermsDays(data.profile.creditTermsDays || 30);
+      }
     } catch (e) { /* silent */ }
   }
 
@@ -131,6 +152,9 @@ export default function BookPage() {
   function validatePayment() {
     if (!paymentTerms) return 'Please select a payment type.';
     if (!paymentMethod) return 'Please select a payment method.';
+    if (paymentTerms === 'Credit Account' && !creditApproved) {
+      return 'Credit Account is not available. Please choose Prepaid or Collect.';
+    }
     return null;
   }
 
@@ -492,13 +516,75 @@ export default function BookPage() {
               <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
                 {isSea ? 'Step 4' : 'Step 5'} - Payment Terms
               </h3>
+
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px' }}>Payment Type *</label>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
-                {['Prepaid', 'Collect', 'Credit Account'].map((t) => (
-                  <button key={t} onClick={() => setPaymentTerms(t)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (paymentTerms === t ? '#FF6B00' : '#E9ECEF'), background: paymentTerms === t ? '#FF6B00' : 'white', color: paymentTerms === t ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>{t}</button>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                {['Prepaid', 'Collect'].map((t) => (
+                  <button key={t} onClick={() => setPaymentTerms(t)} style={{
+                    padding: '10px 20px', borderRadius: '30px',
+                    border: '2px solid ' + (paymentTerms === t ? '#FF6B00' : '#E9ECEF'),
+                    background: paymentTerms === t ? '#FF6B00' : 'white',
+                    color: paymentTerms === t ? 'white' : '#343A40',
+                    fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
+                  }}>{t}</button>
                 ))}
+
+                {/* Credit Account — conditional */}
+                {creditApproved ? (
+                  <button onClick={() => setPaymentTerms('Credit Account')} style={{
+                    padding: '10px 20px', borderRadius: '30px',
+                    border: '2px solid ' + (paymentTerms === 'Credit Account' ? '#FF6B00' : '#E9ECEF'),
+                    background: paymentTerms === 'Credit Account' ? '#FF6B00' : 'white',
+                    color: paymentTerms === 'Credit Account' ? 'white' : '#343A40',
+                    fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
+                  }}>Credit Account</button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    title="Apply for a credit account in My Account"
+                    style={{
+                      padding: '10px 20px', borderRadius: '30px',
+                      border: '2px dashed #E9ECEF',
+                      background: '#F8F9FA',
+                      color: '#ADB5BD',
+                      fontWeight: 600, fontSize: '0.9rem',
+                      cursor: 'not-allowed', fontFamily: 'inherit',
+                      position: 'relative'
+                    }}
+                  >
+                    Credit Account 🔒
+                  </button>
+                )}
               </div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px' }}>Payment Method *</label>
+
+              {/* Helper message under credit button */}
+              {!creditApproved && (
+                <div style={{
+                  background: '#FFF5EB', borderLeft: '3px solid #FF6B00',
+                  borderRadius: '6px', padding: '10px 14px',
+                  marginBottom: '20px', fontSize: '0.82rem', color: '#8B4500'
+                }}>
+                  💡 Credit Account is available only to approved customers.{' '}
+                  <a href="/account" style={{ color: '#FF6B00', fontWeight: 700 }}>
+                    Apply in My Account →
+                  </a>
+                </div>
+              )}
+
+              {/* Approved hint */}
+              {creditApproved && (
+                <div style={{
+                  background: '#E8F7EF', borderLeft: '3px solid #28A745',
+                  borderRadius: '6px', padding: '10px 14px',
+                  marginBottom: '20px', fontSize: '0.82rem', color: '#155724'
+                }}>
+                  ✅ You&apos;re approved for Credit Account. Limit:{' '}
+                  <b>USD {Number(creditLimit).toFixed(2)}</b> • Net {creditTermsDays} days.
+                </div>
+              )}
+
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px', marginTop: '20px' }}>Payment Method *</label>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
                 {['Bank Transfer', 'Cash'].map((m) => (
                   <button key={m} onClick={() => setPaymentMethod(m)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (paymentMethod === m ? '#FF6B00' : '#E9ECEF'), background: paymentMethod === m ? '#FF6B00' : 'white', color: paymentMethod === m ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>{m}</button>
