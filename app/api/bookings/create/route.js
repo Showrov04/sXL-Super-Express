@@ -108,16 +108,18 @@ export async function POST(request) {
       }
     }
 
-    // Dimensions — combine L/W/H into string for legacy field
+    // Dimensions — combine L/W/H
     const dimLength = parseFloat(shipment.dimLength) || 0;
     const dimWidth = parseFloat(shipment.dimWidth) || 0;
     const dimHeight = parseFloat(shipment.dimHeight) || 0;
     let dimensionsStr = '';
     if (dimLength > 0 && dimWidth > 0 && dimHeight > 0) {
       dimensionsStr = dimLength + 'x' + dimWidth + 'x' + dimHeight;
-    } else if (shipment.dimensions) {
-      dimensionsStr = String(shipment.dimensions); // fallback
     }
+
+    // Packaging type
+    const packagingType = String(shipment.packagingType || '').trim();
+    const packagingTypeCustom = String(shipment.packagingTypeCustom || '').trim();
 
     // Tracking number
     const shortForm = generateShortForm(shipper.name);
@@ -183,6 +185,8 @@ export async function POST(request) {
         dim_length: dimLength > 0 ? dimLength : null,
         dim_width: dimWidth > 0 ? dimWidth : null,
         dim_height: dimHeight > 0 ? dimHeight : null,
+        packaging_type: packagingType || null,
+        packaging_type_custom: packagingTypeCustom || null,
         currency: 'USD',
         payment_status: 'Unpaid',
         payment_terms: paymentTerms,
