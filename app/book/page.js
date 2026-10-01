@@ -15,16 +15,18 @@ export default function BookPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
 
-  // Saved addresses
   const [savedShippers, setSavedShippers] = useState([]);
   const [savedConsignees, setSavedConsignees] = useState([]);
   const [selectedShipper, setSelectedShipper] = useState('');
   const [selectedConsignee, setSelectedConsignee] = useState('');
 
-  // Credit status (for conditional payment)
   const [creditApproved, setCreditApproved] = useState(false);
   const [creditLimit, setCreditLimit] = useState(0);
   const [creditTermsDays, setCreditTermsDays] = useState(30);
+
+  // Profile completeness check
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [profileChecked, setProfileChecked] = useState(false);
 
   const [shipMode, setShipMode] = useState('');
   const [parcelType, setParcelType] = useState('');
@@ -79,11 +81,32 @@ export default function BookPage() {
       const res = await fetch('/api/customer/profile', { headers: { Authorization: 'Bearer ' + token } });
       const data = await res.json();
       if (data.success && data.profile) {
-        setCreditApproved(data.profile.creditApproved === true);
-        setCreditLimit(data.profile.creditLimit || 0);
-        setCreditTermsDays(data.profile.creditTermsDays || 30);
+        const p = data.profile;
+        setCreditApproved(p.creditApproved === true);
+        setCreditLimit(p.creditLimit || 0);
+        setCreditTermsDays(p.creditTermsDays || 30);
+
+        // Check if profile is incomplete
+        const missing = !p.companyName || !p.companyAddress || !p.companyCity || !p.companyCountry || !p.contactPerson || !p.phone;
+        setProfileIncomplete(missing);
+
+        // Prefill shipper form with saved company info (helpful!)
+        if (p.companyName && !shipper.name) {
+          setShipper({
+            name: p.companyName || '',
+            fullAddress: p.companyAddress || '',
+            city: p.companyCity || '',
+            state: p.companyState || '',
+            country: p.companyCountry || '',
+            email: p.email || '',
+            phone: p.phone || '',
+          });
+        }
       }
-    } catch (e) { /* silent */ }
+      setProfileChecked(true);
+    } catch (e) {
+      setProfileChecked(true);
+    }
   }
 
   function setShipperField(k, v) { setShipper((s) => ({ ...s, [k]: v })); }
@@ -273,6 +296,51 @@ export default function BookPage() {
       <Header />
 
       <div style={{ maxWidth: '1000px', margin: '30px auto', padding: '0 20px 60px' }}>
+
+        {/* ============================================================
+            SOFT REMINDER — Profile incomplete
+            Only shows on Step 1 to keep it non-intrusive
+        ============================================================ */}
+        {step === 1 && profileChecked && profileIncomplete && (
+          <div style={{
+            background: '#FFF3CD',
+            border: '2px solid #FFC107',
+            borderLeft: '5px solid #FF6B00',
+            borderRadius: '12px',
+            padding: '16px 20px',
+            marginBottom: '20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '15px',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '1.6rem' }}>💡</span>
+              <div>
+                <div style={{ fontWeight: 800, color: '#856404', fontSize: '0.95rem', marginBottom: '2px' }}>
+                  Complete your Shipper Information
+                </div>
+                <div style={{ color: '#856404', fontSize: '0.85rem' }}>
+                  You can add your company address, city, and country in My Account for faster bookings.
+                </div>
+              </div>
+            </div>
+            <Link href="/account" style={{
+              padding: '10px 18px',
+              background: '#FF6B00',
+              color: 'white',
+              borderRadius: '8px',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              textDecoration: 'none',
+              whiteSpace: 'nowrap'
+            }}>
+              Update My Account →
+            </Link>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: '8px', marginBottom: '30px', overflowX: 'auto', paddingBottom: '5px' }}>
           {steps.map((label, idx) => {
             const num = idx + 1;
@@ -529,7 +597,6 @@ export default function BookPage() {
                   }}>{t}</button>
                 ))}
 
-                {/* Credit Account — conditional */}
                 {creditApproved ? (
                   <button onClick={() => setPaymentTerms('Credit Account')} style={{
                     padding: '10px 20px', borderRadius: '30px',
@@ -539,48 +606,27 @@ export default function BookPage() {
                     fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
                   }}>Credit Account</button>
                 ) : (
-                  <button
-                    type="button"
-                    disabled
-                    title="Apply for a credit account in My Account"
-                    style={{
-                      padding: '10px 20px', borderRadius: '30px',
-                      border: '2px dashed #E9ECEF',
-                      background: '#F8F9FA',
-                      color: '#ADB5BD',
-                      fontWeight: 600, fontSize: '0.9rem',
-                      cursor: 'not-allowed', fontFamily: 'inherit',
-                      position: 'relative'
-                    }}
-                  >
+                  <button type="button" disabled title="Apply for a credit account in My Account" style={{
+                    padding: '10px 20px', borderRadius: '30px',
+                    border: '2px dashed #E9ECEF', background: '#F8F9FA',
+                    color: '#ADB5BD', fontWeight: 600, fontSize: '0.9rem',
+                    cursor: 'not-allowed', fontFamily: 'inherit'
+                  }}>
                     Credit Account 🔒
                   </button>
                 )}
               </div>
 
-              {/* Helper message under credit button */}
               {!creditApproved && (
-                <div style={{
-                  background: '#FFF5EB', borderLeft: '3px solid #FF6B00',
-                  borderRadius: '6px', padding: '10px 14px',
-                  marginBottom: '20px', fontSize: '0.82rem', color: '#8B4500'
-                }}>
+                <div style={{ background: '#FFF5EB', borderLeft: '3px solid #FF6B00', borderRadius: '6px', padding: '10px 14px', marginBottom: '20px', fontSize: '0.82rem', color: '#8B4500' }}>
                   💡 Credit Account is available only to approved customers.{' '}
-                  <a href="/account" style={{ color: '#FF6B00', fontWeight: 700 }}>
-                    Apply in My Account →
-                  </a>
+                  <Link href="/account" style={{ color: '#FF6B00', fontWeight: 700 }}>Apply in My Account →</Link>
                 </div>
               )}
 
-              {/* Approved hint */}
               {creditApproved && (
-                <div style={{
-                  background: '#E8F7EF', borderLeft: '3px solid #28A745',
-                  borderRadius: '6px', padding: '10px 14px',
-                  marginBottom: '20px', fontSize: '0.82rem', color: '#155724'
-                }}>
-                  ✅ You&apos;re approved for Credit Account. Limit:{' '}
-                  <b>USD {Number(creditLimit).toFixed(2)}</b> • Net {creditTermsDays} days.
+                <div style={{ background: '#E8F7EF', borderLeft: '3px solid #28A745', borderRadius: '6px', padding: '10px 14px', marginBottom: '20px', fontSize: '0.82rem', color: '#155724' }}>
+                  ✅ You&apos;re approved for Credit Account. Limit: <b>USD {Number(creditLimit).toFixed(2)}</b> • Net {creditTermsDays} days.
                 </div>
               )}
 
