@@ -6,7 +6,6 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
-// Country code → full name lookup
 const COUNTRY_NAMES = {
   AF: 'Afghanistan', AL: 'Albania', DZ: 'Algeria', AD: 'Andorra', AO: 'Angola',
   AR: 'Argentina', AM: 'Armenia', AU: 'Australia', AT: 'Austria', AZ: 'Azerbaijan',
@@ -90,7 +89,8 @@ export default function BookPage() {
     parcelReadyDate: new Date().toISOString().slice(0, 10),
     parcelReadyTime: '10:00', pickupSameAsShipper: true,
     pickupAddress: '', pickupCity: '', pickupState: '', pickupCountry: '',
-    hsCode: '', totalCbm: '', dimensions: ''
+    hsCode: '', totalCbm: '',
+    dimLength: '', dimWidth: '', dimHeight: ''
   });
   const [paymentTerms, setPaymentTerms] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -209,10 +209,13 @@ export default function BookPage() {
   function validateShipment() {
     if (!shipment.description.trim()) return 'Description of goods is required.';
     if (!shipment.totalWeight || parseFloat(shipment.totalWeight) <= 0) return 'Enter a valid weight.';
+    // Dimensions: required for both AIR and SEA
+    if (!shipment.dimLength || parseFloat(shipment.dimLength) <= 0) return 'Length is required.';
+    if (!shipment.dimWidth || parseFloat(shipment.dimWidth) <= 0) return 'Width is required.';
+    if (!shipment.dimHeight || parseFloat(shipment.dimHeight) <= 0) return 'Height is required.';
     if (isSea) {
       if (!shipment.hsCode.trim()) return 'HS Code is required for SEA shipments.';
       if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) return 'Total CBM is required.';
-      if (!shipment.dimensions.trim()) return 'Dimensions are required.';
     } else {
       if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) return 'Total value for customs is required.';
     }
@@ -559,13 +562,40 @@ export default function BookPage() {
                 <Field label="Shipment Date" type="date" value={shipment.shipmentDate} onChange={(v) => setShipmentField('shipmentDate', v)} />
               </div>
               <Field label="Description of Goods *" value={shipment.description} onChange={(v) => setShipmentField('description', v)} textarea />
+
+              {/* Dimensions — 3 boxes (both AIR and SEA) */}
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
+                  Dimensions (cm) *
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <input type="number" step="0.01" min="0" placeholder="Length"
+                      value={shipment.dimLength} onChange={(e) => setShipmentField('dimLength', e.target.value)}
+                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px', textAlign: 'center' }}>Length</div>
+                  </div>
+                  <div>
+                    <input type="number" step="0.01" min="0" placeholder="Width"
+                      value={shipment.dimWidth} onChange={(e) => setShipmentField('dimWidth', e.target.value)}
+                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px', textAlign: 'center' }}>Width</div>
+                  </div>
+                  <div>
+                    <input type="number" step="0.01" min="0" placeholder="Height"
+                      value={shipment.dimHeight} onChange={(e) => setShipmentField('dimHeight', e.target.value)}
+                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px', textAlign: 'center' }}>Height</div>
+                  </div>
+                </div>
+              </div>
+
               {isSea && (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     <Field label="HS Code *" value={shipment.hsCode} onChange={(v) => setShipmentField('hsCode', v)} />
                     <Field label="Total CBM *" type="number" value={shipment.totalCbm} onChange={(v) => setShipmentField('totalCbm', v)} />
                   </div>
-                  <Field label="Dimensions (LxWxH cm) *" value={shipment.dimensions} onChange={(v) => setShipmentField('dimensions', v)} />
                 </>
               )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
@@ -704,7 +734,7 @@ export default function BookPage() {
                       <div><b>Description:</b> {shipment.description || '-'}</div>
                       {isSea && <div><b>HS Code:</b> {shipment.hsCode}</div>}
                       {isSea && <div><b>CBM:</b> {shipment.totalCbm} m3</div>}
-                      {isSea && <div><b>Dimensions:</b> {shipment.dimensions} cm</div>}
+                      <div><b>Dimensions:</b> {shipment.dimLength}x{shipment.dimWidth}x{shipment.dimHeight} cm</div>
                       <div><b>Packages:</b> {shipment.packages}</div>
                       <div><b>Weight:</b> {shipment.totalWeight} kg</div>
                     </div>
