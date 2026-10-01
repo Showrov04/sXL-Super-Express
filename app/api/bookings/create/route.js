@@ -108,6 +108,10 @@ export async function POST(request) {
       }
     }
 
+    // Pickup service
+    const pickupService = shipment.pickupService !== false; // default true
+    const pickupSameAsShipper = pickupService && shipment.pickupSameAsShipper !== false;
+
     // Dimensions — combine L/W/H
     const dimLength = parseFloat(shipment.dimLength) || 0;
     const dimWidth = parseFloat(shipment.dimWidth) || 0;
@@ -144,6 +148,27 @@ export async function POST(request) {
     const modeSuffix = shipMode === 'SEA' ? 'S' : '';
     const trackingNumber = shortForm + ddmmyyyy + nextNum + modeSuffix;
 
+    // Pickup address decision
+    let pickupAddress = '';
+    let pickupCity = '';
+    let pickupState = '';
+    let pickupCountry = '';
+
+    if (pickupService) {
+      if (pickupSameAsShipper) {
+        pickupAddress = shipper.fullAddress || '';
+        pickupCity = shipper.city || '';
+        pickupState = shipper.state || '';
+        pickupCountry = shipper.country || '';
+      } else {
+        pickupAddress = shipment.pickupAddress || '';
+        pickupCity = shipment.pickupCity || '';
+        pickupState = shipment.pickupState || '';
+        pickupCountry = shipment.pickupCountry || '';
+      }
+    }
+    // If pickupService = false → leave all pickup fields empty
+
     // Insert shipment
     const { data: newShipment, error: insertError } = await serviceSupabase
       .from('shipments')
@@ -165,11 +190,12 @@ export async function POST(request) {
         special_instruction: shipment.specialInstruction || null,
         parcel_ready_date: shipment.parcelReadyDate || null,
         parcel_ready_time: shipment.parcelReadyTime || null,
-        pickup_same_as_shipper: shipment.pickupSameAsShipper !== false,
-        pickup_address: shipment.pickupAddress || shipper.fullAddress,
-        pickup_city: shipment.pickupCity || shipper.city,
-        pickup_state: shipment.pickupState || shipper.state,
-        pickup_country: shipment.pickupCountry || shipper.country,
+        pickup_service: pickupService,
+        pickup_same_as_shipper: pickupSameAsShipper,
+        pickup_address: pickupAddress || null,
+        pickup_city: pickupCity || null,
+        pickup_state: pickupState || null,
+        pickup_country: pickupCountry || null,
         origin: shipper.country,
         destination: consignee.country,
         sender_name: shipper.name,
