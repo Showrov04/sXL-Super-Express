@@ -13,6 +13,9 @@ export default function AccountPage() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Edit mode for Shipper Info
+  const [editMode, setEditMode] = useState(false);
+
   // Profile fields
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
@@ -24,6 +27,9 @@ export default function AccountPage() {
   const [companyState, setCompanyState] = useState('');
   const [companyCountry, setCompanyCountry] = useState('');
   const [companyBin, setCompanyBin] = useState('');
+
+  // Backup (for cancel)
+  const [backup, setBackup] = useState(null);
 
   // Credit status
   const [creditApproved, setCreditApproved] = useState(false);
@@ -37,14 +43,13 @@ export default function AccountPage() {
   const [creditSubmitting, setCreditSubmitting] = useState(false);
   const [creditMsg, setCreditMsg] = useState('');
   const [creditFormError, setCreditFormError] = useState('');
-  // bank info
   const [bankName, setBankName] = useState('');
   const [bankAccountName, setBankAccountName] = useState('');
   const [bankAccountNumber, setBankAccountNumber] = useState('');
   const [bankSwift, setBankSwift] = useState('');
   const [bankBranch, setBankBranch] = useState('');
 
-  // Password change
+  // Password
   const [curPwd, setCurPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [newPwd2, setNewPwd2] = useState('');
@@ -91,14 +96,12 @@ export default function AccountPage() {
       setCompanyCountry(p.companyCountry || '');
       setCompanyBin(p.companyBin || '');
 
-      // Credit
       setCreditApproved(p.creditApproved === true);
       setCreditLimit(p.creditLimit || 0);
       setCreditTermsDays(p.creditTermsDays || 30);
       setCreditStatus(p.creditStatus || null);
       setCreditNote(p.creditNote || '');
 
-      // Bank (pre-fill if exists)
       setBankName(p.bankName || '');
       setBankAccountName(p.bankAccountName || '');
       setBankAccountNumber(p.bankAccountNumber || '');
@@ -110,6 +113,32 @@ export default function AccountPage() {
       setError('Connection error.');
       setLoading(false);
     }
+  }
+
+  function startEdit() {
+    // Snapshot current values for cancel
+    setBackup({
+      companyName, contactPerson, phone,
+      companyAddress, companyCity, companyState, companyCountry, companyBin,
+    });
+    setEditMode(true);
+    setSuccessMsg('');
+    setError('');
+  }
+
+  function cancelEdit() {
+    if (backup) {
+      setCompanyName(backup.companyName || '');
+      setContactPerson(backup.contactPerson || '');
+      setPhone(backup.phone || '');
+      setCompanyAddress(backup.companyAddress || '');
+      setCompanyCity(backup.companyCity || '');
+      setCompanyState(backup.companyState || '');
+      setCompanyCountry(backup.companyCountry || '');
+      setCompanyBin(backup.companyBin || '');
+    }
+    setEditMode(false);
+    setError('');
   }
 
   async function handleSave(e) {
@@ -163,6 +192,7 @@ export default function AccountPage() {
 
       setSuccessMsg('Shipper information saved successfully.');
       setSaving(false);
+      setEditMode(false);
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
       setError('Connection error.');
@@ -175,7 +205,6 @@ export default function AccountPage() {
     setCreditFormError('');
     setCreditMsg('');
 
-    // Validate
     if (!companyName.trim()) { setCreditFormError('Company name is required.'); return; }
     if (!companyAddress.trim()) { setCreditFormError('Company address is required.'); return; }
     if (!companyCountry.trim()) { setCreditFormError('Country is required.'); return; }
@@ -227,25 +256,14 @@ export default function AccountPage() {
   async function handlePasswordChange(e) {
     e.preventDefault();
     setPwdMsg('');
-    if (!curPwd || !newPwd || !newPwd2) {
-      setPwdMsg('All password fields are required.');
-      return;
-    }
-    if (newPwd !== newPwd2) {
-      setPwdMsg('New passwords do not match.');
-      return;
-    }
-    if (newPwd.length < 6) {
-      setPwdMsg('Password must be at least 6 characters.');
-      return;
-    }
+    if (!curPwd || !newPwd || !newPwd2) { setPwdMsg('All password fields are required.'); return; }
+    if (newPwd !== newPwd2) { setPwdMsg('New passwords do not match.'); return; }
+    if (newPwd.length < 6) { setPwdMsg('Password must be at least 6 characters.'); return; }
     setPwdLoading(true);
     setTimeout(() => {
       setPwdMsg('Password change coming soon. Please contact admin.');
       setPwdLoading(false);
-      setCurPwd('');
-      setNewPwd('');
-      setNewPwd2('');
+      setCurPwd(''); setNewPwd(''); setNewPwd2('');
     }, 800);
   }
 
@@ -258,6 +276,13 @@ export default function AccountPage() {
     outline: 'none',
     fontFamily: 'inherit',
     boxSizing: 'border-box'
+  };
+
+  const readOnlyStyle = {
+    ...inputStyle,
+    background: '#F8F9FA',
+    color: '#343A40',
+    border: '2px solid #F1F3F5'
   };
 
   const labelStyle = {
@@ -308,11 +333,28 @@ export default function AccountPage() {
           background: 'white', borderRadius: '12px', padding: '30px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px'
         }}>
-          <div style={{ marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #F1F3F5' }}>
-            <h2 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>🚚 Shipper Information</h2>
-            <p style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
-              Your company details used for shipments and invoices
-            </p>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+            flexWrap: 'wrap', gap: '12px',
+            marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #F1F3F5'
+          }}>
+            <div>
+              <h2 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>🚚 Shipper Information</h2>
+              <p style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
+                {editMode ? 'Editing — make your changes and save' : 'Click Edit to modify your details'}
+              </p>
+            </div>
+
+            {!editMode && (
+              <button onClick={startEdit} style={{
+                padding: '10px 20px', background: '#FF6B00', color: 'white',
+                border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
+                cursor: 'pointer', fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: '6px'
+              }}>
+                ✏️ Edit
+              </button>
+            )}
           </div>
 
           {error && (
@@ -326,69 +368,108 @@ export default function AccountPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '18px' }}>
               <div>
                 <label style={labelStyle}>Account ID</label>
-                <input type="text" value={userId} disabled style={{ ...inputStyle, background: '#F1F3F5', color: '#6C757D' }} />
+                <input type="text" value={userId} disabled style={readOnlyStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Email</label>
-                <input type="email" value={email} disabled style={{ ...inputStyle, background: '#F1F3F5', color: '#6C757D' }} />
+                <input type="email" value={email} disabled style={readOnlyStyle} />
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '18px' }}>
               <div>
                 <label style={labelStyle}>Company Name *</label>
-                <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} style={inputStyle} />
+                <input type="text" value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  disabled={!editMode}
+                  style={editMode ? inputStyle : readOnlyStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Contact Person *</label>
-                <input type="text" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} style={inputStyle} />
+                <input type="text" value={contactPerson}
+                  onChange={(e) => setContactPerson(e.target.value)}
+                  disabled={!editMode}
+                  style={editMode ? inputStyle : readOnlyStyle} />
               </div>
             </div>
 
             <div style={{ marginBottom: '18px' }}>
               <label style={labelStyle}>Phone *</label>
-              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
+              <input type="tel" value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                disabled={!editMode}
+                style={editMode ? inputStyle : readOnlyStyle} />
             </div>
 
             <div style={{ marginBottom: '18px' }}>
               <label style={labelStyle}>Full Address</label>
-              <textarea value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} />
+              <textarea value={companyAddress}
+                onChange={(e) => setCompanyAddress(e.target.value)}
+                disabled={!editMode}
+                style={{
+                  ...(editMode ? inputStyle : readOnlyStyle),
+                  minHeight: '80px',
+                  resize: editMode ? 'vertical' : 'none'
+                }} />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '18px' }}>
               <div>
                 <label style={labelStyle}>City</label>
-                <input type="text" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} style={inputStyle} />
+                <input type="text" value={companyCity}
+                  onChange={(e) => setCompanyCity(e.target.value)}
+                  disabled={!editMode}
+                  style={editMode ? inputStyle : readOnlyStyle} />
               </div>
               <div>
                 <label style={labelStyle}>State</label>
-                <input type="text" value={companyState} onChange={(e) => setCompanyState(e.target.value)} style={inputStyle} />
+                <input type="text" value={companyState}
+                  onChange={(e) => setCompanyState(e.target.value)}
+                  disabled={!editMode}
+                  style={editMode ? inputStyle : readOnlyStyle} />
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
               <div>
                 <label style={labelStyle}>Country</label>
-                <input type="text" value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value)} style={inputStyle} />
+                <input type="text" value={companyCountry}
+                  onChange={(e) => setCompanyCountry(e.target.value)}
+                  disabled={!editMode}
+                  style={editMode ? inputStyle : readOnlyStyle} />
               </div>
               <div>
                 <label style={labelStyle}>BIN</label>
-                <input type="text" value={companyBin} onChange={(e) => setCompanyBin(e.target.value)} style={inputStyle} />
+                <input type="text" value={companyBin}
+                  onChange={(e) => setCompanyBin(e.target.value)}
+                  disabled={!editMode}
+                  style={editMode ? inputStyle : readOnlyStyle} />
               </div>
             </div>
 
-            <button type="submit" disabled={saving} style={{
-              padding: '14px 30px', background: '#FF6B00', color: 'white',
-              border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem',
-              cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, fontFamily: 'inherit'
-            }}>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+            {editMode && (
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button type="submit" disabled={saving} style={{
+                  padding: '14px 30px', background: '#FF6B00', color: 'white',
+                  border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem',
+                  cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, fontFamily: 'inherit'
+                }}>
+                  {saving ? 'Saving...' : '💾 Save Changes'}
+                </button>
+                <button type="button" onClick={cancelEdit} disabled={saving} style={{
+                  padding: '14px 30px', background: 'transparent', color: '#003366',
+                  border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, fontSize: '1rem',
+                  cursor: 'pointer', fontFamily: 'inherit'
+                }}>
+                  Cancel
+                </button>
+              </div>
+            )}
           </form>
         </div>
 
         {/* ============================================================
-            CREDIT ACCOUNT
+            CREDIT ACCOUNT (unchanged)
         ============================================================ */}
         <div style={{
           background: 'white', borderRadius: '12px', padding: '30px',
@@ -411,30 +492,20 @@ export default function AccountPage() {
             </div>
           )}
 
-          {/* ---- STATUS: APPROVED ---- */}
           {creditApproved && (
-            <div style={{
-              background: '#E8F7EF', border: '2px solid #28A745',
-              borderRadius: '12px', padding: '20px'
-            }}>
+            <div style={{ background: '#E8F7EF', border: '2px solid #28A745', borderRadius: '12px', padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                 <span style={{ fontSize: '1.8rem' }}>✅</span>
-                <div style={{ fontWeight: 800, color: '#155724', fontSize: '1.1rem' }}>
-                  Credit Account Active
-                </div>
+                <div style={{ fontWeight: 800, color: '#155724', fontSize: '1.1rem' }}>Credit Account Active</div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '15px' }}>
                 <div>
                   <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#155724', fontWeight: 700, letterSpacing: '0.5px' }}>Credit Limit</div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#003366', marginTop: '4px' }}>
-                    USD {Number(creditLimit).toFixed(2)}
-                  </div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#003366', marginTop: '4px' }}>USD {Number(creditLimit).toFixed(2)}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#155724', fontWeight: 700, letterSpacing: '0.5px' }}>Payment Terms</div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#003366', marginTop: '4px' }}>
-                    Net {creditTermsDays} days
-                  </div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#003366', marginTop: '4px' }}>Net {creditTermsDays} days</div>
                 </div>
               </div>
               <p style={{ fontSize: '0.9rem', color: '#343A40', marginTop: '15px', marginBottom: 0 }}>
@@ -443,17 +514,11 @@ export default function AccountPage() {
             </div>
           )}
 
-          {/* ---- STATUS: PENDING ---- */}
           {!creditApproved && creditStatus === 'pending' && (
-            <div style={{
-              background: '#FFF3CD', border: '2px solid #FFC107',
-              borderRadius: '12px', padding: '20px'
-            }}>
+            <div style={{ background: '#FFF3CD', border: '2px solid #FFC107', borderRadius: '12px', padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                 <span style={{ fontSize: '1.8rem' }}>🟡</span>
-                <div style={{ fontWeight: 800, color: '#856404', fontSize: '1.1rem' }}>
-                  Request Under Review
-                </div>
+                <div style={{ fontWeight: 800, color: '#856404', fontSize: '1.1rem' }}>Request Under Review</div>
               </div>
               <p style={{ fontSize: '0.9rem', color: '#343A40', margin: 0 }}>
                 Our team is reviewing your credit account request. You&apos;ll be notified by email within 1-2 business days.
@@ -461,17 +526,11 @@ export default function AccountPage() {
             </div>
           )}
 
-          {/* ---- STATUS: REJECTED ---- */}
           {!creditApproved && creditStatus === 'rejected' && (
-            <div style={{
-              background: '#F8D7DA', border: '2px solid #DC3545',
-              borderRadius: '12px', padding: '20px', marginBottom: '15px'
-            }}>
+            <div style={{ background: '#F8D7DA', border: '2px solid #DC3545', borderRadius: '12px', padding: '20px', marginBottom: '15px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                 <span style={{ fontSize: '1.8rem' }}>🔴</span>
-                <div style={{ fontWeight: 800, color: '#721C24', fontSize: '1.1rem' }}>
-                  Request Not Approved
-                </div>
+                <div style={{ fontWeight: 800, color: '#721C24', fontSize: '1.1rem' }}>Request Not Approved</div>
               </div>
               {creditNote && (
                 <p style={{ fontSize: '0.9rem', color: '#343A40', marginBottom: '10px' }}>
@@ -479,17 +538,14 @@ export default function AccountPage() {
                 </p>
               )}
               <button onClick={() => setShowCreditForm(true)} style={{
-                marginTop: '10px', padding: '10px 20px',
-                background: '#DC3545', color: 'white',
-                border: 'none', borderRadius: '8px',
-                fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
+                marginTop: '10px', padding: '10px 20px', background: '#DC3545', color: 'white',
+                border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
               }}>
                 Reapply for Credit Account
               </button>
             </div>
           )}
 
-          {/* ---- STATUS: NOT APPLIED ---- */}
           {!creditApproved && !creditStatus && !showCreditForm && (
             <div>
               <p style={{ color: '#343A40', fontSize: '0.95rem', marginBottom: '15px' }}>
@@ -510,14 +566,9 @@ export default function AccountPage() {
             </div>
           )}
 
-          {/* ---- CREDIT FORM ---- */}
           {!creditApproved && (showCreditForm || creditStatus === 'rejected') && showCreditForm && (
             <form onSubmit={handleCreditSubmit} style={{ marginTop: '20px' }}>
-              <div style={{
-                background: '#FFF5EB', borderLeft: '4px solid #FF6B00',
-                borderRadius: '8px', padding: '12px 16px', marginBottom: '20px',
-                fontSize: '0.85rem', color: '#6C757D'
-              }}>
+              <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.85rem', color: '#6C757D' }}>
                 Please provide the following details. Our team will review your application within 1-2 business days.
               </div>
 
@@ -527,9 +578,7 @@ export default function AccountPage() {
                 </div>
               )}
 
-              <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '15px', marginTop: '20px' }}>
-                🏢 Company Information
-              </h3>
+              <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '15px', marginTop: '20px' }}>🏢 Company Information</h3>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '18px' }}>
                 <div>
@@ -563,9 +612,7 @@ export default function AccountPage() {
                 <input type="text" value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value)} style={inputStyle} />
               </div>
 
-              <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '15px', marginTop: '25px' }}>
-                🏦 Bank Information
-              </h3>
+              <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '15px', marginTop: '25px' }}>🏦 Bank Information</h3>
 
               <div style={{ marginBottom: '18px' }}>
                 <label style={labelStyle}>Bank Name *</label>
@@ -615,12 +662,9 @@ export default function AccountPage() {
         </div>
 
         {/* ============================================================
-            CHANGE PASSWORD
+            CHANGE PASSWORD (unchanged)
         ============================================================ */}
-        <div style={{
-          background: 'white', borderRadius: '12px', padding: '30px',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
-        }}>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
           <div style={{ marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #F1F3F5' }}>
             <h2 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>🔒 Change Password</h2>
           </div>
