@@ -106,6 +106,8 @@ function ShipmentsPanel() {
   const [quMsg, setQuMsg] = useState('');
   const [quLoading, setQuLoading] = useState(false);
 
+  const [sendingWh, setSendingWh] = useState('');
+
   useEffect(() => {
     loadShipments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,6 +171,24 @@ function ShipmentsPanel() {
       setQuLoading(false);
       setTimeout(loadShipments, 500);
     } catch (err) { setQuMsg('❌ Connection error.'); setQuLoading(false); }
+  }
+
+  async function handleSendWarehouse(trackingNumber) {
+    if (!window.confirm('Send warehouse details email for ' + trackingNumber + '?')) return;
+    setSendingWh(trackingNumber);
+    const token = localStorage.getItem('sxl_token');
+    try {
+      const res = await fetch('/api/admin/send-warehouse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ trackingNumber }),
+      });
+      const data = await res.json();
+      if (!data.success) { window.alert('Error: ' + (data.error || 'Failed')); setSendingWh(''); return; }
+      window.alert('✅ Warehouse details sent to customer!');
+      setSendingWh('');
+      loadShipments();
+    } catch (err) { window.alert('Error: ' + err.message); setSendingWh(''); }
   }
 
   function formatDate(d) {
@@ -303,10 +323,10 @@ function ShipmentsPanel() {
             </div>
           ) : (
             <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', minWidth: '1000px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', minWidth: '1100px' }}>
                 <thead>
                   <tr style={{ background: '#F8F9FA' }}>
-                    {['Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status', 'Weight', 'Payment', 'ETA', tab === 'active' ? 'Actions' : ''].filter(Boolean).map((h) => (
+                    {['Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status', 'Weight', 'Payment', 'ETA', 'Pickup', 'Actions'].map((h) => (
                       <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.78rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF' }}>{h}</th>
                     ))}
                   </tr>
@@ -314,6 +334,7 @@ function ShipmentsPanel() {
                 <tbody>
                   {shipments.map((s, i) => {
                     const sc = statusClass(s.status);
+                    const isSelfDelivery = s.pickupService === false;
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
                         <td style={{ padding: '12px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
@@ -327,14 +348,30 @@ function ShipmentsPanel() {
                         <td style={{ padding: '12px 16px' }}>{s.weight || '-'}</td>
                         <td style={{ padding: '12px 16px' }}>{s.paymentStatus || '-'}</td>
                         <td style={{ padding: '12px 16px' }}>{formatDate(s.estimatedDelivery)}</td>
-                        {tab === 'active' && (
-                          <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '12px 16px' }}>
+                          {isSelfDelivery ? (
+                            <span style={{ background: '#FFF5EB', color: '#8B4500', padding: '4px 10px', borderRadius: '12px', fontWeight: 700, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>Self-Delivery</span>
+                          ) : (
+                            <span style={{ background: '#E8F7EF', color: '#155724', padding: '4px 10px', borderRadius: '12px', fontWeight: 700, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>Pickup</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          {tab === 'active' && (
                             <button onClick={() => { setQuTn(s.trackingNumber); setQuStatus(s.status || 'Booked'); }} style={{
                               padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none',
-                              borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit'
+                              borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px'
                             }}>📋 Use</button>
-                          </td>
-                        )}
+                          )}
+                          {isSelfDelivery && (
+                            <button onClick={() => handleSendWarehouse(s.trackingNumber)} disabled={sendingWh === s.trackingNumber} style={{
+                              padding: '5px 10px', background: '#003366', color: 'white', border: 'none',
+                              borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit',
+                              opacity: sendingWh === s.trackingNumber ? 0.6 : 1, whiteSpace: 'nowrap'
+                            }}>
+                              {sendingWh === s.trackingNumber ? '...' : '📧 Send Warehouse'}
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
