@@ -93,7 +93,8 @@ export default function BookPage() {
     pickupAddress: '', pickupCity: '', pickupState: '', pickupCountry: '',
     hsCode: '', totalCbm: '',
     dimLength: '', dimWidth: '', dimHeight: '',
-    packagingType: '', packagingTypeCustom: ''
+    packagingType: '', packagingTypeCustom: '',
+    deliveryTimeline: ''
   });
   const [paymentTerms, setPaymentTerms] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -198,6 +199,9 @@ export default function BookPage() {
   function validateParcel() {
     if (!parcelType) return 'Please select a parcel type.';
     if (parcelType === 'Others' && !parcelTypeCustom.trim()) return 'Please specify the parcel type.';
+    if (!shipment.deliveryTimeline || !shipment.deliveryTimeline.trim()) {
+      return 'Please select a Delivery Timeline.';
+    }
     return null;
   }
   function validateParties() {
@@ -439,28 +443,68 @@ export default function BookPage() {
             </>
           )}
 
-          {/* STEP 2 (AIR only) */}
+          {/* STEP 2 (AIR only) — Parcel Type + Delivery Timeline */}
           {step === 2 && !isSea && (
             <>
-              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>Step 2 - Parcel Type</h3>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                {['Document', 'No-Document (Sample)', 'Hand Carry', 'Others'].map((p) => (
-                  <button key={p} onClick={() => setParcelType(p)} style={{
-                    padding: '10px 20px', borderRadius: '30px',
-                    border: '2px solid ' + (parcelType === p ? '#FF6B00' : '#E9ECEF'),
-                    background: parcelType === p ? '#FF6B00' : 'white',
-                    color: parcelType === p ? 'white' : '#343A40',
-                    fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
-                  }}>{p}</button>
-                ))}
+              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>Step 2 - Parcel Type & Delivery Timeline</h3>
+
+              {/* Parcel Type dropdown */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#343A40', marginBottom: '6px' }}>
+                  Parcel Type *
+                </label>
+                <select
+                  value={parcelType}
+                  onChange={(e) => setParcelType(e.target.value)}
+                  style={{
+                    width: '100%', padding: '13px 15px', fontSize: '0.95rem',
+                    border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none',
+                    background: 'white', fontFamily: 'inherit', boxSizing: 'border-box'
+                  }}>
+                  <option value="">-- Select Parcel Type --</option>
+                  <option value="Document">Document</option>
+                  <option value="Commercial Sample">Commercial Sample</option>
+                  <option value="Special Delivery">Special Delivery</option>
+                  <option value="Others">Others (specify)</option>
+                </select>
+                {parcelType === 'Others' && (
+                  <input
+                    type="text"
+                    placeholder="Please specify the parcel type *"
+                    value={parcelTypeCustom}
+                    onChange={(e) => setParcelTypeCustom(e.target.value)}
+                    style={{
+                      width: '100%', padding: '13px 15px', fontSize: '0.95rem',
+                      border: '2px solid #FF6B00', borderRadius: '8px', outline: 'none',
+                      fontFamily: 'inherit', boxSizing: 'border-box', marginTop: '10px'
+                    }}
+                  />
+                )}
               </div>
-              {parcelType === 'Others' && (
-                <div style={{ marginTop: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>Please specify *</label>
-                  <input type="text" value={parcelTypeCustom} onChange={(e) => setParcelTypeCustom(e.target.value)}
-                    style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit' }} />
+
+              {/* Delivery Timeline dropdown */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#343A40', marginBottom: '6px' }}>
+                  Delivery Timeline *
+                </label>
+                <select
+                  value={shipment.deliveryTimeline}
+                  onChange={(e) => setShipmentField('deliveryTimeline', e.target.value)}
+                  style={{
+                    width: '100%', padding: '13px 15px', fontSize: '0.95rem',
+                    border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none',
+                    background: 'white', fontFamily: 'inherit', boxSizing: 'border-box'
+                  }}>
+                  <option value="">-- Select Delivery Timeline --</option>
+                  <option value="1 Day Express — China (Guangzhou) ↔ Bangladesh">1 Day Express — China (Guangzhou) ↔ Bangladesh</option>
+                  <option value="1-2 Days — Hong Kong ↔ Bangladesh">1-2 Days — Hong Kong ↔ Bangladesh</option>
+                  <option value="3-4 Days — Hong Kong ↔ Bangladesh">3-4 Days — Hong Kong ↔ Bangladesh</option>
+                </select>
+                <div style={{ fontSize: '0.78rem', color: '#6C757D', marginTop: '6px', fontStyle: 'italic' }}>
+                  💡 Select the delivery speed that fits your route
                 </div>
-              )}
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
                 <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
@@ -736,7 +780,6 @@ export default function BookPage() {
                 )}
               </div>
 
-              {/* Back/Next for Shipment Details step */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
                 <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
@@ -838,6 +881,7 @@ export default function BookPage() {
                     <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
                       <div><b>Mode:</b> {shipMode}</div>
                       {!isSea && parcelType && <div><b>Parcel:</b> {parcelType === 'Others' ? 'Others: ' + parcelTypeCustom : parcelType}</div>}
+                      {!isSea && shipment.deliveryTimeline && <div><b>Delivery:</b> {shipment.deliveryTimeline}</div>}
                       <div><b>Description:</b> {shipment.description || '-'}</div>
                       <div><b>Packaging:</b> {shipment.packagingType === 'Others' ? 'Others: ' + (shipment.packagingTypeCustom || '-') : (shipment.packagingType || '-')}</div>
                       {isSea && <div><b>HS Code:</b> {shipment.hsCode}</div>}
