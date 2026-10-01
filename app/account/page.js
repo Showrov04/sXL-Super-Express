@@ -13,10 +13,9 @@ export default function AccountPage() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Edit mode for Shipper Info
   const [editMode, setEditMode] = useState(false);
+  const [countries, setCountries] = useState([]);
 
-  // Profile fields
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -28,17 +27,14 @@ export default function AccountPage() {
   const [companyCountry, setCompanyCountry] = useState('');
   const [companyBin, setCompanyBin] = useState('');
 
-  // Backup (for cancel)
   const [backup, setBackup] = useState(null);
 
-  // Credit status
   const [creditApproved, setCreditApproved] = useState(false);
   const [creditLimit, setCreditLimit] = useState(0);
   const [creditTermsDays, setCreditTermsDays] = useState(30);
   const [creditStatus, setCreditStatus] = useState(null);
   const [creditNote, setCreditNote] = useState('');
 
-  // Credit request form
   const [showCreditForm, setShowCreditForm] = useState(false);
   const [creditSubmitting, setCreditSubmitting] = useState(false);
   const [creditMsg, setCreditMsg] = useState('');
@@ -49,7 +45,6 @@ export default function AccountPage() {
   const [bankSwift, setBankSwift] = useState('');
   const [bankBranch, setBankBranch] = useState('');
 
-  // Password
   const [curPwd, setCurPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [newPwd2, setNewPwd2] = useState('');
@@ -62,6 +57,12 @@ export default function AccountPage() {
       router.push('/login');
       return;
     }
+
+    fetch('/api/countries')
+      .then((r) => r.json())
+      .then((d) => setCountries(d.countries || []))
+      .catch(() => setCountries([]));
+
     loadProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
@@ -116,7 +117,6 @@ export default function AccountPage() {
   }
 
   function startEdit() {
-    // Snapshot current values for cancel
     setBackup({
       companyName, contactPerson, phone,
       companyAddress, companyCity, companyState, companyCountry, companyBin,
@@ -178,7 +178,6 @@ export default function AccountPage() {
         return;
       }
 
-      // Update localStorage
       try {
         const stored = localStorage.getItem('sxl_user');
         if (stored) {
@@ -433,10 +432,16 @@ export default function AccountPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
               <div>
                 <label style={labelStyle}>Country</label>
-                <input type="text" value={companyCountry}
+                <select
+                  value={companyCountry}
                   onChange={(e) => setCompanyCountry(e.target.value)}
                   disabled={!editMode}
-                  style={editMode ? inputStyle : readOnlyStyle} />
+                  style={editMode ? inputStyle : readOnlyStyle}>
+                  <option value="">-- Select Country --</option>
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code}>{c.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label style={labelStyle}>BIN</label>
@@ -469,7 +474,7 @@ export default function AccountPage() {
         </div>
 
         {/* ============================================================
-            CREDIT ACCOUNT (unchanged)
+            CREDIT ACCOUNT
         ============================================================ */}
         <div style={{
           background: 'white', borderRadius: '12px', padding: '30px',
@@ -566,7 +571,7 @@ export default function AccountPage() {
             </div>
           )}
 
-          {!creditApproved && (showCreditForm || creditStatus === 'rejected') && showCreditForm && (
+          {!creditApproved && showCreditForm && (
             <form onSubmit={handleCreditSubmit} style={{ marginTop: '20px' }}>
               <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.85rem', color: '#6C757D' }}>
                 Please provide the following details. Our team will review your application within 1-2 business days.
@@ -609,7 +614,12 @@ export default function AccountPage() {
 
               <div style={{ marginBottom: '20px' }}>
                 <label style={labelStyle}>Country *</label>
-                <input type="text" value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value)} style={inputStyle} />
+                <select value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value)} style={inputStyle}>
+                  <option value="">-- Select Country --</option>
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code}>{c.name}</option>
+                  ))}
+                </select>
               </div>
 
               <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '15px', marginTop: '25px' }}>🏦 Bank Information</h3>
@@ -662,7 +672,7 @@ export default function AccountPage() {
         </div>
 
         {/* ============================================================
-            CHANGE PASSWORD (unchanged)
+            CHANGE PASSWORD
         ============================================================ */}
         <div style={{ background: 'white', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
           <div style={{ marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #F1F3F5' }}>
