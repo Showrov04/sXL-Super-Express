@@ -13,37 +13,18 @@ const serviceSupabase = createClient(
 
 async function getSessionUser(request) {
   const authHeader = request.headers.get('authorization') || '';
-  console.log('[Booking] Auth header:', authHeader ? authHeader.slice(0, 40) + '...' : 'MISSING');
-
   const token = authHeader.replace('Bearer ', '').trim();
-  if (!token) {
-    console.log('[Booking] No token extracted');
-    return null;
-  }
+  if (!token) return null;
 
-  const { data: session, error } = await serviceSupabase
+  const { data: session } = await serviceSupabase
     .from('sessions')
     .select('*')
     .eq('token', token)
     .maybeSingle();
 
-  if (error) {
-    console.log('[Booking] Session query error:', error.message);
-    return null;
-  }
-
-  if (!session) {
-    console.log('[Booking] No session found for token');
-    return null;
-  }
-
+  if (!session) return null;
   const expiresAt = new Date(session.expires_at).getTime();
-  if (isNaN(expiresAt) || expiresAt < Date.now()) {
-    console.log('[Booking] Session expired');
-    return null;
-  }
-
-  console.log('[Booking] Session valid for user:', session.user_id);
+  if (isNaN(expiresAt) || expiresAt < Date.now()) return null;
   return { userId: session.user_id, role: session.role };
 }
 
@@ -65,9 +46,7 @@ function mapServiceType(shipMode) {
 export async function POST(request) {
   try {
     const session = await getSessionUser(request);
-    if (!session) {
-      return NextResponse.json({ success: false, error: 'Permission denied.' });
-    }
+    if (!session) return NextResponse.json({ success: false, error: 'Session expired.' });
 
     const body = await request.json();
     const shipMode = String(body.shipMode || '').toUpperCase();
@@ -77,6 +56,7 @@ export async function POST(request) {
     const paymentTerms = body.paymentTerms || '';
     const paymentMethod = body.paymentMethod || '';
 
+    // Basic validation
     if (!['AIR', 'SEA'].includes(shipMode)) return NextResponse.json({ success: false, error: 'Ship mode is required.' });
     if (!shipper.name || !shipper.fullAddress || !shipper.country || !shipper.email || !shipper.phone) {
       return NextResponse.json({ success: false, error: 'Shipper details incomplete.' });
@@ -94,6 +74,44 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Payment required.' });
     }
 
+    // ⚠️ Credit Account check
+    if (paymentTerms === 'Credit Account') {
+      const { data: userRecord } = await serviceSupabase
+        .from('users')
+        .select('credit_approved, credit_limit, credit_request_status')
+        .eq('user_id', session.userId)
+        .maybeSingle();
+
+      if (!userRecord || userRecord.credit_approved !== true) {
+        return NextResponse.json({
+          success: false,
+          error: 'Your account is not approved for Credit Account. Please use Prepaid or Collect, or apply for credit in My Account.',
+        });
+      }
+
+      // Optional: check credit limit vs existing unpaid balance
+      const { data: existingShipments } = await serviceSupabase
+        .from('shipments')
+        .select('shipping_cost, payment_status')
+        .eq('booked_by', session.userId)
+        .neq('payment_status', 'Paid');
+
+      let currentBalance = 0;
+      (existingShipments || []).forEach((s) => {
+        currentBalance += parseFloat(s.shipping_cost) || 0;
+      });
+
+      const creditLimit = parseFloat(userRecord.credit_limit) || 0;
+      // If current balance already exceeds limit, block (but allow small overage)
+      if (creditLimit > 0 && currentBalance >= creditLimit) {
+        return NextResponse.json({
+          success: false,
+          error: 'Your credit limit has been reached. Please settle outstanding invoices or use Prepaid / Collect.',
+        });
+      }
+    }
+
+    // Tracking number
     const shortForm = generateShortForm(shipper.name);
     const today = new Date();
     const ddmmyyyy = String(today.getDate()).padStart(2, '0') +
@@ -116,6 +134,7 @@ export async function POST(request) {
     const modeSuffix = shipMode === 'SEA' ? 'S' : '';
     const trackingNumber = shortForm + ddmmyyyy + nextNum + modeSuffix;
 
+    // Insert shipment
     const { data: newShipment, error: insertError } = await serviceSupabase
       .from('shipments')
       .insert({
