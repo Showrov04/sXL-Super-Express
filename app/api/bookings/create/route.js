@@ -56,7 +56,6 @@ export async function POST(request) {
     const paymentTerms = body.paymentTerms || '';
     const paymentMethod = body.paymentMethod || '';
 
-    // Basic validation
     if (!['AIR', 'SEA'].includes(shipMode)) return NextResponse.json({ success: false, error: 'Ship mode is required.' });
     if (!shipper.name || !shipper.fullAddress || !shipper.country || !shipper.email || !shipper.phone) {
       return NextResponse.json({ success: false, error: 'Shipper details incomplete.' });
@@ -74,7 +73,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Payment required.' });
     }
 
-    // ⚠️ Credit Account check
+    // Credit Account check
     if (paymentTerms === 'Credit Account') {
       const { data: userRecord } = await serviceSupabase
         .from('users')
@@ -89,7 +88,6 @@ export async function POST(request) {
         });
       }
 
-      // Optional: check credit limit vs existing unpaid balance
       const { data: existingShipments } = await serviceSupabase
         .from('shipments')
         .select('shipping_cost, payment_status')
@@ -102,13 +100,23 @@ export async function POST(request) {
       });
 
       const creditLimit = parseFloat(userRecord.credit_limit) || 0;
-      // If current balance already exceeds limit, block (but allow small overage)
       if (creditLimit > 0 && currentBalance >= creditLimit) {
         return NextResponse.json({
           success: false,
           error: 'Your credit limit has been reached. Please settle outstanding invoices or use Prepaid / Collect.',
         });
       }
+    }
+
+    // Dimensions — combine L/W/H into string for legacy field
+    const dimLength = parseFloat(shipment.dimLength) || 0;
+    const dimWidth = parseFloat(shipment.dimWidth) || 0;
+    const dimHeight = parseFloat(shipment.dimHeight) || 0;
+    let dimensionsStr = '';
+    if (dimLength > 0 && dimWidth > 0 && dimHeight > 0) {
+      dimensionsStr = dimLength + 'x' + dimWidth + 'x' + dimHeight;
+    } else if (shipment.dimensions) {
+      dimensionsStr = String(shipment.dimensions); // fallback
     }
 
     // Tracking number
@@ -171,7 +179,10 @@ export async function POST(request) {
         recipient_bin: consignee.bin || null,
         hs_code: shipment.hsCode || null,
         total_cbm: shipment.totalCbm ? parseFloat(shipment.totalCbm) : null,
-        dimensions: shipment.dimensions || null,
+        dimensions: dimensionsStr || null,
+        dim_length: dimLength > 0 ? dimLength : null,
+        dim_width: dimWidth > 0 ? dimWidth : null,
+        dim_height: dimHeight > 0 ? dimHeight : null,
         currency: 'USD',
         payment_status: 'Unpaid',
         payment_terms: paymentTerms,
