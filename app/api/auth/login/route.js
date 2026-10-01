@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 const serviceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -25,7 +26,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Email and password are required.' });
     }
 
-    // Special case: admin login via env
+    // ---- Special case: admin login via env ----
     const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase();
     const adminPassword = process.env.ADMIN_PASSWORD || '';
 
@@ -52,7 +53,7 @@ export async function POST(request) {
       });
     }
 
-    // Regular user lookup
+    // ---- Regular user lookup ----
     const { data: user, error } = await serviceSupabase
       .from('users')
       .select('*')
@@ -67,15 +68,38 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Email not found.' });
     }
 
+    // Verify password
     if (hashPassword(password) !== user.password_hash) {
       return NextResponse.json({ success: false, error: 'Incorrect password.' });
     }
 
+    // Check active
     if (!user.active) {
-      return NextResponse.json({ success: false, error: 'Account disabled.' });
+      return NextResponse.json({ success: false, error: 'Account disabled. Please contact support.' });
     }
 
-    // Create session
+    // ⚠️ Check verification
+    if (user.verified !== true) {
+      // Optionally resend code if expired
+      let canResend = false;
+      if (user.verification_expires_at) {
+        const expiresAt = new Date(user.verification_expires_at).getTime();
+        if (isNaN(expiresAt) || expiresAt < Date.now()) {
+          canResend = true;
+        }
+      }
+
+      return NextResponse.json({
+        success: false,
+        error: 'Please verify your email before logging in.',
+        needsVerification: true,
+        userId: user.user_id,
+        email: user.email,
+        canResend,
+      });
+    }
+
+    // ---- Create session ----
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
