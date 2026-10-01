@@ -203,4 +203,293 @@ function ShipmentsPanel() {
       <form onSubmit={handleSearch} style={{
         display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center',
         marginBottom: '20px', background: 'white', padding: '15px',
-        borderRadius: '10px', boxShadow: '0 4px 20px rgba(0
+        borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
+      }}>
+        <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#6C757D' }}>Shipper:</label>
+        <select value={shipperFilter} onChange={(e) => setShipperFilter(e.target.value)} style={{
+          padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit'
+        }}>
+          <option value="">All Shippers</option>
+          {shipperList.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
+
+        <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#6C757D' }}>Search:</label>
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Tracking #, sender, recipient..."
+          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', flex: 1, minWidth: '200px', fontFamily: 'inherit' }} />
+
+        <button type="submit" style={{ padding: '10px 16px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Apply</button>
+        <button type="button" onClick={() => { setShipperFilter(''); setSearch(''); setTimeout(loadShipments, 50); }} style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+      </form>
+
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
+        <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
+        <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Awaiting Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
+        <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="🟢 Paid & Completed" count={counts.paid} badgeBg="#D4EDDA" badgeColor="#155724" />
+      </div>
+
+      {tab === 'active' && (
+        <form onSubmit={handleQuickUpdate} style={{
+          background: 'white', padding: '20px', borderRadius: '12px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px',
+          borderLeft: '5px solid #FF6B00'
+        }}>
+          <h3 style={{ color: '#003366', fontSize: '1.1rem', marginBottom: '12px' }}>⚡ Quick Update Status</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Tracking Number *</label>
+              <input type="text" value={quTn} onChange={(e) => setQuTn(e.target.value)} placeholder="e.g., TSH2510202601"
+                style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>New Status *</label>
+              <select value={quStatus} onChange={(e) => setQuStatus(e.target.value)}
+                style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}>
+                <option>Booked</option>
+                <option>Picked Up</option>
+                <option>In Transit</option>
+                <option>Out for Delivery</option>
+                <option>Delivered</option>
+                <option>Exception</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Location</label>
+              <input type="text" value={quLocation} onChange={(e) => setQuLocation(e.target.value)} placeholder="City, Country"
+                style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Estimated Delivery</label>
+              <input type="date" value={quEta} onChange={(e) => setQuEta(e.target.value)}
+                style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+            </div>
+          </div>
+          <div style={{ marginTop: '10px' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Notes</label>
+            <input type="text" value={quNotes} onChange={(e) => setQuNotes(e.target.value)} placeholder="Optional"
+              style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+          </div>
+          <button type="submit" disabled={quLoading} style={{
+            marginTop: '12px', padding: '12px 24px', background: '#FF6B00', color: 'white',
+            border: 'none', borderRadius: '8px', fontWeight: 700,
+            cursor: quLoading ? 'not-allowed' : 'pointer', opacity: quLoading ? 0.6 : 1, fontFamily: 'inherit'
+          }}>
+            {quLoading ? 'Updating...' : '✅ Update Status'}
+          </button>
+          {quMsg && (
+            <div style={{ marginTop: '10px', padding: '10px 15px', borderRadius: '8px', fontSize: '0.9rem',
+              background: quMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA',
+              color: quMsg.startsWith('✅') ? '#155724' : '#721C24' }}>
+              {quMsg}
+            </div>
+          )}
+        </form>
+      )}
+
+      {error && <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>❌ {error}</div>}
+
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ width: '45px', height: '45px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 15px' }} />
+          <p style={{ color: '#6C757D' }}>Loading shipments...</p>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <>
+          {shipments.length === 0 ? (
+            <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
+              No shipments in this category.
+            </div>
+          ) : (
+            <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', minWidth: '1000px' }}>
+                <thead>
+                  <tr style={{ background: '#F8F9FA' }}>
+                    {['Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status', 'Weight', 'Payment', 'ETA', tab === 'active' ? 'Actions' : ''].filter(Boolean).map((h) => (
+                      <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.78rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shipments.map((s, i) => {
+                    const sc = statusClass(s.status);
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
+                        <td style={{ padding: '12px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.shipMode || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.origin || '-'} - {s.destination || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.senderName || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.recipientName || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>{s.weight || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.paymentStatus || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{formatDate(s.estimatedDelivery)}</td>
+                        {tab === 'active' && (
+                          <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                            <button onClick={() => { setQuTn(s.trackingNumber); setQuStatus(s.status || 'Booked'); }} style={{
+                              padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none',
+                              borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit'
+                            }}>📋 Use</button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   SHIPPERS PANEL
+   ============================================================ */
+function ShippersPanel() {
+  const [loading, setLoading] = useState(true);
+  const [shippers, setShippers] = useState([]);
+  const [counts, setCounts] = useState({ total: 0, active: 0, suspended: 0 });
+  const [error, setError] = useState('');
+  const [actionLoading, setActionLoading] = useState('');
+
+  useEffect(() => { loadShippers(); }, []);
+
+  async function loadShippers() {
+    setLoading(true);
+    setError('');
+    const token = localStorage.getItem('sxl_token');
+    try {
+      const res = await fetch('/api/admin/shippers', { headers: { Authorization: 'Bearer ' + token } });
+      const data = await res.json();
+      if (!data.success) { setError(data.error || 'Failed to load shippers.'); setLoading(false); return; }
+      setShippers(data.shippers || []);
+      setCounts(data.counts || { total: 0, active: 0, suspended: 0 });
+      setLoading(false);
+    } catch (err) { setError('Connection error.'); setLoading(false); }
+  }
+
+  async function toggleStatus(shipperID, newStatus) {
+    const msg = newStatus === 'Suspended' ? 'Suspend this shipper?' : 'Activate this shipper?';
+    if (!window.confirm(msg)) return;
+
+    setActionLoading(shipperID);
+    const token = localStorage.getItem('sxl_token');
+    try {
+      const res = await fetch('/api/admin/shippers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ shipperID, newStatus }),
+      });
+      const data = await res.json();
+      if (!data.success) { window.alert('Error: ' + (data.error || 'Failed')); setActionLoading(''); return; }
+      window.alert('Shipper ' + newStatus.toLowerCase() + ' successfully!');
+      setActionLoading('');
+      loadShippers();
+    } catch (err) { window.alert('Error: ' + err.message); setActionLoading(''); }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+        <StatCard num={counts.total} label="Total Shippers" color="#FF6B00" />
+        <StatCard num={counts.active} label="Active" color="#D4EDDA" />
+        <StatCard num={counts.suspended} label="Suspended" color="#F8D7DA" />
+      </div>
+
+      <div style={{ marginBottom: '15px' }}>
+        <button onClick={loadShippers} style={{ padding: '10px 20px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 Refresh</button>
+      </div>
+
+      {error && <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>❌ {error}</div>}
+
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ width: '45px', height: '45px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 15px' }} />
+          <p style={{ color: '#6C757D' }}>Loading shippers...</p>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <>
+          {shippers.length === 0 ? (
+            <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
+              No shippers yet.
+            </div>
+          ) : (
+            <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '900px' }}>
+                <thead>
+                  <tr style={{ background: '#F8F9FA' }}>
+                    {['Short Form', 'Name', 'Contact', 'Email', 'Phone', 'Country', 'Status', 'Actions'].map((h) => (
+                      <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.78rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shippers.map((s, i) => {
+                    const isActive = s.status === 'Active';
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
+                        <td style={{ padding: '12px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.shortForm || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.name || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.contactPerson || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.email || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.phone || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{s.country || '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{
+                            background: isActive ? '#D4EDDA' : '#F8D7DA',
+                            color: isActive ? '#155724' : '#721C24',
+                            padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem'
+                          }}>{s.status}</span>
+                        </td>
+                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          {isActive ? (
+                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Suspended')} style={{ padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>🚫 Suspend</button>
+                          ) : (
+                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Active')} style={{ padding: '6px 12px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>✅ Activate</button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ num, label, color }) {
+  return (
+    <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', borderLeft: '4px solid ' + color }}>
+      <div style={{ fontSize: '2rem', fontWeight: 800, color: '#003366' }}>{num}</div>
+      <div style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#6C757D', marginTop: '5px' }}>{label}</div>
+    </div>
+  );
+}
+
+function TabButton({ active, onClick, label, count, badgeBg, badgeColor }) {
+  return (
+    <button onClick={onClick} style={{
+      cursor: 'pointer', padding: '12px 22px', borderRadius: '10px',
+      fontWeight: 700, fontSize: '0.9rem',
+      border: '2px solid ' + (active ? '#FF6B00' : '#E9ECEF'),
+      background: active ? '#FFF5EB' : 'white',
+      color: active ? '#FF6B00' : '#343A40',
+      fontFamily: 'inherit'
+    }}>
+      {label}{' '}
+      <span style={{ background: active ? '#FF6B00' : badgeBg, color: active ? 'white' : badgeColor, padding: '2px 8px', borderRadius: '10px', marginLeft: '6px', fontSize: '0.8rem' }}>{count}</span>
+    </button>
+  );
+}
