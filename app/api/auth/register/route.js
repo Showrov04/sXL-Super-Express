@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { sendVerificationCode } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 const serviceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -27,12 +29,28 @@ function generateCustomerId(name, currentCounter) {
   return initials + '-C-' + currentCounter;
 }
 
+function generateVerificationCode() {
+  // 6-digit numeric code
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, email, phone, password } = body;
+    const companyName = String(body.companyName || '').trim();
+    const contactPerson = String(body.contactPerson || '').trim();
+    const email = String(body.email || '').trim().toLowerCase();
+    const phone = String(body.phone || '').trim();
+    const password = String(body.password || '');
 
-    if (!name || !email || !phone || !password) {
+    // Validation
+    if (!companyName) {
+      return NextResponse.json({ success: false, error: 'Company name is required.' });
+    }
+    if (!contactPerson) {
+      return NextResponse.json({ success: false, error: 'Contact person name is required.' });
+    }
+    if (!email || !phone || !password) {
       return NextResponse.json({ success: false, error: 'All fields are required.' });
     }
     if (password.length < 6) {
@@ -45,15 +63,15 @@ export async function POST(request) {
     // Check if email exists
     const { data: existing } = await serviceSupabase
       .from('users')
-      .select('id')
-      .eq('email', email.toLowerCase())
+      .select('id, verified')
+      .eq('email', email)
       .maybeSingle();
 
     if (existing) {
       return NextResponse.json({ success: false, error: 'Email already registered.' });
     }
 
-    // Get next customer ID from counters
+    // Get next customer ID
     const { data: counter } = await serviceSupabase
       .from('counters')
       .select('last_number')
@@ -61,7 +79,7 @@ export async function POST(request) {
       .single();
 
     const nextNumber = (counter?.last_number || 10000) + 1;
-    const userId = generateCustomerId(name, nextNumber);
+    const userId = generateCustomerId(companyName, nextNumber);
 
     // Update counter
     await serviceSupabase
@@ -69,14 +87,20 @@ export async function POST(request) {
       .update({ last_number: nextNumber, updated_at: new Date().toISOString() })
       .eq('short_form', 'SXL-C');
 
-    // Insert user
+    // Generate verification code
+    const verificationCode = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Insert user (verified = false until code entered)
     const { data: newUser, error: insertError } = await serviceSupabase
       .from('users')
       .insert({
         user_id: userId,
-        name: name.trim(),
-        email: email.toLowerCase(),
-        phone: phone.trim(),
+        name: contactPerson,               // keep 'name' = contact person
+        contact_person: contactPerson,
+        company_name: companyName,
+        email: email,
+        phone: phone,
         password_hash: hashPassword(password),
         role: 'customer',
         notify_email: body.notifyEmail !== false,
@@ -84,6 +108,11 @@ export async function POST(request) {
         notify_whatsapp: body.notifyWhatsApp !== false,
         notify_wechat: body.notifyWeChat === true,
         active: true,
+        verified: false,
+        verification_code: verificationCode,
+        verification_method: 'email',
+        verification_expires_at: expiresAt.toISOString(),
+        verification_sent_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -92,30 +121,33 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: insertError.message });
     }
 
-    // Create session token
-    const token = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    await serviceSupabase.from('sessions').insert({
-      token,
-      user_id: userId,
-      role: 'customer',
-      expires_at: expiresAt.toISOString(),
-    });
+    // Send verification email
+    let emailSent = false;
+    try {
+      const result = await sendVerificationCode({
+        to: email,
+        code: verificationCode,
+        contactPerson: contactPerson,
+        companyName: companyName,
+      });
+      emailSent = result.success;
+      console.log('[Register] Verification email:', emailSent ? 'sent' : 'failed', result.error || '');
+    } catch (emailErr) {
+      console.error('[Register] Email failed:', emailErr.message);
+    }
 
     return NextResponse.json({
       success: true,
-      token,
-      user: {
-        userId,
-        name: name.trim(),
-        email: email.toLowerCase(),
-        phone: phone.trim(),
-        role: 'customer',
-      },
+      userId,
+      email,
+      emailSent,
+      message: emailSent
+        ? 'Verification code sent to your email.'
+        : 'Account created, but email could not be sent. Please contact support.',
     });
 
   } catch (err) {
+    console.error('[Register] Error:', err.message);
     return NextResponse.json({ success: false, error: err.message });
   }
 }
