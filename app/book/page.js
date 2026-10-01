@@ -584,6 +584,7 @@ export default function BookPage() {
                   <option value="Carton">Carton</option>
                   <option value="Pallet">Pallet</option>
                   <option value="Roll">Roll</option>
+                  <option value="Flyer">Flyer</option>
                   <option value="Bag / Sack">Bag / Sack</option>
                   <option value="Others">Others (specify)</option>
                 </select>
