@@ -217,11 +217,13 @@ export default function BookPage() {
     if (shipment.packagingType === 'Others' && !shipment.packagingTypeCustom.trim()) {
       return 'Please specify the packaging type.';
     }
+    // Total Value required for BOTH AIR and SEA
+    if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
+      return 'Total Value for Customs is required.';
+    }
     if (isSea) {
       if (!shipment.hsCode.trim()) return 'HS Code is required for SEA shipments.';
       if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) return 'Total CBM is required.';
-    } else {
-      if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) return 'Total value for customs is required.';
     }
     return null;
   }
@@ -640,12 +642,13 @@ export default function BookPage() {
                 <Field label="No. of Packages *" type="number" value={shipment.packages} onChange={(v) => setShipmentField('packages', v)} />
                 <Field label="Total Weight (kg) *" type="number" value={shipment.totalWeight} onChange={(v) => setShipmentField('totalWeight', v)} />
               </div>
-              {!isSea && (
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
-                  <Field label="Total Value for Customs *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} />
-                  <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
-                </div>
-              )}
+
+              {/* Total Value — for BOTH AIR and SEA */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
+                <Field label="Total Value for Customs *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} />
+                <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
+              </div>
+
               <Field label="Special Instruction" value={shipment.specialInstruction} onChange={(v) => setShipmentField('specialInstruction', v)} textarea />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Date'} type="date" value={shipment.parcelReadyDate} onChange={(v) => setShipmentField('parcelReadyDate', v)} />
@@ -776,6 +779,7 @@ export default function BookPage() {
                       <div><b>Dimensions:</b> {shipment.dimLength}x{shipment.dimWidth}x{shipment.dimHeight} cm</div>
                       <div><b>Packages:</b> {shipment.packages}</div>
                       <div><b>Weight:</b> {shipment.totalWeight} kg</div>
+                      <div><b>Total Value:</b> {shipment.totalValue} {shipment.valueCurrency}</div>
                     </div>
                   </div>
 
