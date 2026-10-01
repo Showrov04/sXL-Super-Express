@@ -87,7 +87,9 @@ export default function BookPage() {
     description: '', packages: 1, totalWeight: '', totalValue: '',
     valueCurrency: 'USD', specialInstruction: '',
     parcelReadyDate: new Date().toISOString().slice(0, 10),
-    parcelReadyTime: '10:00', pickupSameAsShipper: true,
+    parcelReadyTime: '10:00',
+    pickupService: true,
+    pickupSameAsShipper: true,
     pickupAddress: '', pickupCity: '', pickupState: '', pickupCountry: '',
     hsCode: '', totalCbm: '',
     dimLength: '', dimWidth: '', dimHeight: '',
@@ -217,13 +219,18 @@ export default function BookPage() {
     if (shipment.packagingType === 'Others' && !shipment.packagingTypeCustom.trim()) {
       return 'Please specify the packaging type.';
     }
-    // Total Value required for BOTH AIR and SEA
     if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
       return 'Total Value for Customs is required.';
     }
     if (isSea) {
       if (!shipment.hsCode.trim()) return 'HS Code is required for SEA shipments.';
       if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) return 'Total CBM is required.';
+    }
+    // Pickup: if pickupService is true and NOT same as shipper, require address fields
+    if (shipment.pickupService && !shipment.pickupSameAsShipper) {
+      if (!shipment.pickupAddress.trim()) return 'Pickup Address is required.';
+      if (!shipment.pickupCity.trim()) return 'Pickup City is required.';
+      if (!shipment.pickupCountry.trim()) return 'Pickup Country is required.';
     }
     return null;
   }
@@ -643,7 +650,6 @@ export default function BookPage() {
                 <Field label="Total Weight (kg) *" type="number" value={shipment.totalWeight} onChange={(v) => setShipmentField('totalWeight', v)} />
               </div>
 
-              {/* Total Value — for BOTH AIR and SEA */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
                 <Field label="Total Value for Customs *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} />
                 <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
@@ -654,26 +660,85 @@ export default function BookPage() {
                 <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Date'} type="date" value={shipment.parcelReadyDate} onChange={(v) => setShipmentField('parcelReadyDate', v)} />
                 <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Time'} type="time" value={shipment.parcelReadyTime} onChange={(v) => setShipmentField('parcelReadyTime', v)} />
               </div>
-              <div style={{ marginTop: '20px' }}>
-                <h4 style={{ marginBottom: '10px', color: '#003366' }}>Pickup Address</h4>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <button onClick={() => setShipmentField('pickupSameAsShipper', true)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'), background: shipment.pickupSameAsShipper ? '#FF6B00' : 'white', color: shipment.pickupSameAsShipper ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Same as Shipper</button>
-                  <button onClick={() => setShipmentField('pickupSameAsShipper', false)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (!shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'), background: !shipment.pickupSameAsShipper ? '#FF6B00' : 'white', color: !shipment.pickupSameAsShipper ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Different Address</button>
-                </div>
-                {!shipment.pickupSameAsShipper && (
-                  <div style={{ marginTop: '15px' }}>
-                    <Field label="Pickup Address" value={shipment.pickupAddress} onChange={(v) => setShipmentField('pickupAddress', v)} textarea />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                      <Field label="City" value={shipment.pickupCity} onChange={(v) => setShipmentField('pickupCity', v)} />
-                      <Field label="State" value={shipment.pickupState} onChange={(v) => setShipmentField('pickupState', v)} />
+
+              {/* ============================================================
+                  PICKUP SERVICE — REDESIGNED
+              ============================================================ */}
+              <div style={{ marginTop: '25px', paddingTop: '20px', borderTop: '2px solid #F1F3F5' }}>
+                <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>🚚 Pickup Service</h4>
+                <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
+                  Do you want sXL to arrange pickup from your location?
+                </p>
+
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '18px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShipmentField('pickupService', true)}
+                    style={{
+                      flex: 1, minWidth: '200px', padding: '18px 20px',
+                      border: '3px solid ' + (shipment.pickupService === true ? '#28A745' : '#E9ECEF'),
+                      background: shipment.pickupService === true ? '#E8F7EF' : 'white',
+                      borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+                      textAlign: 'left'
+                    }}>
+                    <div style={{ fontWeight: 800, color: shipment.pickupService === true ? '#155724' : '#343A40', fontSize: '1rem', marginBottom: '4px' }}>
+                      ✅ Yes — Pickup by sXL
                     </div>
-                    <SelectField label="Country" value={shipment.pickupCountry} onChange={(v) => setShipmentField('pickupCountry', v)} countries={countries} />
+                    <div style={{ fontSize: '0.82rem', color: '#6C757D' }}>
+                      We will collect the shipment from your location
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShipmentField('pickupService', false)}
+                    style={{
+                      flex: 1, minWidth: '200px', padding: '18px 20px',
+                      border: '3px solid ' + (shipment.pickupService === false ? '#FF6B00' : '#E9ECEF'),
+                      background: shipment.pickupService === false ? '#FFF5EB' : 'white',
+                      borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+                      textAlign: 'left'
+                    }}>
+                    <div style={{ fontWeight: 800, color: shipment.pickupService === false ? '#8B4500' : '#343A40', fontSize: '1rem', marginBottom: '4px' }}>
+                      📦 No — I will deliver to your warehouse
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: '#6C757D' }}>
+                      You will send the goods to our warehouse
+                    </div>
+                  </button>
+                </div>
+
+                {/* YES — sub-options */}
+                {shipment.pickupService === true && (
+                  <>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>
+                      <button onClick={() => setShipmentField('pickupSameAsShipper', true)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'), background: shipment.pickupSameAsShipper ? '#FF6B00' : 'white', color: shipment.pickupSameAsShipper ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Same as Shipper Address</button>
+                      <button onClick={() => setShipmentField('pickupSameAsShipper', false)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (!shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'), background: !shipment.pickupSameAsShipper ? '#FF6B00' : 'white', color: !shipment.pickupSameAsShipper ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Different Pickup Address</button>
+                    </div>
+
+                    {!shipment.pickupSameAsShipper && (
+                      <div style={{ marginTop: '15px' }}>
+                        <Field label="Pickup Address *" value={shipment.pickupAddress} onChange={(v) => setShipmentField('pickupAddress', v)} textarea />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                          <Field label="City *" value={shipment.pickupCity} onChange={(v) => setShipmentField('pickupCity', v)} />
+                          <Field label="State" value={shipment.pickupState} onChange={(v) => setShipmentField('pickupState', v)} />
+                        </div>
+                        <SelectField label="Country *" value={shipment.pickupCountry} onChange={(v) => setShipmentField('pickupCountry', v)} countries={countries} />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* NO — warehouse info */}
+                {shipment.pickupService === false && (
+                  <div style={{
+                    background: '#FFF5EB', borderLeft: '4px solid #FF6B00',
+                    borderRadius: '8px', padding: '15px 18px', fontSize: '0.9rem', color: '#8B4500'
+                  }}>
+                    <b>📧 Warehouse details will be sent after booking confirmation.</b><br />
+                    Our team will email you the full warehouse address and operating hours so you can deliver your goods.
                   </div>
                 )}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
-                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
-                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
               </div>
             </>
           )}
@@ -813,8 +878,27 @@ export default function BookPage() {
                   <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px', marginBottom: '15px' }}>
                     <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem' }}>PICKUP</div>
                     <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
-                      <div>{shipment.pickupSameAsShipper ? 'Same as shipper' : shipment.pickupAddress}</div>
-                      <div><b>Goods Ready:</b> {shipment.parcelReadyDate} at {shipment.parcelReadyTime}</div>
+                      {shipment.pickupService === false ? (
+                        <div style={{ color: '#8B4500' }}>
+                          📦 <b>Self-Delivery to Warehouse</b><br />
+                          Warehouse details will be emailed after confirmation.
+                        </div>
+                      ) : shipment.pickupSameAsShipper ? (
+                        <div>
+                          🚚 <b>Pickup: Same as Shipper Address</b><br />
+                          <span style={{ fontSize: '0.85rem', color: '#6C757D' }}>
+                            {shipper.fullAddress}{shipper.city ? ', ' + shipper.city : ''}{shipper.country ? ', ' + countryName(shipper.country) : ''}
+                          </span>
+                        </div>
+                      ) : (
+                        <div>
+                          🚚 <b>Pickup: Custom Address</b><br />
+                          <span style={{ fontSize: '0.85rem', color: '#6C757D' }}>
+                            {shipment.pickupAddress}{shipment.pickupCity ? ', ' + shipment.pickupCity : ''}{shipment.pickupCountry ? ', ' + countryName(shipment.pickupCountry) : ''}
+                          </span>
+                        </div>
+                      )}
+                      <div style={{ marginTop: '6px' }}><b>Goods Ready:</b> {shipment.parcelReadyDate} at {shipment.parcelReadyTime}</div>
                     </div>
                   </div>
 
