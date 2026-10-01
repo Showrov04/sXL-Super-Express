@@ -8,18 +8,29 @@ import Footer from '../components/Footer';
 
 export default function AccountPage() {
   const router = useRouter();
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const [name, setName] = useState('');
+  // Profile fields
+  const [userId, setUserId] = useState('');
+  const [email, setEmail] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
-  const [notifyEmail, setNotifyEmail] = useState(true);
-  const [notifySMS, setNotifySMS] = useState(true);
-  const [notifyWhatsApp, setNotifyWhatsApp] = useState(true);
-  const [notifyWeChat, setNotifyWeChat] = useState(false);
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [companyCity, setCompanyCity] = useState('');
+  const [companyState, setCompanyState] = useState('');
+  const [companyCountry, setCompanyCountry] = useState('');
+  const [companyBin, setCompanyBin] = useState('');
+
+  // Password change
+  const [curPwd, setCurPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [newPwd2, setNewPwd2] = useState('');
+  const [pwdMsg, setPwdMsg] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('sxl_user');
@@ -27,37 +38,152 @@ export default function AccountPage() {
       router.push('/login');
       return;
     }
-    try {
-      const u = JSON.parse(stored);
-      setUser(u);
-      setName(u.name || '');
-      setPhone(u.phone || '');
-    } catch (e) {
-      router.push('/login');
-    }
-    setLoading(false);
+    loadProfile();
   }, [router]);
 
-  function handleSave(e) {
+  async function loadProfile() {
+    setLoading(true);
+    setError('');
+    const token = localStorage.getItem('sxl_token');
+    if (!token) { router.push('/login'); return; }
+
+    try {
+      const res = await fetch('/api/customer/profile', {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setError(data.error || 'Failed to load profile.');
+        setLoading(false);
+        return;
+      }
+
+      const p = data.profile;
+      setUserId(p.userId || '');
+      setEmail(p.email || '');
+      setCompanyName(p.companyName || '');
+      setContactPerson(p.contactPerson || '');
+      setPhone(p.phone || '');
+      setCompanyAddress(p.companyAddress || '');
+      setCompanyCity(p.companyCity || '');
+      setCompanyState(p.companyState || '');
+      setCompanyCountry(p.companyCountry || '');
+      setCompanyBin(p.companyBin || '');
+
+      setLoading(false);
+    } catch (err) {
+      setError('Connection error.');
+      setLoading(false);
+    }
+  }
+
+  async function handleSave(e) {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
 
-    if (!name.trim() || !phone.trim()) {
-      setError('Name and Phone are required.');
+    if (!companyName.trim() || !contactPerson.trim() || !phone.trim()) {
+      setError('Company Name, Contact Person, and Phone are required.');
       return;
     }
 
     setSaving(true);
-    const updated = { ...user, name: name.trim(), phone: phone.trim() };
-    localStorage.setItem('sxl_user', JSON.stringify(updated));
-    setUser(updated);
-    window.dispatchEvent(new Event('sxl-auth-change'));
-    setSuccessMsg('Profile updated successfully!');
-    setSaving(false);
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const res = await fetch('/api/customer/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          action: 'saveInfo',
+          companyName: companyName.trim(),
+          contactPerson: contactPerson.trim(),
+          phone: phone.trim(),
+          companyAddress: companyAddress.trim(),
+          companyCity: companyCity.trim(),
+          companyState: companyState.trim(),
+          companyCountry: companyCountry.trim(),
+          companyBin: companyBin.trim(),
+        }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setError(data.error || 'Save failed.');
+        setSaving(false);
+        return;
+      }
+
+      // Update localStorage user name if contactPerson changed
+      try {
+        const stored = localStorage.getItem('sxl_user');
+        if (stored) {
+          const u = JSON.parse(stored);
+          u.name = contactPerson.trim();
+          u.phone = phone.trim();
+          localStorage.setItem('sxl_user', JSON.stringify(u));
+          window.dispatchEvent(new Event('sxl-auth-change'));
+        }
+      } catch (e) { /* silent */ }
+
+      setSuccessMsg('Shipper information saved successfully.');
+      setSaving(false);
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (err) {
+      setError('Connection error.');
+      setSaving(false);
+    }
   }
 
-  if (loading || !user) {
+  async function handlePasswordChange(e) {
+    e.preventDefault();
+    setPwdMsg('');
+
+    if (!curPwd || !newPwd || !newPwd2) {
+      setPwdMsg('All password fields are required.');
+      return;
+    }
+    if (newPwd !== newPwd2) {
+      setPwdMsg('New passwords do not match.');
+      return;
+    }
+    if (newPwd.length < 6) {
+      setPwdMsg('Password must be at least 6 characters.');
+      return;
+    }
+
+    setPwdLoading(true);
+    // Simulated — password change API will come later
+    setTimeout(() => {
+      setPwdMsg('Password change coming soon. Please contact admin.');
+      setPwdLoading(false);
+      setCurPwd('');
+      setNewPwd('');
+      setNewPwd2('');
+    }, 800);
+  }
+
+  const inputStyle = {
+    width: '100%',
+    padding: '13px 15px',
+    fontSize: '0.95rem',
+    border: '2px solid #E9ECEF',
+    borderRadius: '8px',
+    outline: 'none',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box'
+  };
+
+  const labelStyle = {
+    display: 'block',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    color: '#343A40',
+    marginBottom: '6px'
+  };
+
+  if (loading) {
     return (
       <>
         <Header />
@@ -70,45 +196,55 @@ export default function AccountPage() {
     );
   }
 
-  const inputStyle = {
-    width: '100%', padding: '13px 15px', fontSize: '0.95rem',
-    border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none',
-    fontFamily: 'inherit', boxSizing: 'border-box'
-  };
-  const labelStyle = {
-    display: 'block', fontSize: '0.85rem', fontWeight: 600,
-    color: '#343A40', marginBottom: '6px'
-  };
-
   return (
     <>
       <Header />
 
-      <div style={{ maxWidth: '700px', margin: '40px auto', padding: '0 20px 60px' }}>
+      <div style={{ maxWidth: '800px', margin: '30px auto', padding: '0 20px 60px' }}>
         <div style={{ marginBottom: '20px' }}>
           <Link href="/dashboard" style={{
-            display: 'inline-block', padding: '10px 18px', background: 'transparent',
-            color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px',
+            display: 'inline-block', padding: '10px 18px',
+            background: 'transparent', color: '#003366',
+            border: '2px solid #E9ECEF', borderRadius: '8px',
             fontWeight: 700, textDecoration: 'none', fontSize: '0.9rem'
-          }}>Back to Dashboard</Link>
+          }}>
+            ← Back to Dashboard
+          </Link>
         </div>
 
         <h1 style={{ fontSize: '2rem', color: '#003366', fontWeight: 800, marginBottom: '25px' }}>
           My Account
         </h1>
 
-        <div style={{ background: 'white', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
-          <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
-            Profile Information
-          </h3>
+        {/* ============================================================
+            SHIPPER INFORMATION
+        ============================================================ */}
+        <div style={{
+          background: 'white', borderRadius: '12px', padding: '30px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px'
+        }}>
+          <div style={{ marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #F1F3F5' }}>
+            <h2 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>🚚 Shipper Information</h2>
+            <p style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
+              Your company details used for shipments and invoices
+            </p>
+          </div>
 
           {error && (
-            <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem' }}>
+            <div style={{
+              background: '#F8D7DA', color: '#721C24',
+              borderLeft: '4px solid #DC3545', borderRadius: '8px',
+              padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem'
+            }}>
               {error}
             </div>
           )}
           {successMsg && (
-            <div style={{ background: '#D4EDDA', color: '#155724', borderLeft: '4px solid #28A745', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem' }}>
+            <div style={{
+              background: '#D4EDDA', color: '#155724',
+              borderLeft: '4px solid #28A745', borderRadius: '8px',
+              padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem'
+            }}>
               {successMsg}
             </div>
           )}
@@ -116,58 +252,153 @@ export default function AccountPage() {
           <form onSubmit={handleSave}>
             <div style={{ marginBottom: '18px' }}>
               <label style={labelStyle}>Account ID</label>
-              <input type="text" value={user.userId || ''} disabled style={{ ...inputStyle, background: '#F1F3F5', color: '#6C757D' }} />
+              <input type="text" value={userId} disabled style={{ ...inputStyle, background: '#F1F3F5', color: '#6C757D' }} />
             </div>
 
             <div style={{ marginBottom: '18px' }}>
               <label style={labelStyle}>Email (cannot change)</label>
-              <input type="email" value={user.email || ''} disabled style={{ ...inputStyle, background: '#F1F3F5', color: '#6C757D' }} />
+              <input type="email" value={email} disabled style={{ ...inputStyle, background: '#F1F3F5', color: '#6C757D' }} />
             </div>
 
             <div style={{ marginBottom: '18px' }}>
-              <label style={labelStyle}>Full Name *</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+              <label style={labelStyle}>Company Name *</label>
+              <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="e.g., ABC Trading Ltd" style={inputStyle} />
             </div>
 
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom: '18px' }}>
+              <label style={labelStyle}>Contact Person *</label>
+              <input type="text" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} placeholder="Full name" style={inputStyle} />
+            </div>
+
+            <div style={{ marginBottom: '18px' }}>
               <label style={labelStyle}>Phone *</label>
-              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+852 0000 0000" style={inputStyle} />
+            </div>
+
+            <div style={{ marginBottom: '18px' }}>
+              <label style={labelStyle}>Full Address</label>
+              <textarea
+                value={companyAddress}
+                onChange={(e) => setCompanyAddress(e.target.value)}
+                placeholder="Street, building, unit..."
+                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '18px' }}>
+              <div>
+                <label style={labelStyle}>City</label>
+                <input type="text" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>State</label>
+                <input type="text" value={companyState} onChange={(e) => setCompanyState(e.target.value)} style={inputStyle} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '18px' }}>
+              <label style={labelStyle}>Country</label>
+              <input type="text" value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value)} placeholder="e.g., Hong Kong" style={inputStyle} />
             </div>
 
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ ...labelStyle, marginBottom: '10px' }}>Notification Preferences</label>
-              {[
-                { id: 'email', label: 'Email', value: notifyEmail, setter: setNotifyEmail },
-                { id: 'sms', label: 'SMS', value: notifySMS, setter: setNotifySMS },
-                { id: 'whatsapp', label: 'WhatsApp', value: notifyWhatsApp, setter: setNotifyWhatsApp },
-                { id: 'wechat', label: 'WeChat', value: notifyWeChat, setter: setNotifyWeChat },
-              ].map((p) => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                  <input type="checkbox" id={'notif-' + p.id} checked={p.value} onChange={(e) => p.setter(e.target.checked)}
-                    style={{ width: '18px', height: '18px', accentColor: '#FF6B00', cursor: 'pointer' }} />
-                  <label htmlFor={'notif-' + p.id} style={{ cursor: 'pointer', fontSize: '0.9rem' }}>{p.label}</label>
-                </div>
-              ))}
+              <label style={labelStyle}>BIN (Business Identification Number)</label>
+              <input type="text" value={companyBin} onChange={(e) => setCompanyBin(e.target.value)} placeholder="Optional for now" style={inputStyle} />
             </div>
 
-            <button type="submit" disabled={saving} style={{
-              width: '100%', padding: '14px 26px', background: '#FF6B00', color: 'white',
-              border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem',
-              cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1,
-              fontFamily: 'inherit'
-            }}>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                padding: '14px 30px',
+                background: '#FF6B00',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '1rem',
+                cursor: saving ? 'not-allowed' : 'pointer',
+                opacity: saving ? 0.6 : 1,
+                fontFamily: 'inherit'
+              }}
+            >
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </form>
         </div>
 
-        <div style={{ background: 'white', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginTop: '20px' }}>
-          <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
-            Change Password
-          </h3>
-          <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', padding: '15px', borderRadius: '8px', fontSize: '0.9rem', color: '#6C757D' }}>
-            Password change feature is coming soon. Please contact admin to reset your password for now.
+        {/* ============================================================
+            CREDIT ACCOUNT — Placeholder (built in Step 2.3)
+        ============================================================ */}
+        <div style={{
+          background: 'white', borderRadius: '12px', padding: '30px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px',
+          borderLeft: '5px solid #FFC107'
+        }}>
+          <div style={{ marginBottom: '12px' }}>
+            <h2 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>💳 Credit Account</h2>
           </div>
+          <p style={{ color: '#6C757D', fontSize: '0.9rem' }}>
+            🚧 Coming in Step 2.3 — Apply for a credit account to pay invoices within 30 days.
+          </p>
+        </div>
+
+        {/* ============================================================
+            CHANGE PASSWORD
+        ============================================================ */}
+        <div style={{
+          background: 'white', borderRadius: '12px', padding: '30px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
+        }}>
+          <div style={{ marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #F1F3F5' }}>
+            <h2 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>🔒 Change Password</h2>
+          </div>
+
+          {pwdMsg && (
+            <div style={{
+              background: '#FFF3CD', color: '#856404',
+              borderLeft: '4px solid #FFC107', borderRadius: '8px',
+              padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem'
+            }}>
+              {pwdMsg}
+            </div>
+          )}
+
+          <form onSubmit={handlePasswordChange}>
+            <div style={{ marginBottom: '18px' }}>
+              <label style={labelStyle}>Current Password</label>
+              <input type="password" value={curPwd} onChange={(e) => setCurPwd(e.target.value)} placeholder="Current password" style={inputStyle} />
+            </div>
+
+            <div style={{ marginBottom: '18px' }}>
+              <label style={labelStyle}>New Password (min 6 chars)</label>
+              <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} placeholder="New password" style={inputStyle} />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={labelStyle}>Confirm New Password</label>
+              <input type="password" value={newPwd2} onChange={(e) => setNewPwd2(e.target.value)} placeholder="Confirm new password" style={inputStyle} />
+            </div>
+
+            <button
+              type="submit"
+              disabled={pwdLoading}
+              style={{
+                padding: '14px 30px',
+                background: '#003366',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '1rem',
+                cursor: pwdLoading ? 'not-allowed' : 'pointer',
+                opacity: pwdLoading ? 0.6 : 1,
+                fontFamily: 'inherit'
+              }}
+            >
+              {pwdLoading ? 'Changing...' : 'Change Password'}
+            </button>
+          </form>
         </div>
       </div>
 
