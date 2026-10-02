@@ -195,9 +195,11 @@ export default function BookPage() {
 
   const isSea = shipMode === 'SEA';
   const isSpecialParcel = parcelType === 'Special Parcel';
+
+  // NEW STEP ARRAYS (7 SEA / 8 AIR)
   const steps = isSea
-    ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Payment', 'Review']
-    : ['Ship Mode', 'Parcel Type', 'Shipper & Consignee', 'Shipment Details', 'Payment', 'Review'];
+    ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Payment', 'Review']
+    : ['Ship Mode', 'Parcel Type', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Payment', 'Review'];
 
   function getNextStep(current) { return current + 1; }
   function getPrevStep(current) {
@@ -229,19 +231,23 @@ export default function BookPage() {
   }
   function validateShipment() {
     if (!shipment.description.trim()) return 'Description of goods is required.';
-    if (!shipment.totalWeight || parseFloat(shipment.totalWeight) <= 0) return 'Enter a valid weight.';
-    if (!shipment.dimLength || parseFloat(shipment.dimLength) <= 0) return 'Length is required.';
-    if (!shipment.dimWidth || parseFloat(shipment.dimWidth) <= 0) return 'Width is required.';
-    if (!shipment.dimHeight || parseFloat(shipment.dimHeight) <= 0) return 'Height is required.';
+    if (!shipment.hsCode.trim()) return 'HS Code is required.';
+    if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
+      return 'Total Value for Customs is required.';
+    }
+    return null;
+  }
+  function validatePackaging() {
     if (!shipment.packagingType) return 'Please select a packaging type.';
     if (shipment.packagingType === 'Others' && !shipment.packagingTypeCustom.trim()) {
       return 'Please specify the packaging type.';
     }
-    if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
-      return 'Total Value for Customs is required.';
-    }
+    if (!shipment.dimLength || parseFloat(shipment.dimLength) <= 0) return 'Length is required.';
+    if (!shipment.dimWidth || parseFloat(shipment.dimWidth) <= 0) return 'Width is required.';
+    if (!shipment.dimHeight || parseFloat(shipment.dimHeight) <= 0) return 'Height is required.';
+    if (!shipment.packages || parseInt(shipment.packages, 10) <= 0) return 'No. of Packages is required.';
+    if (!shipment.totalWeight || parseFloat(shipment.totalWeight) <= 0) return 'Enter a valid weight.';
     if (isSea) {
-      if (!shipment.hsCode.trim()) return 'HS Code is required for SEA shipments.';
       if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) return 'Total CBM is required.';
     }
     if (shipment.pickupService && !shipment.pickupSameAsShipper) {
@@ -249,6 +255,8 @@ export default function BookPage() {
       if (!shipment.pickupCity.trim()) return 'Pickup City is required.';
       if (!shipment.pickupCountry.trim()) return 'Pickup Country is required.';
     }
+    if (!shipment.parcelReadyDate) return 'Goods Ready Date is required.';
+    if (!shipment.parcelReadyTime) return 'Goods Ready Time is required.';
     return null;
   }
   function validatePayment() {
@@ -267,7 +275,8 @@ export default function BookPage() {
     else if (step === 2 && !isSea) err = validateParcel();
     else if ((step === 2 && isSea) || (step === 3 && !isSea)) err = validateParties();
     else if ((step === 3 && isSea) || (step === 4 && !isSea)) err = validateShipment();
-    else if ((step === 4 && isSea) || (step === 5 && !isSea)) err = validatePayment();
+    else if ((step === 4 && isSea) || (step === 5 && !isSea)) err = validatePackaging();
+    else if ((step === 5 && isSea) || (step === 6 && !isSea)) err = validatePayment();
 
     if (err) { setError(err); return; }
     setStep(getNextStep(step));
@@ -432,10 +441,14 @@ export default function BookPage() {
         )}
 
         <div style={{ background: 'white', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
-          {/* STEP 1 */}
+
+          {/* STEP 1 — SHIP MODE */}
           {step === 1 && (
             <>
-              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>Step 1 - Select Ship Mode</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>Step 1 - Select Ship Mode</h3>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
                 {[{ value: 'SEA', icon: '🚢', label: 'SEA Freight', sub: 'Cost-effective ocean shipping' },
                   { value: 'AIR', icon: '✈️', label: 'AIR Freight', sub: 'Fast air delivery' }].map((m) => (
@@ -491,10 +504,13 @@ export default function BookPage() {
             </>
           )}
 
-          {/* STEP 2 (AIR only) — Parcel Type */}
+          {/* STEP 2 (AIR only) — PARCEL TYPE */}
           {step === 2 && !isSea && (
             <>
-              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>Step 2 - Parcel Type</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>Step 2 - Parcel Type</h3>
+                <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
+              </div>
 
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>
                 {['Document', 'No-Document (Sample)', 'Special Parcel', 'Others'].map((p) => (
@@ -555,9 +571,12 @@ export default function BookPage() {
           {/* PARTIES */}
           {((step === 2 && isSea) || (step === 3 && !isSea)) && (
             <>
-              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
-                {isSea ? 'Step 2' : 'Step 3'} - Shipper & Consignee
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
+                  {isSea ? 'Step 2' : 'Step 3'} - Shipper & Consignee
+                </h3>
+                <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div>
@@ -647,17 +666,46 @@ export default function BookPage() {
             </>
           )}
 
-          {/* SHIPMENT DETAILS */}
+          {/* SHIPMENT DETAILS (lighter now) */}
           {((step === 3 && isSea) || (step === 4 && !isSea)) && (
             <>
-              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
-                {isSea ? 'Step 3' : 'Step 4'} - Shipment Details
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
+                  {isSea ? 'Step 3' : 'Step 4'} - Shipment Details
+                </h3>
+                <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <Field label="Shipper Reference Number" value={shipment.shipperRef} onChange={(v) => setShipmentField('shipperRef', v)} />
                 <Field label="Shipment Date" type="date" value={shipment.shipmentDate} onChange={(v) => setShipmentField('shipmentDate', v)} />
               </div>
               <Field label="Description of Goods *" value={shipment.description} onChange={(v) => setShipmentField('description', v)} textarea />
+              <Field label="HS Code *" value={shipment.hsCode} onChange={(v) => setShipmentField('hsCode', v)} placeholder="Harmonized System Code" />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
+                <Field label="Total Value for Customs *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} />
+                <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
+              </div>
+
+              <Field label="Special Instruction" value={shipment.specialInstruction} onChange={(v) => setShipmentField('specialInstruction', v)} textarea />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
+                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
+                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
+              </div>
+            </>
+          )}
+
+          {/* SELECT PACKAGING (new) */}
+          {((step === 4 && isSea) || (step === 5 && !isSea)) && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
+                  {isSea ? 'Step 4' : 'Step 5'} - Select Packaging
+                </h3>
+                <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
+              </div>
 
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
@@ -720,26 +768,18 @@ export default function BookPage() {
                 </div>
               </div>
 
-              {isSea && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                  <Field label="HS Code *" value={shipment.hsCode} onChange={(v) => setShipmentField('hsCode', v)} />
-                  <Field label="Total CBM *" type="number" value={shipment.totalCbm} onChange={(v) => setShipmentField('totalCbm', v)} />
-                </div>
-              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <Field label="No. of Packages *" type="number" value={shipment.packages} onChange={(v) => setShipmentField('packages', v)} />
                 <Field label="Total Weight (kg) *" type="number" value={shipment.totalWeight} onChange={(v) => setShipmentField('totalWeight', v)} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
-                <Field label="Total Value for Customs *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} />
-                <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
-              </div>
+              {isSea && (
+                <Field label="Total CBM *" type="number" value={shipment.totalCbm} onChange={(v) => setShipmentField('totalCbm', v)} />
+              )}
 
-              <Field label="Special Instruction" value={shipment.specialInstruction} onChange={(v) => setShipmentField('specialInstruction', v)} textarea />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Date'} type="date" value={shipment.parcelReadyDate} onChange={(v) => setShipmentField('parcelReadyDate', v)} />
-                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Time'} type="time" value={shipment.parcelReadyTime} onChange={(v) => setShipmentField('parcelReadyTime', v)} />
+                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Date *'} type="date" value={shipment.parcelReadyDate} onChange={(v) => setShipmentField('parcelReadyDate', v)} />
+                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Time *'} type="time" value={shipment.parcelReadyTime} onChange={(v) => setShipmentField('parcelReadyTime', v)} />
               </div>
 
               <div style={{ marginTop: '25px', paddingTop: '20px', borderTop: '2px solid #F1F3F5' }}>
@@ -825,11 +865,14 @@ export default function BookPage() {
           )}
 
           {/* PAYMENT */}
-          {((step === 4 && isSea) || (step === 5 && !isSea)) && (
+          {((step === 5 && isSea) || (step === 6 && !isSea)) && (
             <>
-              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
-                {isSea ? 'Step 4' : 'Step 5'} - Payment Terms
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
+                  {isSea ? 'Step 5' : 'Step 6'} - Payment Terms
+                </h3>
+                <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
+              </div>
 
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px' }}>Payment Type *</label>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
@@ -890,11 +933,14 @@ export default function BookPage() {
           )}
 
           {/* REVIEW */}
-          {((step === 5 && isSea) || (step === 6 && !isSea)) && (
+          {((step === 6 && isSea) || (step === 7 && !isSea)) && (
             <>
-              <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>
-                {isSea ? 'Step 5' : 'Step 6'} - Review & Submit
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
+                  {isSea ? 'Step 6' : 'Step 7'} - Review & Submit
+                </h3>
+                <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
+              </div>
 
               <div style={{
                 background: 'linear-gradient(135deg, #FFF5EB 0%, #FFE8D1 100%)',
@@ -920,8 +966,8 @@ export default function BookPage() {
                       {!isSea && parcelType && <div><b>Parcel:</b> {parcelType === 'Others' ? 'Others: ' + parcelTypeCustom : parcelType}</div>}
                       {!isSea && shipment.deliveryTimeline && <div><b>Delivery Timeline:</b> {shipment.deliveryTimeline}</div>}
                       <div><b>Description:</b> {shipment.description || '-'}</div>
+                      <div><b>HS Code:</b> {shipment.hsCode || '-'}</div>
                       <div><b>Packaging:</b> {shipment.packagingType === 'Others' ? 'Others: ' + (shipment.packagingTypeCustom || '-') : (shipment.packagingType || '-')}</div>
-                      {isSea && <div><b>HS Code:</b> {shipment.hsCode}</div>}
                       {isSea && <div><b>CBM:</b> {shipment.totalCbm} m3</div>}
                       <div><b>Dimensions:</b> {shipment.dimLength}x{shipment.dimWidth}x{shipment.dimHeight} cm</div>
                       <div><b>Packages:</b> {shipment.packages}</div>
