@@ -50,6 +50,7 @@ export async function POST(request) {
 
     const body = await request.json();
     const shipMode = String(body.shipMode || '').toUpperCase();
+    const seaLoadType = String(body.seaLoadType || '').trim().toUpperCase();
     const shipper = body.shipper || {};
     const consignee = body.consignee || {};
     const shipment = body.shipment || {};
@@ -57,6 +58,9 @@ export async function POST(request) {
     const paymentMethod = body.paymentMethod || '';
 
     if (!['AIR', 'SEA'].includes(shipMode)) return NextResponse.json({ success: false, error: 'Ship mode is required.' });
+    if (shipMode === 'SEA' && !['LCL', 'FCL'].includes(seaLoadType)) {
+      return NextResponse.json({ success: false, error: 'Please select LCL or FCL for SEA shipments.' });
+    }
     if (!shipper.name || !shipper.fullAddress || !shipper.country || !shipper.email || !shipper.phone) {
       return NextResponse.json({ success: false, error: 'Shipper details incomplete.' });
     }
@@ -138,6 +142,9 @@ export async function POST(request) {
     // Delivery Timeline (AIR only)
     const deliveryTimeline = shipment.deliveryTimeline ? String(shipment.deliveryTimeline).trim() : null;
 
+    // Country of origin (product's origin country)
+    const originCountry = shipment.originCountry ? String(shipment.originCountry).trim() : null;
+
     // Tracking number
     const shortForm = generateShortForm(shipper.name);
     const today = new Date();
@@ -188,6 +195,7 @@ export async function POST(request) {
         tracking_number: trackingNumber,
         short_form: shortForm,
         ship_mode: shipMode,
+        sea_load_type: shipMode === 'SEA' ? seaLoadType : null,
         service_type: mapServiceType(shipMode),
         parcel_type: body.parcelType || null,
         parcel_type_custom: body.parcelTypeCustom || null,
@@ -211,6 +219,7 @@ export async function POST(request) {
         pickup_country: pickupCountry || null,
         origin: shipper.country,
         destination: consignee.country,
+        origin_country: originCountry,
         sender_name: shipper.name,
         sender_phone: shipper.phone,
         sender_email: shipper.email,
