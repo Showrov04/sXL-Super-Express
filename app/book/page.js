@@ -76,6 +76,7 @@ export default function BookPage() {
   const [profileChecked, setProfileChecked] = useState(false);
 
   const [shipMode, setShipMode] = useState('');
+  const [seaLoadType, setSeaLoadType] = useState('');
   const [parcelType, setParcelType] = useState('');
   const [parcelTypeCustom, setParcelTypeCustom] = useState('');
   const [shipper, setShipper] = useState({ name: '', fullAddress: '', city: '', state: '', country: '', email: '', phone: '' });
@@ -188,7 +189,6 @@ export default function BookPage() {
     setParcelType(p);
     if (p !== 'Others') setParcelTypeCustom('');
     if (p !== 'Special Parcel') {
-      // Clear delivery timeline when not special parcel
       setShipmentField('deliveryTimeline', '');
     }
   }
@@ -205,7 +205,11 @@ export default function BookPage() {
     return current - 1;
   }
 
-  function validateStep1() { return shipMode ? null : 'Please select a ship mode.'; }
+  function validateStep1() {
+    if (!shipMode) return 'Please select a ship mode.';
+    if (shipMode === 'SEA' && !seaLoadType) return 'Please select LCL or FCL for SEA shipments.';
+    return null;
+  }
   function validateParcel() {
     if (!parcelType) return 'Please select a parcel type.';
     if (parcelType === 'Others' && !parcelTypeCustom.trim()) return 'Please specify the parcel type.';
@@ -305,7 +309,7 @@ export default function BookPage() {
           Authorization: 'Bearer ' + token,
         },
         body: JSON.stringify({
-          shipMode, parcelType, parcelTypeCustom,
+          shipMode, seaLoadType, parcelType, parcelTypeCustom,
           shipper, consignee, shipment,
           paymentTerms, paymentMethod,
         }),
@@ -435,7 +439,7 @@ export default function BookPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
                 {[{ value: 'SEA', icon: '🚢', label: 'SEA Freight', sub: 'Cost-effective ocean shipping' },
                   { value: 'AIR', icon: '✈️', label: 'AIR Freight', sub: 'Fast air delivery' }].map((m) => (
-                  <button key={m.value} onClick={() => setShipMode(m.value)} style={{
+                  <button key={m.value} onClick={() => { setShipMode(m.value); if (m.value !== 'SEA') setSeaLoadType(''); }} style={{
                     padding: '25px 15px', border: '3px solid ' + (shipMode === m.value ? '#FF6B00' : '#E9ECEF'),
                     borderRadius: '12px', textAlign: 'center', cursor: 'pointer',
                     background: shipMode === m.value ? '#FFF5EB' : 'white', fontFamily: 'inherit'
@@ -446,6 +450,40 @@ export default function BookPage() {
                   </button>
                 ))}
               </div>
+
+              {shipMode === 'SEA' && (
+                <div style={{
+                  marginTop: '20px', padding: '18px 20px',
+                  background: '#F0F7FF', borderLeft: '4px solid #003366',
+                  borderRadius: '10px'
+                }}>
+                  <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 700, color: '#003366', marginBottom: '10px' }}>
+                    Sea Load Type *
+                  </label>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    {[
+                      { value: 'LCL', label: 'LCL', sub: 'Less than Container Load' },
+                      { value: 'FCL', label: 'FCL', sub: 'Full Container Load' },
+                    ].map((opt) => (
+                      <button key={opt.value} type="button" onClick={() => setSeaLoadType(opt.value)} style={{
+                        flex: 1, minWidth: '180px', padding: '14px 18px',
+                        border: '3px solid ' + (seaLoadType === opt.value ? '#003366' : '#E9ECEF'),
+                        background: seaLoadType === opt.value ? '#E0EDFF' : 'white',
+                        borderRadius: '10px', cursor: 'pointer',
+                        fontFamily: 'inherit', textAlign: 'left'
+                      }}>
+                        <div style={{ fontWeight: 800, color: '#003366', fontSize: '1rem', marginBottom: '3px' }}>
+                          {opt.label}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#6C757D' }}>
+                          {opt.sub}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <Link href="/dashboard" style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, textDecoration: 'none' }}>Cancel</Link>
                 <button onClick={goNext} disabled={!shipMode} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: shipMode ? 'pointer' : 'not-allowed', opacity: shipMode ? 1 : 0.5, fontFamily: 'inherit' }}>Next</button>
@@ -453,12 +491,11 @@ export default function BookPage() {
             </>
           )}
 
-          {/* STEP 2 (AIR only) — Pills + conditional Delivery Timeline */}
+          {/* STEP 2 (AIR only) — Parcel Type */}
           {step === 2 && !isSea && (
             <>
               <h3 style={{ color: '#003366', fontSize: '1.2rem', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5' }}>Step 2 - Parcel Type</h3>
 
-              {/* Parcel Type pills */}
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>
                 {['Document', 'No-Document (Sample)', 'Special Parcel', 'Others'].map((p) => (
                   <button key={p} onClick={() => pickParcelType(p)} style={{
@@ -480,7 +517,6 @@ export default function BookPage() {
                 </div>
               )}
 
-              {/* Delivery Timeline — only for Special Parcel */}
               {isSpecialParcel && (
                 <div style={{
                   marginTop: '20px', padding: '18px 20px',
@@ -880,7 +916,7 @@ export default function BookPage() {
                   <div style={{ background: '#F8F9FA', padding: '18px', borderRadius: '10px', marginBottom: '15px' }}>
                     <div style={{ fontWeight: 800, color: '#003366', marginBottom: '12px', fontSize: '0.95rem' }}>SHIPMENT</div>
                     <div style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#343A40' }}>
-                      <div><b>Mode:</b> {shipMode}</div>
+                      <div><b>Mode:</b> {shipMode}{isSea && seaLoadType ? ' (' + seaLoadType + ')' : ''}</div>
                       {!isSea && parcelType && <div><b>Parcel:</b> {parcelType === 'Others' ? 'Others: ' + parcelTypeCustom : parcelType}</div>}
                       {!isSea && shipment.deliveryTimeline && <div><b>Delivery Timeline:</b> {shipment.deliveryTimeline}</div>}
                       <div><b>Description:</b> {shipment.description || '-'}</div>
