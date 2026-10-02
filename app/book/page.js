@@ -196,7 +196,6 @@ export default function BookPage() {
   const isSea = shipMode === 'SEA';
   const isSpecialParcel = parcelType === 'Special Parcel';
 
-  // NEW STEP ARRAYS (7 SEA / 8 AIR)
   const steps = isSea
     ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Payment', 'Review']
     : ['Ship Mode', 'Parcel Type', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Payment', 'Review'];
@@ -442,7 +441,6 @@ export default function BookPage() {
 
         <div style={{ background: 'white', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
 
-          {/* STEP 1 — SHIP MODE */}
           {step === 1 && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -504,7 +502,6 @@ export default function BookPage() {
             </>
           )}
 
-          {/* STEP 2 (AIR only) — PARCEL TYPE */}
           {step === 2 && !isSea && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -568,7 +565,6 @@ export default function BookPage() {
             </>
           )}
 
-          {/* PARTIES */}
           {((step === 2 && isSea) || (step === 3 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -666,7 +662,6 @@ export default function BookPage() {
             </>
           )}
 
-          {/* SHIPMENT DETAILS (lighter now) */}
           {((step === 3 && isSea) || (step === 4 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -697,7 +692,6 @@ export default function BookPage() {
             </>
           )}
 
-          {/* SELECT PACKAGING (new) */}
           {((step === 4 && isSea) || (step === 5 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -864,7 +858,6 @@ export default function BookPage() {
             </>
           )}
 
-          {/* PAYMENT */}
           {((step === 5 && isSea) || (step === 6 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -932,7 +925,6 @@ export default function BookPage() {
             </>
           )}
 
-          {/* REVIEW */}
           {((step === 6 && isSea) || (step === 7 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
