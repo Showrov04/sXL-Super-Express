@@ -93,6 +93,7 @@ export default function BookPage() {
     pickupSameAsShipper: true,
     pickupAddress: '', pickupCity: '', pickupState: '', pickupCountry: '',
     hsCode: '', totalCbm: '',
+    originCountry: '',
     dimLength: '', dimWidth: '', dimHeight: '',
     packagingType: '', packagingTypeCustom: '',
     deliveryTimeline: ''
@@ -197,8 +198,8 @@ export default function BookPage() {
   const isSpecialParcel = parcelType === 'Special Parcel';
 
   const steps = isSea
-    ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Payment', 'Review']
-    : ['Ship Mode', 'Parcel Type', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Payment', 'Review'];
+    ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Payment', 'Review']
+    : ['Ship Mode', 'Parcel Type', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Payment', 'Review'];
 
   function getNextStep(current) { return current + 1; }
   function getPrevStep(current) {
@@ -231,9 +232,7 @@ export default function BookPage() {
   function validateShipment() {
     if (!shipment.description.trim()) return 'Description of goods is required.';
     if (!shipment.hsCode.trim()) return 'HS Code is required.';
-    if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
-      return 'Total Value for Customs is required.';
-    }
+    if (!shipment.originCountry) return 'Country of Origin is required.';
     return null;
   }
   function validatePackaging() {
@@ -249,6 +248,12 @@ export default function BookPage() {
     if (isSea) {
       if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) return 'Total CBM is required.';
     }
+    if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
+      return 'Total Value for Customs is required.';
+    }
+    return null;
+  }
+  function validatePickup() {
     if (shipment.pickupService && !shipment.pickupSameAsShipper) {
       if (!shipment.pickupAddress.trim()) return 'Pickup Address is required.';
       if (!shipment.pickupCity.trim()) return 'Pickup City is required.';
@@ -275,7 +280,8 @@ export default function BookPage() {
     else if ((step === 2 && isSea) || (step === 3 && !isSea)) err = validateParties();
     else if ((step === 3 && isSea) || (step === 4 && !isSea)) err = validateShipment();
     else if ((step === 4 && isSea) || (step === 5 && !isSea)) err = validatePackaging();
-    else if ((step === 5 && isSea) || (step === 6 && !isSea)) err = validatePayment();
+    else if ((step === 5 && isSea) || (step === 6 && !isSea)) err = validatePickup();
+    else if ((step === 6 && isSea) || (step === 7 && !isSea)) err = validatePayment();
 
     if (err) { setError(err); return; }
     setStep(getNextStep(step));
@@ -676,13 +682,10 @@ export default function BookPage() {
                 <Field label="Shipment Date" type="date" value={shipment.shipmentDate} onChange={(v) => setShipmentField('shipmentDate', v)} />
               </div>
               <Field label="Description of Goods *" value={shipment.description} onChange={(v) => setShipmentField('description', v)} textarea />
-              <Field label="HS Code *" value={shipment.hsCode} onChange={(v) => setShipmentField('hsCode', v)} placeholder="Harmonized System Code" />
-
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
-                <Field label="Total Value for Customs *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} />
-                <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <Field label="HS Code *" value={shipment.hsCode} onChange={(v) => setShipmentField('hsCode', v)} placeholder="Harmonized System Code" />
+                <SelectField label="Country of Origin *" value={shipment.originCountry} onChange={(v) => setShipmentField('originCountry', v)} countries={countries} />
               </div>
-
               <Field label="Special Instruction" value={shipment.specialInstruction} onChange={(v) => setShipmentField('specialInstruction', v)} textarea />
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
@@ -771,84 +774,9 @@ export default function BookPage() {
                 <Field label="Total CBM *" type="number" value={shipment.totalCbm} onChange={(v) => setShipmentField('totalCbm', v)} />
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Date *'} type="date" value={shipment.parcelReadyDate} onChange={(v) => setShipmentField('parcelReadyDate', v)} />
-                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Time *'} type="time" value={shipment.parcelReadyTime} onChange={(v) => setShipmentField('parcelReadyTime', v)} />
-              </div>
-
-              <div style={{ marginTop: '25px', paddingTop: '20px', borderTop: '2px solid #F1F3F5' }}>
-                <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>🚚 Pickup Service</h4>
-                <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
-                  Do you want sXL to arrange pickup from your location?
-                </p>
-
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '18px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShipmentField('pickupService', true)}
-                    style={{
-                      flex: 1, minWidth: '200px', padding: '18px 20px',
-                      border: '3px solid ' + (shipment.pickupService === true ? '#28A745' : '#E9ECEF'),
-                      background: shipment.pickupService === true ? '#E8F7EF' : 'white',
-                      borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
-                      textAlign: 'left'
-                    }}>
-                    <div style={{ fontWeight: 800, color: shipment.pickupService === true ? '#155724' : '#343A40', fontSize: '1rem', marginBottom: '4px' }}>
-                      ✅ Yes — Pickup by sXL
-                    </div>
-                    <div style={{ fontSize: '0.82rem', color: '#6C757D' }}>
-                      We will collect the shipment from your location
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShipmentField('pickupService', false)}
-                    style={{
-                      flex: 1, minWidth: '200px', padding: '18px 20px',
-                      border: '3px solid ' + (shipment.pickupService === false ? '#FF6B00' : '#E9ECEF'),
-                      background: shipment.pickupService === false ? '#FFF5EB' : 'white',
-                      borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
-                      textAlign: 'left'
-                    }}>
-                    <div style={{ fontWeight: 800, color: shipment.pickupService === false ? '#8B4500' : '#343A40', fontSize: '1rem', marginBottom: '4px' }}>
-                      📦 No — I will deliver to your warehouse
-                    </div>
-                    <div style={{ fontSize: '0.82rem', color: '#6C757D' }}>
-                      You will send the goods to our warehouse
-                    </div>
-                  </button>
-                </div>
-
-                {shipment.pickupService === true && (
-                  <>
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>
-                      <button onClick={() => setShipmentField('pickupSameAsShipper', true)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'), background: shipment.pickupSameAsShipper ? '#FF6B00' : 'white', color: shipment.pickupSameAsShipper ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Same as Shipper Address</button>
-                      <button onClick={() => setShipmentField('pickupSameAsShipper', false)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (!shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'), background: !shipment.pickupSameAsShipper ? '#FF6B00' : 'white', color: !shipment.pickupSameAsShipper ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Different Pickup Address</button>
-                    </div>
-
-                    {!shipment.pickupSameAsShipper && (
-                      <div style={{ marginTop: '15px' }}>
-                        <Field label="Pickup Address *" value={shipment.pickupAddress} onChange={(v) => setShipmentField('pickupAddress', v)} textarea />
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                          <Field label="City *" value={shipment.pickupCity} onChange={(v) => setShipmentField('pickupCity', v)} />
-                          <Field label="State" value={shipment.pickupState} onChange={(v) => setShipmentField('pickupState', v)} />
-                        </div>
-                        <SelectField label="Country *" value={shipment.pickupCountry} onChange={(v) => setShipmentField('pickupCountry', v)} countries={countries} />
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {shipment.pickupService === false && (
-                  <div style={{
-                    background: '#FFF5EB', borderLeft: '4px solid #FF6B00',
-                    borderRadius: '8px', padding: '15px 18px', fontSize: '0.9rem', color: '#8B4500'
-                  }}>
-                    <b>📧 Warehouse details will be sent after booking confirmation.</b><br />
-                    Our team will email you the full warehouse address and operating hours so you can deliver your goods.
-                  </div>
-                )}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
+                <Field label="Total Value for Customs *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} />
+                <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
@@ -862,7 +790,101 @@ export default function BookPage() {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
                 <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
-                  {isSea ? 'Step 5' : 'Step 6'} - Payment Terms
+                  {isSea ? 'Step 5' : 'Step 6'} - Pickup Service
+                </h3>
+                <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
+              </div>
+
+              <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>🚚 Pickup Service</h4>
+              <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
+                Do you want sXL to arrange pickup from your location?
+              </p>
+
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '18px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShipmentField('pickupService', true)}
+                  style={{
+                    flex: 1, minWidth: '200px', padding: '18px 20px',
+                    border: '3px solid ' + (shipment.pickupService === true ? '#28A745' : '#E9ECEF'),
+                    background: shipment.pickupService === true ? '#E8F7EF' : 'white',
+                    borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+                    textAlign: 'left'
+                  }}>
+                  <div style={{ fontWeight: 800, color: shipment.pickupService === true ? '#155724' : '#343A40', fontSize: '1rem', marginBottom: '4px' }}>
+                    ✅ Yes — Pickup by sXL
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#6C757D' }}>
+                    We will collect the shipment from your location
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShipmentField('pickupService', false)}
+                  style={{
+                    flex: 1, minWidth: '200px', padding: '18px 20px',
+                    border: '3px solid ' + (shipment.pickupService === false ? '#FF6B00' : '#E9ECEF'),
+                    background: shipment.pickupService === false ? '#FFF5EB' : 'white',
+                    borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+                    textAlign: 'left'
+                  }}>
+                  <div style={{ fontWeight: 800, color: shipment.pickupService === false ? '#8B4500' : '#343A40', fontSize: '1rem', marginBottom: '4px' }}>
+                    📦 No — I will deliver to your warehouse
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#6C757D' }}>
+                    You will send the goods to our warehouse
+                  </div>
+                </button>
+              </div>
+
+              {shipment.pickupService === true && (
+                <>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>
+                    <button onClick={() => setShipmentField('pickupSameAsShipper', true)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'), background: shipment.pickupSameAsShipper ? '#FF6B00' : 'white', color: shipment.pickupSameAsShipper ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Same as Shipper Address</button>
+                    <button onClick={() => setShipmentField('pickupSameAsShipper', false)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (!shipment.pickupSameAsShipper ? '#FF6B00' : '#E9ECEF'), background: !shipment.pickupSameAsShipper ? '#FF6B00' : 'white', color: !shipment.pickupSameAsShipper ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Different Pickup Address</button>
+                  </div>
+
+                  {!shipment.pickupSameAsShipper && (
+                    <div style={{ marginTop: '15px' }}>
+                      <Field label="Pickup Address *" value={shipment.pickupAddress} onChange={(v) => setShipmentField('pickupAddress', v)} textarea />
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                        <Field label="City *" value={shipment.pickupCity} onChange={(v) => setShipmentField('pickupCity', v)} />
+                        <Field label="State" value={shipment.pickupState} onChange={(v) => setShipmentField('pickupState', v)} />
+                      </div>
+                      <SelectField label="Country *" value={shipment.pickupCountry} onChange={(v) => setShipmentField('pickupCountry', v)} countries={countries} />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {shipment.pickupService === false && (
+                <div style={{
+                  background: '#FFF5EB', borderLeft: '4px solid #FF6B00',
+                  borderRadius: '8px', padding: '15px 18px', fontSize: '0.9rem', color: '#8B4500', marginBottom: '20px'
+                }}>
+                  <b>📧 Warehouse details will be sent after booking confirmation.</b><br />
+                  Our team will email you the full warehouse address and operating hours so you can deliver your goods.
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '20px' }}>
+                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Date *'} type="date" value={shipment.parcelReadyDate} onChange={(v) => setShipmentField('parcelReadyDate', v)} />
+                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Time *'} type="time" value={shipment.parcelReadyTime} onChange={(v) => setShipmentField('parcelReadyTime', v)} />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
+                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
+                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
+              </div>
+            </>
+          )}
+
+          {((step === 6 && isSea) || (step === 7 && !isSea)) && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
+                  {isSea ? 'Step 6' : 'Step 7'} - Payment Terms
                 </h3>
                 <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
               </div>
@@ -925,11 +947,11 @@ export default function BookPage() {
             </>
           )}
 
-          {((step === 6 && isSea) || (step === 7 && !isSea)) && (
+          {((step === 7 && isSea) || (step === 8 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
                 <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
-                  {isSea ? 'Step 6' : 'Step 7'} - Review & Submit
+                  {isSea ? 'Step 7' : 'Step 8'} - Review & Submit
                 </h3>
                 <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
               </div>
@@ -959,6 +981,7 @@ export default function BookPage() {
                       {!isSea && shipment.deliveryTimeline && <div><b>Delivery Timeline:</b> {shipment.deliveryTimeline}</div>}
                       <div><b>Description:</b> {shipment.description || '-'}</div>
                       <div><b>HS Code:</b> {shipment.hsCode || '-'}</div>
+                      <div><b>Country of Origin:</b> {countryName(shipment.originCountry) || '-'}</div>
                       <div><b>Packaging:</b> {shipment.packagingType === 'Others' ? 'Others: ' + (shipment.packagingTypeCustom || '-') : (shipment.packagingType || '-')}</div>
                       {isSea && <div><b>CBM:</b> {shipment.totalCbm} m3</div>}
                       <div><b>Dimensions:</b> {shipment.dimLength}x{shipment.dimWidth}x{shipment.dimHeight} cm</div>
