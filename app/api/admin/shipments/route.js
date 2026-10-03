@@ -181,10 +181,11 @@ export async function GET(request) {
         originCountry: s.origin_country || null,
         freightBillTo: s.freight_bill_to || null,
         dutyTaxBillTo: s.duty_tax_bill_to || null,
-        // NEW
         customService: s.custom_service || null,
         deliveryService: s.delivery_service || null,
         uploadedDocuments: s.uploaded_documents || null,
+        // NEW: track if warehouse email has been sent
+        warehouseSentAt: s.warehouse_sent_at || null,
       };
     });
 
