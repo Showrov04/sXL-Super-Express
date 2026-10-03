@@ -29,6 +29,16 @@ async function requireAdmin(request) {
   return { userId: session.user_id, role: session.role };
 }
 
+// Derive a short form (initials) from company name — up to 4 letters
+function shortFormFrom(name) {
+  if (!name || !String(name).trim()) return 'SXL';
+  const words = String(name).trim().split(/\s+/).filter((w) => w.length > 0);
+  let short = words.map((w) => w[0].toUpperCase()).join('');
+  short = short.replace(/[^A-Z0-9]/g, '');
+  if (short.length > 4) short = short.substring(0, 4);
+  return short || 'SXL';
+}
+
 export async function GET(request) {
   try {
     const session = await requireAdmin(request);
@@ -36,27 +46,33 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Permission denied.' });
     }
 
-    const { data: shippers, error } = await serviceSupabase
-      .from('shippers')
+    // Read from `users` table — every customer is a shipper
+    const { data: users, error } = await serviceSupabase
+      .from('users')
       .select('*')
-      .order('name', { ascending: true });
+      .eq('role', 'customer')
+      .order('company_name', { ascending: true });
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message });
     }
 
-    const list = (shippers || []).map((s) => ({
-      shipperID: s.shipper_id,
-      shortForm: s.short_form,
-      name: s.name,
-      contactPerson: s.contact_person,
-      email: s.email,
-      phone: s.phone,
-      country: s.country,
-      status: s.status || (s.active ? 'Active' : 'Suspended'),
-      suspendedAt: s.suspended_at,
-      createdAt: s.created_at,
-    }));
+    const list = (users || []).map((u) => {
+      // Status: Active unless explicitly disabled
+      const isActive = u.active !== false;
+      return {
+        shipperID: u.user_id,
+        shortForm: shortFormFrom(u.company_name || u.name),
+        name: u.company_name || u.name || '-',
+        contactPerson: u.contact_person || u.name || '-',
+        email: u.email || '-',
+        phone: u.phone || '-',
+        country: u.company_country || '-',
+        status: isActive ? 'Active' : 'Suspended',
+        suspendedAt: isActive ? null : u.suspended_at || null,
+        createdAt: u.created_at || null,
+      };
+    });
 
     const counts = {
       total: list.length,
@@ -89,14 +105,18 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Only admin can change shipper status.' });
     }
 
+    // Update users table
+    const updateData = { active: newStatus === 'Active' };
+    if (newStatus === 'Suspended') {
+      updateData.suspended_at = new Date().toISOString();
+    } else {
+      updateData.suspended_at = null;
+    }
+
     const { error } = await serviceSupabase
-      .from('shippers')
-      .update({
-        status: newStatus,
-        active: newStatus === 'Active',
-        suspended_at: newStatus === 'Suspended' ? new Date().toISOString() : null,
-      })
-      .eq('shipper_id', shipperID);
+      .from('users')
+      .update(updateData)
+      .eq('user_id', shipperID);
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message });
