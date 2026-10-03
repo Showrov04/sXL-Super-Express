@@ -6,6 +6,41 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
+// Shared column widths for frozen left columns
+const COL_W_TRACKING = 150;
+const COL_W_MODE = 100;
+const COL_W_ROUTE = 160;
+const COL_W_SHIPPER = 140;
+const FROZEN_LEFT_TRACKING = 0;
+const FROZEN_LEFT_MODE = COL_W_TRACKING;
+const FROZEN_LEFT_ROUTE = COL_W_TRACKING + COL_W_MODE;
+const FROZEN_LEFT_SHIPPER = COL_W_TRACKING + COL_W_MODE + COL_W_ROUTE;
+
+const TH_BASE = {
+  padding: '12px 12px',
+  textAlign: 'left',
+  fontWeight: 700,
+  color: '#003366',
+  fontSize: '0.72rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  background: '#F1F3F5',
+  borderBottom: '2px solid #E9ECEF',
+  position: 'sticky',
+  top: 0,
+  zIndex: 10,
+  whiteSpace: 'nowrap'
+};
+
+const TD_BASE = {
+  padding: '10px 12px',
+  borderBottom: '1px solid #F1F3F5',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  maxWidth: '200px'
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -20,7 +55,6 @@ export default function DashboardPage() {
   });
   const [error, setError] = useState('');
 
-  // Filters
   const [searchText, setSearchText] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterMode, setFilterMode] = useState('all');
@@ -43,7 +77,6 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, tab]);
 
-  // Reset filters on tab change
   useEffect(() => {
     setSearchText('');
     setFilterStatus('all');
@@ -90,7 +123,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Client-side filter
   const filtered = useMemo(() => {
     let list = shipments;
     if (searchText.trim()) {
@@ -110,7 +142,6 @@ export default function DashboardPage() {
     return list;
   }, [shipments, searchText, filterStatus, filterMode]);
 
-  // Available statuses for the dropdown
   const statusOptions = useMemo(() => {
     const set = new Set(shipments.map((s) => s.status).filter(Boolean));
     return Array.from(set).sort();
@@ -175,7 +206,6 @@ export default function DashboardPage() {
     return { bg: '#FFF3CD', color: '#856404' };
   }
 
-  // Determine summary card by tab (only for awaiting + paid)
   const summaryCardConfig =
     tab === 'awaiting'
       ? { label: '💵 Total Outstanding', data: { total: outstanding?.total || 0, currency: outstanding?.currency || 'USD', count: outstanding?.count || 0 } }
@@ -220,7 +250,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
           <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
           <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Outstanding Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
@@ -228,7 +257,6 @@ export default function DashboardPage() {
           <TabButton active={tab === 'cancelled'} onClick={() => setTab('cancelled')} label="⚫ Cancelled" count={counts.cancelled} badgeBg="#E9ECEF" badgeColor="#495057" />
         </div>
 
-        {/* Summary Card (only for awaiting + paid) */}
         {summaryCardConfig && !loading && !error && (
           <div style={{
             background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
@@ -247,7 +275,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Filter Bar */}
         {!loading && !error && (
           <div style={{
             background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
@@ -259,19 +286,12 @@ export default function DashboardPage() {
               placeholder="🔍 Search tracking, shipper, recipient..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              style={{
-                flex: 1, minWidth: '220px', padding: '10px 14px',
-                border: '2px solid #E9ECEF', borderRadius: '8px',
-                fontSize: '0.9rem', fontFamily: 'inherit'
-              }}
+              style={{ flex: 1, minWidth: '220px', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}
             />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              style={{
-                padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px',
-                fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '150px'
-              }}
+              style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '150px' }}
             >
               <option value="all">All Statuses</option>
               {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -279,10 +299,7 @@ export default function DashboardPage() {
             <select
               value={filterMode}
               onChange={(e) => setFilterMode(e.target.value)}
-              style={{
-                padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px',
-                fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '120px'
-              }}
+              style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '120px' }}
             >
               <option value="all">All Modes</option>
               <option value="SEA">SEA</option>
@@ -290,11 +307,7 @@ export default function DashboardPage() {
             </select>
             <button
               onClick={() => { setSearchText(''); setFilterStatus('all'); setFilterMode('all'); }}
-              style={{
-                padding: '10px 16px', background: '#E9ECEF', color: '#003366',
-                border: 'none', borderRadius: '8px', fontWeight: 700,
-                fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit'
-              }}
+              style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}
             >
               ✕ Clear
             </button>
@@ -321,146 +334,164 @@ export default function DashboardPage() {
         )}
 
         {!loading && !error && filtered.length > 0 && (
-          <div style={{
-            background: 'white', borderRadius: '10px',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-            overflow: 'auto', maxHeight: '70vh'
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1400px' }}>
-              <thead>
-                <tr>
-                  {['Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status', 'Booking Wt', 'Actual Wt', 'Cost', 'Payment', 'Booked', 'ETA', 'Actions'].map((h) => (
-                    <th key={h} style={{
-                      padding: '14px 12px', textAlign: 'left', fontWeight: 700,
-                      color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      background: '#F1F3F5',
-                      borderBottom: '2px solid #E9ECEF',
-                      position: 'sticky', top: 0, zIndex: 5,
-                      whiteSpace: 'nowrap'
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s, i) => {
-                  const sc = statusClass(s.status);
-                  const pc = paymentClass(s.paymentStatus);
-                  const statusLower = String(s.status).toLowerCase();
-                  const isBooked = statusLower === 'booked';
-                  const isCancellationPending = statusLower.includes('cancellation');
-                  const isCancelled = statusLower === 'cancelled';
-                  const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
-                  const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+          <>
+            {/* TABLE WRAPPER — bordered box + scroll container */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              border: '1px solid #E9ECEF',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+              overflow: 'auto',
+              maxHeight: '70vh'
+            }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'separate',
+                borderSpacing: 0,
+                fontSize: '0.85rem',
+                minWidth: '1400px'
+              }}>
+                <thead>
+                  <tr>
+                    {/* === FROZEN COLUMNS 1-4 === */}
+                    <th style={{ ...TH_BASE, minWidth: COL_W_TRACKING, width: COL_W_TRACKING, position: 'sticky', left: FROZEN_LEFT_TRACKING, zIndex: 12, background: '#E9ECEF' }}>Tracking #</th>
+                    <th style={{ ...TH_BASE, minWidth: COL_W_MODE, width: COL_W_MODE, position: 'sticky', left: FROZEN_LEFT_MODE, zIndex: 12, background: '#E9ECEF' }}>Mode</th>
+                    <th style={{ ...TH_BASE, minWidth: COL_W_ROUTE, width: COL_W_ROUTE, position: 'sticky', left: FROZEN_LEFT_ROUTE, zIndex: 12, background: '#E9ECEF', borderRight: '2px solid #FF6B00' }}>Route</th>
+                    <th style={{ ...TH_BASE, minWidth: COL_W_SHIPPER, width: COL_W_SHIPPER, position: 'sticky', left: FROZEN_LEFT_SHIPPER, zIndex: 12, background: '#E9ECEF', borderRight: '2px solid #FF6B00' }}>Shipper</th>
+                    {/* === SCROLLABLE COLUMNS 5+ === */}
+                    <th style={{ ...TH_BASE, minWidth: 150 }}>Recipient</th>
+                    <th style={{ ...TH_BASE, minWidth: 120 }}>Status</th>
+                    <th style={{ ...TH_BASE, minWidth: 100 }}>Booking Wt</th>
+                    <th style={{ ...TH_BASE, minWidth: 100 }}>Actual Wt</th>
+                    <th style={{ ...TH_BASE, minWidth: 110 }}>Cost</th>
+                    <th style={{ ...TH_BASE, minWidth: 100 }}>Payment</th>
+                    <th style={{ ...TH_BASE, minWidth: 110 }}>Booked</th>
+                    <th style={{ ...TH_BASE, minWidth: 120 }}>ETA</th>
+                    <th style={{ ...TH_BASE, minWidth: 200 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((s, i) => {
+                    const sc = statusClass(s.status);
+                    const pc = paymentClass(s.paymentStatus);
+                    const statusLower = String(s.status).toLowerCase();
+                    const isBooked = statusLower === 'booked';
+                    const isCancellationPending = statusLower.includes('cancellation');
+                    const isCancelled = statusLower === 'cancelled';
+                    const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
+                    const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+                    const frozenBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
 
-                  return (
-                    <tr
-                      key={i}
-                      style={{ background: rowBg, transition: 'background 0.15s' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#FFF5EB'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = rowBg; }}
-                    >
-                      <td style={{ padding: '10px 12px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366', borderBottom: '1px solid #F1F3F5' }}>{s.trackingNumber}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.shipmentType || s.shipMode || '-'}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.origin || '-'} → {s.destination || '-'}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.senderName || '-'}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.recipientName || '-'}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>
-                        <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                          {s.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>
-                        {hasCost
-                          ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
-                          : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
-                      </td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>
-                        <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
-                          {s.paymentStatus || 'Unpaid'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', borderBottom: '1px solid #F1F3F5' }}>{formatDate(s.bookedAt)}</td>
-                      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', borderBottom: '1px solid #F1F3F5' }}>
-                        <span style={{ color: '#FF6B00', fontWeight: 800 }}>
-                          {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', borderBottom: '1px solid #F1F3F5' }}>
-                        {tab === 'active' && (
-                          <>
-                            <Link href={'/track?tn=' + s.trackingNumber} style={{
-                              padding: '5px 10px', background: 'transparent', color: '#003366',
-                              border: '2px solid #E9ECEF', borderRadius: '6px',
-                              fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px'
-                            }}>
-                              View
-                            </Link>
-                            <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{
-                              padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px',
-                              fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px'
-                            }}>
-                              PDF
-                            </a>
-                            {isBooked && (
-                              <button onClick={() => { setCancelModal({ trackingNumber: s.trackingNumber }); setCancelReason(''); setCancelError(''); }} style={{
-                                padding: '5px 10px', background: 'transparent', color: '#DC3545',
-                                border: '2px solid #DC3545', borderRadius: '6px',
-                                fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
-                              }}>
-                                Request Cancel
-                              </button>
-                            )}
-                            {isCancellationPending && (
-                              <span style={{
-                                padding: '5px 10px', background: '#FFE5B4', color: '#8B4500',
-                                borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic'
-                              }}>
-                                Pending
-                              </span>
-                            )}
-                          </>
-                        )}
-                        {tab === 'cancelled' && isCancelled && (
-                          <span style={{
-                            padding: '5px 10px', background: '#E9ECEF', color: '#495057',
-                            borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic'
-                          }}>
-                            Cancelled
+                    return (
+                      <tr key={i}>
+                        {/* Frozen cells */}
+                        <td style={{
+                          ...TD_BASE, background: frozenBg, position: 'sticky', left: FROZEN_LEFT_TRACKING, zIndex: 3,
+                          fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366',
+                          minWidth: COL_W_TRACKING, width: COL_W_TRACKING
+                        }}>{s.trackingNumber}</td>
+                        <td style={{
+                          ...TD_BASE, background: frozenBg, position: 'sticky', left: FROZEN_LEFT_MODE, zIndex: 3,
+                          minWidth: COL_W_MODE, width: COL_W_MODE
+                        }}>{s.shipmentType || s.shipMode || '-'}</td>
+                        <td style={{
+                          ...TD_BASE, background: frozenBg, position: 'sticky', left: FROZEN_LEFT_ROUTE, zIndex: 3,
+                          minWidth: COL_W_ROUTE, width: COL_W_ROUTE, borderRight: '2px solid #FF6B00'
+                        }}>{s.origin || '-'} → {s.destination || '-'}</td>
+                        <td style={{
+                          ...TD_BASE, background: frozenBg, position: 'sticky', left: FROZEN_LEFT_SHIPPER, zIndex: 3,
+                          minWidth: COL_W_SHIPPER, width: COL_W_SHIPPER, borderRight: '2px solid #FF6B00'
+                        }}>{s.senderName || '-'}</td>
+
+                        {/* Scrollable cells */}
+                        <td style={TD_BASE}>{s.recipientName || '-'}</td>
+                        <td style={TD_BASE}>
+                          <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                            {s.status}
                           </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                        </td>
+                        <td style={TD_BASE}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
+                        <td style={TD_BASE}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
+                        <td style={TD_BASE}>
+                          {hasCost
+                            ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
+                            : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
+                        </td>
+                        <td style={TD_BASE}>
+                          <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+                            {s.paymentStatus || 'Unpaid'}
+                          </span>
+                        </td>
+                        <td style={TD_BASE}>{formatDate(s.bookedAt)}</td>
+                        <td style={TD_BASE}>
+                          <span style={{ color: '#FF6B00', fontWeight: 800 }}>
+                            {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
+                          </span>
+                        </td>
+                        <td style={{ ...TD_BASE, whiteSpace: 'nowrap' }}>
+                          {tab === 'active' && (
+                            <>
+                              <Link href={'/track?tn=' + s.trackingNumber} style={{
+                                padding: '5px 10px', background: 'transparent', color: '#003366',
+                                border: '2px solid #E9ECEF', borderRadius: '6px',
+                                fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px'
+                              }}>
+                                View
+                              </Link>
+                              <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{
+                                padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px',
+                                fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px'
+                              }}>
+                                PDF
+                              </a>
+                              {isBooked && (
+                                <button onClick={() => { setCancelModal({ trackingNumber: s.trackingNumber }); setCancelReason(''); setCancelError(''); }} style={{
+                                  padding: '5px 10px', background: 'transparent', color: '#DC3545',
+                                  border: '2px solid #DC3545', borderRadius: '6px',
+                                  fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
+                                }}>
+                                  Request Cancel
+                                </button>
+                              )}
+                              {isCancellationPending && (
+                                <span style={{
+                                  padding: '5px 10px', background: '#FFE5B4', color: '#8B4500',
+                                  borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic'
+                                }}>
+                                  Pending
+                                </span>
+                              )}
+                            </>
+                          )}
+                          {tab === 'cancelled' && isCancelled && (
+                            <span style={{
+                              padding: '5px 10px', background: '#E9ECEF', color: '#495057',
+                              borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic'
+                            }}>
+                              Cancelled
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-        {!loading && !error && filtered.length > 0 && (
-          <div style={{ marginTop: '12px', textAlign: 'right', fontSize: '0.85rem', color: '#6C757D' }}>
-            Showing <b>{filtered.length}</b> of <b>{shipments.length}</b> shipment{shipments.length !== 1 ? 's' : ''}
-          </div>
+            <div style={{ marginTop: '12px', textAlign: 'right', fontSize: '0.85rem', color: '#6C757D' }}>
+              Showing <b>{filtered.length}</b> of <b>{shipments.length}</b> shipment{shipments.length !== 1 ? 's' : ''}
+            </div>
+          </>
         )}
       </div>
 
       {cancelModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
-        }}>
-          <div style={{
-            background: 'white', maxWidth: '500px', width: '100%',
-            borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-          }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: 'white', maxWidth: '500px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>Request Cancellation</h2>
-              <button onClick={() => setCancelModal(null)} style={{
-                background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D'
-              }}>✕</button>
+              <button onClick={() => setCancelModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
             </div>
 
             <div style={{ background: '#FFF5EB', padding: '12px 15px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9rem', borderLeft: '3px solid #FF6B00' }}>
@@ -482,25 +513,11 @@ export default function DashboardPage() {
             </label>
             <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
               placeholder="e.g., Incorrect address, changed mind, shipment delayed too long..."
-              style={{
-                width: '100%', padding: '12px', fontSize: '0.9rem',
-                border: '2px solid #E9ECEF', borderRadius: '8px',
-                outline: 'none', fontFamily: 'inherit', minHeight: '100px',
-                resize: 'vertical', boxSizing: 'border-box'
-              }} />
+              style={{ width: '100%', padding: '12px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', minHeight: '100px', resize: 'vertical', boxSizing: 'border-box' }} />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-              <button onClick={() => setCancelModal(null)} disabled={cancelLoading} style={{
-                padding: '12px 24px', background: 'transparent', color: '#003366',
-                border: '2px solid #E9ECEF', borderRadius: '8px',
-                fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
-              }}>Cancel</button>
-              <button onClick={submitCancel} disabled={cancelLoading} style={{
-                padding: '12px 24px', background: '#DC3545', color: 'white',
-                border: 'none', borderRadius: '8px', fontWeight: 700,
-                cursor: cancelLoading ? 'not-allowed' : 'pointer',
-                opacity: cancelLoading ? 0.6 : 1, fontFamily: 'inherit'
-              }}>
+              <button onClick={() => setCancelModal(null)} disabled={cancelLoading} style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              <button onClick={submitCancel} disabled={cancelLoading} style={{ padding: '12px 24px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: cancelLoading ? 'not-allowed' : 'pointer', opacity: cancelLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
                 {cancelLoading ? 'Submitting...' : 'Submit Request'}
               </button>
             </div>
