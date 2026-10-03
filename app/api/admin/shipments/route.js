@@ -106,8 +106,6 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: error.message });
     }
 
-    // ===== Counts =====
-    // A shipment is "cancelled" if status = 'Cancelled' OR status contains 'cancellation'
     const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: all.length };
     all.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
@@ -122,7 +120,6 @@ export async function GET(request) {
       else counts.paid++;
     });
 
-    // ===== Filter by tab =====
     let filtered = all.filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
@@ -131,7 +128,7 @@ export async function GET(request) {
       const isPaid = payment === 'paid';
 
       if (tab === 'cancelled') return isCancelled;
-      if (isCancelled) return false; // exclude cancelled from other tabs
+      if (isCancelled) return false;
 
       if (tab === 'active') return !isDelivered;
       if (tab === 'awaiting') return isDelivered && !isPaid;
@@ -139,13 +136,11 @@ export async function GET(request) {
       return true;
     });
 
-    // Shipper filter
     if (shipperFilter) {
       const sf = shipperFilter.toLowerCase();
       filtered = filtered.filter((s) => String(s.sender_name || '').toLowerCase() === sf);
     }
 
-    // Search
     if (search) {
       filtered = filtered.filter((s) => {
         return (
@@ -157,7 +152,6 @@ export async function GET(request) {
       });
     }
 
-    // ===== Map =====
     const shipments = filtered.map((s) => {
       const cost = parseFloat(s.shipping_cost) || 0;
       return {
@@ -184,15 +178,16 @@ export async function GET(request) {
         bookedAt: s.booked_at,
         lastUpdate: s.last_update,
         pickupService: s.pickup_service,
-        // new fields
         originCountry: s.origin_country || null,
         freightBillTo: s.freight_bill_to || null,
         dutyTaxBillTo: s.duty_tax_bill_to || null,
+        // NEW
+        customService: s.custom_service || null,
+        deliveryService: s.delivery_service || null,
         uploadedDocuments: s.uploaded_documents || null,
       };
     });
 
-    // Summary (respects filters)
     const billedTotal = filtered.reduce((sum, s) => {
       return sum + (parseFloat(s.shipping_cost) || 0);
     }, 0);
