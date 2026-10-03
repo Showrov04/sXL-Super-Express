@@ -6,39 +6,23 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
-// Shared column widths for frozen left columns
-const COL_W_TRACKING = 150;
-const COL_W_MODE = 100;
-const COL_W_ROUTE = 160;
-const COL_W_SHIPPER = 140;
+// Frozen column widths (first 4 columns)
+const COL_W_TRACKING = 155;
+const COL_W_MODE = 110;
+const COL_W_ROUTE = 170;
+const COL_W_SHIPPER = 150;
 const FROZEN_LEFT_TRACKING = 0;
 const FROZEN_LEFT_MODE = COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE = COL_W_TRACKING + COL_W_MODE;
 const FROZEN_LEFT_SHIPPER = COL_W_TRACKING + COL_W_MODE + COL_W_ROUTE;
 
-const TH_BASE = {
-  padding: '12px 12px',
-  textAlign: 'left',
-  fontWeight: 700,
-  color: '#003366',
-  fontSize: '0.72rem',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
-  background: '#F1F3F5',
-  borderBottom: '2px solid #E9ECEF',
-  position: 'sticky',
-  top: 0,
-  zIndex: 10,
-  whiteSpace: 'nowrap'
-};
-
-const TD_BASE = {
-  padding: '10px 12px',
-  borderBottom: '1px solid #F1F3F5',
-  whiteSpace: 'nowrap',
+// Two-line clamp style for body cells
+const CLAMP_2 = {
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
   overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  maxWidth: '200px'
+  lineHeight: '1.3'
 };
 
 export default function DashboardPage() {
@@ -335,7 +319,6 @@ export default function DashboardPage() {
 
         {!loading && !error && filtered.length > 0 && (
           <>
-            {/* TABLE WRAPPER — bordered box + scroll container */}
             <div style={{
               background: 'white',
               borderRadius: '12px',
@@ -344,30 +327,48 @@ export default function DashboardPage() {
               overflow: 'auto',
               maxHeight: '70vh'
             }}>
-              <table style={{
-                width: '100%',
-                borderCollapse: 'separate',
-                borderSpacing: 0,
-                fontSize: '0.85rem',
-                minWidth: '1400px'
-              }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1500px' }}>
                 <thead>
                   <tr>
-                    {/* === FROZEN COLUMNS 1-4 === */}
-                    <th style={{ ...TH_BASE, minWidth: COL_W_TRACKING, width: COL_W_TRACKING, position: 'sticky', left: FROZEN_LEFT_TRACKING, zIndex: 12, background: '#E9ECEF' }}>Tracking #</th>
-                    <th style={{ ...TH_BASE, minWidth: COL_W_MODE, width: COL_W_MODE, position: 'sticky', left: FROZEN_LEFT_MODE, zIndex: 12, background: '#E9ECEF' }}>Mode</th>
-                    <th style={{ ...TH_BASE, minWidth: COL_W_ROUTE, width: COL_W_ROUTE, position: 'sticky', left: FROZEN_LEFT_ROUTE, zIndex: 12, background: '#E9ECEF', borderRight: '2px solid #FF6B00' }}>Route</th>
-                    <th style={{ ...TH_BASE, minWidth: COL_W_SHIPPER, width: COL_W_SHIPPER, position: 'sticky', left: FROZEN_LEFT_SHIPPER, zIndex: 12, background: '#E9ECEF', borderRight: '2px solid #FF6B00' }}>Shipper</th>
-                    {/* === SCROLLABLE COLUMNS 5+ === */}
-                    <th style={{ ...TH_BASE, minWidth: 150 }}>Recipient</th>
-                    <th style={{ ...TH_BASE, minWidth: 120 }}>Status</th>
-                    <th style={{ ...TH_BASE, minWidth: 100 }}>Booking Wt</th>
-                    <th style={{ ...TH_BASE, minWidth: 100 }}>Actual Wt</th>
-                    <th style={{ ...TH_BASE, minWidth: 110 }}>Cost</th>
-                    <th style={{ ...TH_BASE, minWidth: 100 }}>Payment</th>
-                    <th style={{ ...TH_BASE, minWidth: 110 }}>Booked</th>
-                    <th style={{ ...TH_BASE, minWidth: 120 }}>ETA</th>
-                    <th style={{ ...TH_BASE, minWidth: 200 }}>Actions</th>
+                    {/* === FROZEN COLUMNS 1-4 — sticky top + left === */}
+                    <th style={{
+                      padding: '14px 12px', textAlign: 'left', fontWeight: 700,
+                      color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
+                      background: '#E9ECEF', borderBottom: '2px solid #D0D6DB',
+                      position: 'sticky', top: 0, left: FROZEN_LEFT_TRACKING, zIndex: 12,
+                      minWidth: COL_W_TRACKING, width: COL_W_TRACKING, whiteSpace: 'nowrap'
+                    }}>Tracking #</th>
+                    <th style={{
+                      padding: '14px 12px', textAlign: 'left', fontWeight: 700,
+                      color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
+                      background: '#E9ECEF', borderBottom: '2px solid #D0D6DB',
+                      position: 'sticky', top: 0, left: FROZEN_LEFT_MODE, zIndex: 12,
+                      minWidth: COL_W_MODE, width: COL_W_MODE, whiteSpace: 'nowrap'
+                    }}>Mode</th>
+                    <th style={{
+                      padding: '14px 12px', textAlign: 'left', fontWeight: 700,
+                      color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
+                      background: '#E9ECEF', borderBottom: '2px solid #D0D6DB',
+                      position: 'sticky', top: 0, left: FROZEN_LEFT_ROUTE, zIndex: 12,
+                      minWidth: COL_W_ROUTE, width: COL_W_ROUTE, whiteSpace: 'nowrap'
+                    }}>Route</th>
+                    <th style={{
+                      padding: '14px 12px', textAlign: 'left', fontWeight: 700,
+                      color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
+                      background: '#E9ECEF', borderBottom: '2px solid #D0D6DB',
+                      position: 'sticky', top: 0, left: FROZEN_LEFT_SHIPPER, zIndex: 12,
+                      minWidth: COL_W_SHIPPER, width: COL_W_SHIPPER, whiteSpace: 'nowrap'
+                    }}>Shipper</th>
+                    {/* === SCROLLABLE === */}
+                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 160, whiteSpace: 'nowrap' }}>Recipient</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 120, whiteSpace: 'nowrap' }}>Status</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 110, whiteSpace: 'nowrap' }}>Booking Wt</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 110, whiteSpace: 'nowrap' }}>Actual Wt</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 120, whiteSpace: 'nowrap' }}>Cost</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 110, whiteSpace: 'nowrap' }}>Payment</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 120, whiteSpace: 'nowrap' }}>Booked</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 130, whiteSpace: 'nowrap' }}>ETA</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 220, whiteSpace: 'nowrap' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -380,55 +381,48 @@ export default function DashboardPage() {
                     const isCancelled = statusLower === 'cancelled';
                     const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
                     const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
-                    const frozenBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+
+                    const frozenTd = {
+                      padding: '10px 12px',
+                      borderBottom: '1px solid #F1F3F5',
+                      background: rowBg,
+                      position: 'sticky',
+                      zIndex: 3,
+                      ...CLAMP_2
+                    };
 
                     return (
                       <tr key={i}>
-                        {/* Frozen cells */}
-                        <td style={{
-                          ...TD_BASE, background: frozenBg, position: 'sticky', left: FROZEN_LEFT_TRACKING, zIndex: 3,
-                          fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366',
-                          minWidth: COL_W_TRACKING, width: COL_W_TRACKING
-                        }}>{s.trackingNumber}</td>
-                        <td style={{
-                          ...TD_BASE, background: frozenBg, position: 'sticky', left: FROZEN_LEFT_MODE, zIndex: 3,
-                          minWidth: COL_W_MODE, width: COL_W_MODE
-                        }}>{s.shipmentType || s.shipMode || '-'}</td>
-                        <td style={{
-                          ...TD_BASE, background: frozenBg, position: 'sticky', left: FROZEN_LEFT_ROUTE, zIndex: 3,
-                          minWidth: COL_W_ROUTE, width: COL_W_ROUTE, borderRight: '2px solid #FF6B00'
-                        }}>{s.origin || '-'} → {s.destination || '-'}</td>
-                        <td style={{
-                          ...TD_BASE, background: frozenBg, position: 'sticky', left: FROZEN_LEFT_SHIPPER, zIndex: 3,
-                          minWidth: COL_W_SHIPPER, width: COL_W_SHIPPER, borderRight: '2px solid #FF6B00'
-                        }}>{s.senderName || '-'}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, minWidth: COL_W_TRACKING, width: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, minWidth: COL_W_MODE, width: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, minWidth: COL_W_ROUTE, width: COL_W_ROUTE }}>{s.origin || '-'} → {s.destination || '-'}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_SHIPPER, minWidth: COL_W_SHIPPER, width: COL_W_SHIPPER }}>{s.senderName || '-'}</td>
 
-                        {/* Scrollable cells */}
-                        <td style={TD_BASE}>{s.recipientName || '-'}</td>
-                        <td style={TD_BASE}>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', ...CLAMP_2 }}>{s.recipientName || '-'}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>
                           <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                             {s.status}
                           </span>
                         </td>
-                        <td style={TD_BASE}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
-                        <td style={TD_BASE}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
-                        <td style={TD_BASE}>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>
                           {hasCost
                             ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
                             : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                         </td>
-                        <td style={TD_BASE}>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>
                           <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
                             {s.paymentStatus || 'Unpaid'}
                           </span>
                         </td>
-                        <td style={TD_BASE}>{formatDate(s.bookedAt)}</td>
-                        <td style={TD_BASE}>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>{formatDate(s.bookedAt)}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>
                           <span style={{ color: '#FF6B00', fontWeight: 800 }}>
                             {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                           </span>
                         </td>
-                        <td style={{ ...TD_BASE, whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>
                           {tab === 'active' && (
                             <>
                               <Link href={'/track?tn=' + s.trackingNumber} style={{
