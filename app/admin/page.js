@@ -86,7 +86,7 @@ function TopTab({ active, onClick, label }) {
 }
 
 /* ============================================================
-   SHIPMENTS PANEL
+   SHIPMENTS PANEL — NEW
    ============================================================ */
 function ShipmentsPanel() {
   const [tab, setTab] = useState('active');
@@ -96,10 +96,12 @@ function ShipmentsPanel() {
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
   const [counts, setCounts] = useState({ active: 0, awaiting: 0, paid: 0, total: 0 });
+  const [summary, setSummary] = useState({ total: 0, currency: 'USD', count: 0, shippers: [] });
   const [error, setError] = useState('');
 
   const [quTn, setQuTn] = useState('');
-  const [quStatus, setQuStatus] = useState('Booked');
+  const [quCurrentStatus, setQuCurrentStatus] = useState('');
+  const [quStatus, setQuStatus] = useState('');
   const [quLocation, setQuLocation] = useState('');
   const [quEta, setQuEta] = useState('');
   const [quNotes, setQuNotes] = useState('');
@@ -133,6 +135,7 @@ function ShipmentsPanel() {
 
       setShipments(data.shipments || []);
       setCounts(data.counts || { active: 0, awaiting: 0, paid: 0, total: 0 });
+      setSummary(data.summary || { total: 0, currency: 'USD', count: 0, shippers: [] });
 
       const names = {};
       (data.shipments || []).forEach((s) => { if (s.senderName) names[s.senderName] = true; });
@@ -148,10 +151,26 @@ function ShipmentsPanel() {
 
   function handleSearch(e) { e.preventDefault(); loadShipments(); }
 
+  function handleUseRow(s) {
+    setQuTn(s.trackingNumber);
+    setQuCurrentStatus(s.status || '');
+    setQuStatus('');
+    setQuLocation('');
+    setQuEta(s.estimatedDelivery || '');
+    setQuNotes('');
+    setQuMsg('');
+    // Scroll to Quick Update panel
+    setTimeout(() => {
+      const el = document.getElementById('quick-update-panel');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }
+
   async function handleQuickUpdate(e) {
     e.preventDefault();
     setQuMsg('');
     if (!quTn.trim()) { setQuMsg('Please enter a tracking number.'); return; }
+    if (!quStatus) { setQuMsg('Please select a new status.'); return; }
 
     setQuLoading(true);
     const token = localStorage.getItem('sxl_token');
@@ -167,7 +186,7 @@ function ShipmentsPanel() {
       const data = await res.json();
       if (!data.success) { setQuMsg('❌ ' + (data.error || 'Update failed.')); setQuLoading(false); return; }
       setQuMsg('✅ Status updated to "' + quStatus + '"!');
-      setQuTn(''); setQuLocation(''); setQuEta(''); setQuNotes('');
+      setQuTn(''); setQuCurrentStatus(''); setQuStatus(''); setQuLocation(''); setQuEta(''); setQuNotes('');
       setQuLoading(false);
       setTimeout(loadShipments, 500);
     } catch (err) { setQuMsg('❌ Connection error.'); setQuLoading(false); }
@@ -211,8 +230,38 @@ function ShipmentsPanel() {
     return { bg: '#FFF3CD', color: '#856404' };
   }
 
+  function paymentClass(status) {
+    const s = String(status || '').toLowerCase();
+    if (s === 'paid') return { bg: '#D4EDDA', color: '#155724' };
+    return { bg: '#FFF3CD', color: '#856404' };
+  }
+
+  // Determine summary card label by tab
+  const summaryLabel = tab === 'active' ? '💰 Active Billing' :
+                       tab === 'awaiting' ? '💵 Accounts Receivable' :
+                       '✅ Collected Revenue';
+
   return (
     <div>
+      {/* Summary Card */}
+      <div style={{
+        background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+        padding: '20px 25px', marginBottom: '20px', borderLeft: '5px solid #FF6B00',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px'
+      }}>
+        <div>
+          <div style={{ fontWeight: 800, color: '#003366', fontSize: '1.1rem' }}>{summaryLabel}</div>
+          <div style={{ color: '#6C757D', fontSize: '0.85rem' }}>
+            {summary.count} shipment{summary.count !== 1 ? 's' : ''}
+            {shipperFilter ? ` for ${shipperFilter}` : ''}
+          </div>
+        </div>
+        <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FF6B00' }}>
+          {summary.currency} {Number(summary.total).toFixed(2)}
+        </div>
+      </div>
+
+      {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
         <StatCard num={counts.total} label="Total" color="#FF6B00" />
         <StatCard num={counts.active} label="Active" color="#CCE5FF" />
@@ -220,6 +269,7 @@ function ShipmentsPanel() {
         <StatCard num={counts.paid} label="Paid & Completed" color="#D4EDDA" />
       </div>
 
+      {/* Filters */}
       <form onSubmit={handleSearch} style={{
         display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center',
         marginBottom: '20px', background: 'white', padding: '15px',
@@ -242,29 +292,44 @@ function ShipmentsPanel() {
         <button type="button" onClick={() => { setShipperFilter(''); setSearch(''); setTimeout(loadShipments, 50); }} style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
       </form>
 
+      {/* Tabs */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
         <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Awaiting Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
         <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="🟢 Paid & Completed" count={counts.paid} badgeBg="#D4EDDA" badgeColor="#155724" />
       </div>
 
+      {/* Quick Update Panel */}
       {tab === 'active' && (
-        <form onSubmit={handleQuickUpdate} style={{
+        <form id="quick-update-panel" onSubmit={handleQuickUpdate} style={{
           background: 'white', padding: '20px', borderRadius: '12px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px',
           borderLeft: '5px solid #FF6B00'
         }}>
           <h3 style={{ color: '#003366', fontSize: '1.1rem', marginBottom: '12px' }}>⚡ Quick Update Status</h3>
+
+          {quCurrentStatus && (
+            <div style={{
+              background: '#FFF5EB', border: '1px solid #FF6B00',
+              borderRadius: '8px', padding: '10px 14px', marginBottom: '14px',
+              fontSize: '0.9rem', color: '#8B4500'
+            }}>
+              <b>Current Status:</b> <span style={{ fontWeight: 700 }}>{quCurrentStatus}</span>
+              {quTn && <span style={{ marginLeft: '12px', color: '#6C757D' }}>• Tracking: <b>{quTn}</b></span>}
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Tracking Number *</label>
-              <input type="text" value={quTn} onChange={(e) => setQuTn(e.target.value)} placeholder="e.g., TSH2510202601"
+              <input type="text" value={quTn} onChange={(e) => setQuTn(e.target.value)} placeholder="e.g., SM0310202612"
                 style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>New Status *</label>
               <select value={quStatus} onChange={(e) => setQuStatus(e.target.value)}
                 style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}>
+                <option value="">-- Select New Status --</option>
                 <option>Booked</option>
                 <option>Picked Up</option>
                 <option>In Transit</option>
@@ -323,43 +388,51 @@ function ShipmentsPanel() {
             </div>
           ) : (
             <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', minWidth: '1100px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '1400px' }}>
                 <thead>
                   <tr style={{ background: '#F8F9FA' }}>
-                    {['Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status', 'Weight', 'Payment', 'ETA', 'Pickup', 'Actions'].map((h) => (
-                      <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.78rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF' }}>{h}</th>
+                    {['Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status', 'Booking Wt', 'Actual Wt', 'Cost', 'Payment', 'Booked', 'ETA', 'Actions'].map((h) => (
+                      <th key={h} style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.72rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {shipments.map((s, i) => {
                     const sc = statusClass(s.status);
+                    const pc = paymentClass(s.paymentStatus);
                     const isSelfDelivery = s.pickupService === false;
+                    const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
-                        <td style={{ padding: '12px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.shipMode || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.origin || '-'} - {s.destination || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.senderName || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.recipientName || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
+                        <td style={{ padding: '12px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
+                        <td style={{ padding: '12px' }}>{s.shipmentType || s.shipMode || '-'}</td>
+                        <td style={{ padding: '12px' }}>{s.origin || '-'} → {s.destination || '-'}</td>
+                        <td style={{ padding: '12px' }}>{s.senderName || '-'}</td>
+                        <td style={{ padding: '12px' }}>{s.recipientName || '-'}</td>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
                         </td>
-                        <td style={{ padding: '12px 16px' }}>{s.weight || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.paymentStatus || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{formatDate(s.estimatedDelivery)}</td>
-                        <td style={{ padding: '12px 16px' }}>
-                          {isSelfDelivery ? (
-                            <span style={{ background: '#FFF5EB', color: '#8B4500', padding: '4px 10px', borderRadius: '12px', fontWeight: 700, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>Self-Delivery</span>
-                          ) : (
-                            <span style={{ background: '#E8F7EF', color: '#155724', padding: '4px 10px', borderRadius: '12px', fontWeight: 700, fontSize: '0.72rem', whiteSpace: 'nowrap' }}>Pickup</span>
-                          )}
+                        <td style={{ padding: '12px' }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
+                        <td style={{ padding: '12px' }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
+                        <td style={{ padding: '12px' }}>
+                          {hasCost
+                            ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
+                            : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                         </td>
-                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
+                        </td>
+                        <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatDate(s.bookedAt)}</td>
+                        <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
+                          <span style={{ color: '#FF6B00', fontWeight: 800 }}>
+                            {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
                           {tab === 'active' && (
-                            <button onClick={() => { setQuTn(s.trackingNumber); setQuStatus(s.status || 'Booked'); }} style={{
+                            <button onClick={() => handleUseRow(s)} style={{
                               padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none',
-                              borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px'
+                              borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px'
                             }}>📋 Use</button>
                           )}
                           {isSelfDelivery && (
@@ -386,7 +459,7 @@ function ShipmentsPanel() {
 }
 
 /* ============================================================
-   SHIPPERS PANEL
+   SHIPPERS PANEL — unchanged
    ============================================================ */
 function ShippersPanel() {
   const [loading, setLoading] = useState(true);
