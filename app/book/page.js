@@ -100,6 +100,8 @@ export default function BookPage() {
   });
   const [paymentTerms, setPaymentTerms] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [freightBillTo, setFreightBillTo] = useState('');
+  const [dutyTaxBillTo, setDutyTaxBillTo] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('sxl_user');
@@ -196,6 +198,7 @@ export default function BookPage() {
 
   const isSea = shipMode === 'SEA';
   const isSpecialParcel = parcelType === 'Special Parcel';
+  const showBillingParty = !(!isSea && isSpecialParcel);
 
   const steps = isSea
     ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Payment', 'Review']
@@ -250,6 +253,10 @@ export default function BookPage() {
     }
     if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
       return 'Total Value for Customs is required.';
+    }
+    if (showBillingParty) {
+      if (!freightBillTo) return 'Please select who pays the freight cost.';
+      if (!dutyTaxBillTo) return 'Please select who pays the duty & taxes.';
     }
     return null;
   }
@@ -325,6 +332,7 @@ export default function BookPage() {
         body: JSON.stringify({
           shipMode, seaLoadType, parcelType, parcelTypeCustom,
           shipper, consignee, shipment,
+          freightBillTo, dutyTaxBillTo,
           paymentTerms, paymentMethod,
         }),
       });
@@ -369,10 +377,37 @@ export default function BookPage() {
             <div style={{ fontFamily: 'Consolas, monospace', fontSize: '1.8rem', fontWeight: 800, color: '#FF6B00', margin: '15px 0', padding: '15px', background: '#FFF5EB', borderRadius: '10px', border: '2px dashed #FF6B00' }}>
               {success.trackingNumber}
             </div>
-            <div style={{ margin: '25px auto', maxWidth: '400px', padding: '20px', background: '#E8F7EF', borderRadius: '12px', border: '2px solid #00A86B' }}>
+
+            <div style={{ margin: '25px auto', maxWidth: '500px', padding: '20px', background: '#E8F7EF', borderRadius: '12px', border: '2px solid #00A86B' }}>
               <p style={{ fontWeight: 700, color: '#003366', marginBottom: '12px' }}>Save your booking confirmation</p>
               <a href={'/api/pdf/booking/' + success.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', width: '100%', padding: '14px 26px', background: '#00A86B', color: 'white', borderRadius: '8px', fontWeight: 700, textDecoration: 'none', fontSize: '1rem', textAlign: 'center', boxSizing: 'border-box' }}>Download Booking PDF</a>
             </div>
+
+            <div style={{ margin: '25px auto', maxWidth: '500px', padding: '20px', background: '#FFF5EB', borderRadius: '12px', border: '2px solid #FF6B00', textAlign: 'left' }}>
+              <p style={{ fontWeight: 800, color: '#8B4500', marginBottom: '10px', fontSize: '1rem' }}>
+                ⚠️ IMPORTANT — Print & Attach with your parcel
+              </p>
+              <p style={{ fontSize: '0.9rem', color: '#343A40', marginBottom: '15px' }}>
+                Please print and attach the following documents with your shipment:
+              </p>
+              <div style={{ fontSize: '0.95rem', lineHeight: 2, color: '#003366' }}>
+                <div>📄 Booking Confirmation ....... <b>3 copies</b></div>
+                <div>📄 Invoice ................... <b>3 copies</b></div>
+                <div>📄 Packing List .............. <b>3 copies</b></div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '15px' }}>
+                <a href={'/api/pdf/booking/' + success.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '10px 16px', background: '#003366', color: 'white', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none' }}>
+                  🖨️ Print Booking
+                </a>
+                <span style={{ padding: '10px 16px', background: '#E9ECEF', color: '#6C757D', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'not-allowed' }}>
+                  🖨️ Print Invoice (next task)
+                </span>
+                <span style={{ padding: '10px 16px', background: '#E9ECEF', color: '#6C757D', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'not-allowed' }}>
+                  🖨️ Print Packing List (next task)
+                </span>
+              </div>
+            </div>
+
             <div style={{ marginTop: '25px', display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <Link href="/dashboard" style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', borderRadius: '8px', fontWeight: 700, textDecoration: 'none' }}>Go to Dashboard</Link>
               <Link href={'/track?tn=' + success.trackingNumber} style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, textDecoration: 'none' }}>Track Shipment</Link>
@@ -779,6 +814,41 @@ export default function BookPage() {
                 <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
               </div>
 
+              {showBillingParty && (
+                <div style={{ marginTop: '25px', paddingTop: '20px', borderTop: '2px solid #F1F3F5' }}>
+                  <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>💰 Billing Party</h4>
+                  <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
+                    Who should be billed for this shipment?
+                  </p>
+
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px' }}>Who pays Freight Cost? *</label>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '18px' }}>
+                    {['Shipper', 'Consignee', 'Third Party'].map((t) => (
+                      <button key={t} type="button" onClick={() => setFreightBillTo(t)} style={{
+                        padding: '10px 20px', borderRadius: '30px',
+                        border: '2px solid ' + (freightBillTo === t ? '#FF6B00' : '#E9ECEF'),
+                        background: freightBillTo === t ? '#FF6B00' : 'white',
+                        color: freightBillTo === t ? 'white' : '#343A40',
+                        fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
+                      }}>{t}</button>
+                    ))}
+                  </div>
+
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px' }}>Who pays Duty & Taxes? *</label>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    {['Shipper', 'Consignee', 'Third Party'].map((t) => (
+                      <button key={t} type="button" onClick={() => setDutyTaxBillTo(t)} style={{
+                        padding: '10px 20px', borderRadius: '30px',
+                        border: '2px solid ' + (dutyTaxBillTo === t ? '#FF6B00' : '#E9ECEF'),
+                        background: dutyTaxBillTo === t ? '#FF6B00' : 'white',
+                        color: dutyTaxBillTo === t ? 'white' : '#343A40',
+                        fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
+                      }}>{t}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
                 <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
@@ -988,6 +1058,8 @@ export default function BookPage() {
                       <div><b>Packages:</b> {shipment.packages}</div>
                       <div><b>Weight:</b> {shipment.totalWeight} kg</div>
                       <div><b>Total Value:</b> {shipment.totalValue} {shipment.valueCurrency}</div>
+                      {showBillingParty && freightBillTo && <div><b>Freight Bill To:</b> {freightBillTo}</div>}
+                      {showBillingParty && dutyTaxBillTo && <div><b>Duty & Taxes Bill To:</b> {dutyTaxBillTo}</div>}
                     </div>
                   </div>
 
