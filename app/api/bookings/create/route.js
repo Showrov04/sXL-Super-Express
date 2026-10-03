@@ -61,6 +61,10 @@ export async function POST(request) {
     const invoiceUrls = Array.isArray(body.invoiceUrls) ? body.invoiceUrls : [];
     const packingListUrls = Array.isArray(body.packingListUrls) ? body.packingListUrls : [];
 
+    // NEW: Custom & Delivery service
+    const customService = String(body.customService || '').trim().toLowerCase();
+    const deliveryService = String(body.deliveryService || '').trim().toLowerCase();
+
     if (!['AIR', 'SEA'].includes(shipMode)) return NextResponse.json({ success: false, error: 'Ship mode is required.' });
     if (shipMode === 'SEA' && !['LCL', 'FCL'].includes(seaLoadType)) {
       return NextResponse.json({ success: false, error: 'Please select LCL or FCL for SEA shipments.' });
@@ -85,6 +89,14 @@ export async function POST(request) {
     }
     if (packingListUrls.length === 0) {
       return NextResponse.json({ success: false, error: 'At least one Packing List file is required.' });
+    }
+
+    // Custom & Delivery validation
+    if (!['sxl', 'consignee'].includes(customService)) {
+      return NextResponse.json({ success: false, error: 'Please select who will handle customs.' });
+    }
+    if (!['sxl', 'consignee'].includes(deliveryService)) {
+      return NextResponse.json({ success: false, error: 'Please select who will handle delivery.' });
     }
 
     if (shipMode === 'AIR') {
@@ -258,6 +270,8 @@ export async function POST(request) {
         packaging_type_custom: packagingTypeCustom || null,
         freight_bill_to: freightBillTo,
         duty_tax_bill_to: dutyTaxBillTo,
+        custom_service: customService,
+        delivery_service: deliveryService,
         uploaded_documents: uploadedDocuments,
         currency: 'USD',
         payment_status: 'Unpaid',
