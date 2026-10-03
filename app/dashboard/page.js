@@ -40,18 +40,11 @@ export default function DashboardPage() {
   });
   const [error, setError] = useState('');
 
-  // Column filters
   const [colFilters, setColFilters] = useState({
-    tracking: [],
-    mode: [],
-    shipper: [],
-    route: [],
-    status: [],
-    payment: [],
+    tracking: [], mode: [], shipper: [], route: [], status: [], payment: [],
   });
-
-  const [openFilter, setOpenFilter] = useState(null); // which column's filter dropdown is open
-  const [filterSearch, setFilterSearch] = useState(''); // search text inside the dropdown
+  const [openFilter, setOpenFilter] = useState(null);
+  const [filterSearch, setFilterSearch] = useState('');
 
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const downloadMenuRef = useRef(null);
@@ -75,7 +68,6 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, tab]);
 
-  // Reset filters when tab changes
   useEffect(() => {
     setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
     setOpenFilter(null);
@@ -83,7 +75,6 @@ export default function DashboardPage() {
     setShowDownloadMenu(false);
   }, [tab]);
 
-  // Close download / filter dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(e) {
       if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target)) {
@@ -138,7 +129,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Helper: get the value used for a given filter column
   function getColumnValue(s, col) {
     if (col === 'tracking') return s.trackingNumber || '';
     if (col === 'mode') return s.shipmentType || s.shipMode || '';
@@ -149,21 +139,16 @@ export default function DashboardPage() {
     return '';
   }
 
-  // Client-side filtered list with column filters
   const filtered = useMemo(() => {
     let list = shipments;
-
-    // Apply each active column filter
     Object.entries(colFilters).forEach(([col, values]) => {
       if (values.length > 0) {
         list = list.filter((s) => values.includes(getColumnValue(s, col)));
       }
     });
-
     return list;
   }, [shipments, colFilters]);
 
-  // Get unique values for a given filter column
   function getUniqueValues(col) {
     const set = new Set();
     shipments.forEach((s) => {
@@ -285,7 +270,6 @@ export default function DashboardPage() {
       ? { label: '✅ Total Paid', data: summary.totalPaid }
       : null;
 
-  // ============ FILTER HEADER COMPONENT ============
   function HeaderCell({ col, label, width, frozenLeft, hasShadow }) {
     const isFilterable = ['tracking', 'mode', 'shipper', 'route', 'status', 'payment'].includes(col);
     const activeCount = (colFilters[col] || []).length;
@@ -293,20 +277,11 @@ export default function DashboardPage() {
 
     return (
       <th style={{
-        padding: 0,
-        textAlign: 'left',
-        fontWeight: 700,
-        color: '#003366',
-        fontSize: '0.72rem',
-        textTransform: 'uppercase',
-        letterSpacing: '0.5px',
-        background: isOpen ? '#DDE3E9' : '#E9ECEF',
-        borderBottom: '2px solid #D0D6DB',
-        whiteSpace: 'nowrap',
-        width,
-        minWidth: width,
-        position: 'sticky',
-        top: 0,
+        padding: 0, textAlign: 'left', fontWeight: 700, color: '#003366',
+        fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
+        background: isOpen ? '#DDE3E9' : '#E9ECEF', borderBottom: '2px solid #D0D6DB',
+        whiteSpace: 'nowrap', width, minWidth: width,
+        position: 'sticky', top: 0,
         zIndex: frozenLeft !== undefined ? 22 : 20,
         ...(frozenLeft !== undefined ? { left: frozenLeft } : {}),
         ...(hasShadow ? { boxShadow: FROZEN_SHADOW } : {})
@@ -317,7 +292,8 @@ export default function DashboardPage() {
             <button
               onClick={(e) => { e.stopPropagation(); setOpenFilter(isOpen ? null : col); setFilterSearch(''); }}
               style={{
-                padding: '2px 6px', background: activeCount > 0 ? '#FF6B00' : 'transparent',
+                padding: '2px 6px',
+                background: activeCount > 0 ? '#FF6B00' : 'transparent',
                 border: 'none', borderRadius: '4px', cursor: 'pointer',
                 color: activeCount > 0 ? 'white' : '#003366',
                 fontSize: '0.7rem', fontWeight: 700, fontFamily: 'inherit', lineHeight: 1
@@ -328,7 +304,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Filter dropdown */}
         {isOpen && (
           <div
             ref={filterDropdownRef}
@@ -337,34 +312,20 @@ export default function DashboardPage() {
               top: '100%',
               left: frozenLeft !== undefined ? frozenLeft : 'auto',
               right: frozenLeft !== undefined ? 'auto' : 0,
-              minWidth: '200px',
-              background: 'white',
-              border: '1px solid #D0D6DB',
-              borderRadius: '8px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-              zIndex: 200,
-              padding: '8px',
-              marginTop: '4px',
-              textTransform: 'none',
-              letterSpacing: 'normal',
-              fontSize: '0.85rem',
-              color: '#343A40',
-              fontWeight: 500
+              minWidth: '200px', background: 'white',
+              border: '1px solid #D0D6DB', borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 200,
+              padding: '8px', marginTop: '4px',
+              textTransform: 'none', letterSpacing: 'normal',
+              fontSize: '0.85rem', color: '#343A40', fontWeight: 500
             }}
           >
-            {/* Search box for long lists */}
             <input
               type="text"
               placeholder="Search values..."
               value={filterSearch}
               onChange={(e) => setFilterSearch(e.target.value)}
-              style={{
-                width: '100%', padding: '6px 10px',
-                border: '1px solid #E9ECEF', borderRadius: '6px',
-                fontSize: '0.8rem', fontFamily: 'inherit',
-                outline: 'none', boxSizing: 'border-box',
-                marginBottom: '8px'
-              }}
+              style={{ width: '100%', padding: '6px 10px', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: '8px' }}
             />
             <div style={{ maxHeight: '220px', overflowY: 'auto', marginBottom: '8px' }}>
               {getUniqueValues(col)
@@ -372,40 +333,16 @@ export default function DashboardPage() {
                 .map((v) => {
                   const checked = (colFilters[col] || []).includes(v);
                   return (
-                    <label
-                      key={v}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '8px',
-                        padding: '6px 8px', cursor: 'pointer',
-                        borderRadius: '4px',
-                        background: checked ? '#FFF5EB' : 'transparent'
-                      }}
-                      onMouseEnter={(e) => { if (!checked) e.currentTarget.style.background = '#F8F9FA'; }}
-                      onMouseLeave={(e) => { if (!checked) e.currentTarget.style.background = 'transparent'; }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleFilterValue(col, v)}
-                        style={{ width: '14px', height: '14px', accentColor: '#FF6B00', cursor: 'pointer' }}
-                      />
+                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', cursor: 'pointer', borderRadius: '4px', background: checked ? '#FFF5EB' : 'transparent' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleFilterValue(col, v)} style={{ width: '14px', height: '14px', accentColor: '#FF6B00', cursor: 'pointer' }} />
                       <span style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
                     </label>
                   );
                 })}
-              {getUniqueValues(col).filter((v) => !filterSearch || v.toLowerCase().includes(filterSearch.toLowerCase())).length === 0 && (
-                <div style={{ padding: '10px', color: '#6C757D', fontSize: '0.8rem', textAlign: 'center' }}>No matches</div>
-              )}
             </div>
             <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #F1F3F5', paddingTop: '8px' }}>
-              <button
-                onClick={() => clearColumn(col)}
-                style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-              >Clear</button>
-              <button
-                onClick={() => { setOpenFilter(null); setFilterSearch(''); }}
-                style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-              >Done</button>
+              <button onClick={() => clearColumn(col)} style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+              <button onClick={() => { setOpenFilter(null); setFilterSearch(''); }} style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
             </div>
           </div>
         )}
@@ -537,13 +474,37 @@ export default function DashboardPage() {
 
         {!loading && !error && filtered.length > 0 && (
           <>
-            <div style={{
-              background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto',
-              maxHeight: '70vh', position: 'relative'
-            }}>
-              <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
-                <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
+            {/* STICKY HEADER FIX: outer div with explicit height + inner table with borderCollapse separate */}
+            <div
+              className="table-scroll-container"
+              style={{
+                background: 'white',
+                borderRadius: '12px',
+                border: '1px solid #E9ECEF',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                overflow: 'auto',
+                maxHeight: '70vh',
+                position: 'relative',
+                // Force a new stacking context (helps sticky work in Chrome)
+                isolation: 'isolate',
+              }}
+            >
+              <table
+                style={{
+                  borderCollapse: 'separate',
+                  borderSpacing: 0,
+                  fontSize: '0.85rem',
+                  minWidth: '1650px',
+                  width: '100%',
+                }}
+              >
+                <thead style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 30,
+                  // Force GPU layer for consistent sticky behavior
+                  transform: 'translateZ(0)',
+                }}>
                   <tr>
                     <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
                     <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
