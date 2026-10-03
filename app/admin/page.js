@@ -28,6 +28,34 @@ const TD_STYLE = {
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
+// Helper to render service chip
+function ServiceChip({ value }) {
+  const v = String(value || '').toLowerCase();
+  if (v === 'sxl') {
+    return (
+      <span style={{
+        background: '#E8F7EF', color: '#155724', padding: '4px 10px',
+        borderRadius: '12px', fontWeight: 700, fontSize: '0.68rem',
+        whiteSpace: 'nowrap', display: 'inline-block'
+      }}>
+        ✅ sXL
+      </span>
+    );
+  }
+  if (v === 'consignee') {
+    return (
+      <span style={{
+        background: '#FFF5EB', color: '#8B4500', padding: '4px 10px',
+        borderRadius: '12px', fontWeight: 700, fontSize: '0.68rem',
+        whiteSpace: 'nowrap', display: 'inline-block'
+      }}>
+        👤 Consignee
+      </span>
+    );
+  }
+  return <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -113,6 +141,7 @@ function ShipmentsPanel() {
 
   const [colFilters, setColFilters] = useState({
     tracking: [], mode: [], shipper: [], route: [], status: [], payment: [],
+    customs: [], delivery: [],
   });
   const [openFilter, setOpenFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState('');
@@ -133,8 +162,7 @@ function ShipmentsPanel() {
 
   const [sendingWh, setSendingWh] = useState('');
 
-  // Files modal
-  const [filesModal, setFilesModal] = useState(null); // { trackingNumber, invoices, packingLists }
+  const [filesModal, setFilesModal] = useState(null);
 
   useEffect(() => {
     loadShipments();
@@ -142,7 +170,7 @@ function ShipmentsPanel() {
   }, [tab, shipperFilter]);
 
   useEffect(() => {
-    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
+    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [], customs: [], delivery: [] });
     setOpenFilter(null);
     setFilterSearch('');
     setShowDownloadMenu(false);
@@ -201,6 +229,8 @@ function ShipmentsPanel() {
     if (col === 'route') return (s.origin || '') + ' → ' + (s.destination || '');
     if (col === 'status') return s.status || '';
     if (col === 'payment') return s.paymentStatus || '';
+    if (col === 'customs') return s.customService || '';
+    if (col === 'delivery') return s.deliveryService || '';
     return '';
   }
 
@@ -238,12 +268,11 @@ function ShipmentsPanel() {
   }
 
   function clearAllFilters() {
-    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
+    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [], customs: [], delivery: [] });
   }
 
   const hasAnyFilter = Object.values(colFilters).some((arr) => arr.length > 0);
 
-  // ===== Summary computation =====
   const summaryAmount = useMemo(() => {
     if (tab === 'active' || tab === 'cancelled') return null;
     let total = 0;
@@ -356,12 +385,7 @@ function ShipmentsPanel() {
     const docs = s.uploadedDocuments || {};
     const invoices = Array.isArray(docs.invoices) ? docs.invoices : [];
     const packingLists = Array.isArray(docs.packingLists) ? docs.packingLists : [];
-    setFilesModal({
-      trackingNumber: s.trackingNumber,
-      senderName: s.senderName,
-      invoices,
-      packingLists,
-    });
+    setFilesModal({ trackingNumber: s.trackingNumber, senderName: s.senderName, invoices, packingLists });
   }
 
   function hasFiles(s) {
@@ -405,7 +429,7 @@ function ShipmentsPanel() {
   }
 
   function HeaderCell({ col, label, width, frozenLeft, hasShadow }) {
-    const isFilterable = ['tracking', 'mode', 'shipper', 'route', 'status', 'payment'].includes(col);
+    const isFilterable = ['tracking', 'mode', 'shipper', 'route', 'status', 'payment', 'customs', 'delivery'].includes(col);
     const activeCount = (colFilters[col] || []).length;
     const isOpen = openFilter === col;
 
@@ -442,8 +466,7 @@ function ShipmentsPanel() {
           <div
             ref={filterDropdownRef}
             style={{
-              position: 'absolute',
-              top: '100%',
+              position: 'absolute', top: '100%',
               left: frozenLeft !== undefined ? frozenLeft : 'auto',
               right: frozenLeft !== undefined ? 'auto' : 0,
               minWidth: '200px', background: 'white',
@@ -494,7 +517,6 @@ function ShipmentsPanel() {
         <StatCard num={counts.cancelled || 0} label="Cancelled" color="#E9ECEF" />
       </div>
 
-      {/* Summary Card (Awaiting + Paid only) */}
       {summaryAmount !== null && !loading && !error && (
         <div style={{
           background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
@@ -618,22 +640,24 @@ function ShipmentsPanel() {
       {!loading && !error && filtered.length > 0 && (
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1900px', tableLayout: 'fixed', width: '100%' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
                   <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
                   <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
                   <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={FROZEN_LEFT_ROUTE} hasShadow={true} />
-                  <HeaderCell col="shipper" label="Shipper" width={150} />
-                  <HeaderCell col="none" label="Recipient" width={150} />
-                  <HeaderCell col="status" label="Status" width={140} />
-                  <HeaderCell col="none" label="Booking Wt" width={110} />
-                  <HeaderCell col="none" label="Actual Wt" width={105} />
-                  <HeaderCell col="none" label="Cost" width={115} />
-                  <HeaderCell col="payment" label="Payment" width={120} />
-                  <HeaderCell col="none" label="Booked" width={120} />
-                  <HeaderCell col="none" label="ETA" width={125} />
-                  <HeaderCell col="none" label="Actions" width={320} />
+                  <HeaderCell col="shipper" label="Shipper" width={140} />
+                  <HeaderCell col="none" label="Recipient" width={140} />
+                  <HeaderCell col="status" label="Status" width={125} />
+                  <HeaderCell col="none" label="Booking Wt" width={100} />
+                  <HeaderCell col="none" label="Actual Wt" width={95} />
+                  <HeaderCell col="none" label="Cost" width={110} />
+                  <HeaderCell col="payment" label="Payment" width={110} />
+                  <HeaderCell col="customs" label="Customs" width={110} />
+                  <HeaderCell col="delivery" label="Delivery" width={110} />
+                  <HeaderCell col="none" label="Booked" width={110} />
+                  <HeaderCell col="none" label="ETA" width={120} />
+                  <HeaderCell col="none" label="Actions" width={300} />
                 </tr>
               </thead>
               <tbody>
@@ -651,28 +675,30 @@ function ShipmentsPanel() {
                       <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
                       <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
                       <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 140 }}>
+                      <td style={{ ...TD_STYLE, width: 140 }}>{s.senderName || '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 140 }}>{s.recipientName || '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 125 }}>
                         <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
                       </td>
-                      <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 105 }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
-                      <td style={{ ...TD_STYLE, width: 115 }}>
+                      <td style={{ ...TD_STYLE, width: 100 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 95 }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
+                      <td style={{ ...TD_STYLE, width: 110 }}>
                         {hasCost
                           ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
                           : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                       </td>
-                      <td style={{ ...TD_STYLE, width: 120 }}>
+                      <td style={{ ...TD_STYLE, width: 110 }}>
                         <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
                       </td>
-                      <td style={{ ...TD_STYLE, width: 120 }}>{formatDate(s.bookedAt)}</td>
-                      <td style={{ ...TD_STYLE, width: 125 }}>
+                      <td style={{ ...TD_STYLE, width: 110 }}><ServiceChip value={s.customService} /></td>
+                      <td style={{ ...TD_STYLE, width: 110 }}><ServiceChip value={s.deliveryService} /></td>
+                      <td style={{ ...TD_STYLE, width: 110 }}>{formatDate(s.bookedAt)}</td>
+                      <td style={{ ...TD_STYLE, width: 120 }}>
                         <span style={{ color: '#FF6B00', fontWeight: 800 }}>
                           {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                         </span>
                       </td>
-                      <td style={{ ...TD_STYLE, width: 320 }}>
+                      <td style={{ ...TD_STYLE, width: 300 }}>
                         {tab === 'active' && (
                           <button onClick={() => handleUseRow(s)} style={{ padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📋 Use</button>
                         )}
@@ -698,25 +724,19 @@ function ShipmentsPanel() {
         </>
       )}
 
-      {/* ===== FILES MODAL ===== */}
       {filesModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div style={{ background: 'white', maxWidth: '600px', width: '100%', maxHeight: '85vh', overflowY: 'auto', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>📎 Uploaded Documents</h2>
-                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
-                  {filesModal.trackingNumber} · {filesModal.senderName}
-                </div>
+                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>{filesModal.trackingNumber} · {filesModal.senderName}</div>
               </div>
               <button onClick={() => setFilesModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
             </div>
 
-            {/* Invoices */}
             <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '10px' }}>
-                📄 Invoices ({filesModal.invoices.length})
-              </div>
+              <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '10px' }}>📄 Invoices ({filesModal.invoices.length})</div>
               {filesModal.invoices.length === 0 ? (
                 <div style={{ color: '#ADB5BD', fontSize: '0.85rem', fontStyle: 'italic' }}>No invoice files</div>
               ) : (
@@ -725,19 +745,14 @@ function ShipmentsPanel() {
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px', fontSize: '0.85rem' }}>
                       📄 {f.name} <span style={{ color: '#6C757D' }}>({formatBytes(f.size)})</span>
                     </div>
-                    <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#003366', color: 'white', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                      Download
-                    </a>
+                    <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#003366', color: 'white', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>Download</a>
                   </div>
                 ))
               )}
             </div>
 
-            {/* Packing Lists */}
             <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '10px' }}>
-                📋 Packing Lists ({filesModal.packingLists.length})
-              </div>
+              <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '10px' }}>📋 Packing Lists ({filesModal.packingLists.length})</div>
               {filesModal.packingLists.length === 0 ? (
                 <div style={{ color: '#ADB5BD', fontSize: '0.85rem', fontStyle: 'italic' }}>No packing list files</div>
               ) : (
@@ -746,18 +761,14 @@ function ShipmentsPanel() {
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px', fontSize: '0.85rem' }}>
                       📋 {f.name} <span style={{ color: '#6C757D' }}>({formatBytes(f.size)})</span>
                     </div>
-                    <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#003366', color: 'white', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                      Download
-                    </a>
+                    <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#003366', color: 'white', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>Download</a>
                   </div>
                 ))
               )}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setFilesModal(null)} style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Close
-              </button>
+              <button onClick={() => setFilesModal(null)} style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
             </div>
           </div>
         </div>
