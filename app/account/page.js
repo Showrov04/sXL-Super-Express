@@ -45,9 +45,13 @@ export default function AccountPage() {
   const [bankSwift, setBankSwift] = useState('');
   const [bankBranch, setBankBranch] = useState('');
 
+  // Password fields
   const [curPwd, setCurPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [newPwd2, setNewPwd2] = useState('');
+  const [showCurPwd, setShowCurPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showNewPwd2, setShowNewPwd2] = useState(false);
   const [pwdMsg, setPwdMsg] = useState('');
   const [pwdLoading, setPwdLoading] = useState(false);
 
@@ -277,6 +281,11 @@ export default function AccountPage() {
     boxSizing: 'border-box'
   };
 
+  const passwordInputStyle = {
+    ...inputStyle,
+    paddingRight: '48px'
+  };
+
   const readOnlyStyle = {
     ...inputStyle,
     background: '#F8F9FA',
@@ -291,6 +300,46 @@ export default function AccountPage() {
     color: '#343A40',
     marginBottom: '6px'
   };
+
+  // Reusable password input with show/hide toggle
+  function PasswordField({ label, value, onChange, show, setShow, placeholder }) {
+    return (
+      <div style={{ marginBottom: '18px' }}>
+        <label style={labelStyle}>{label}</label>
+        <div style={{ position: 'relative' }}>
+          <input
+            type={show ? 'text' : 'password'}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            style={passwordInputStyle}
+            autoComplete="new-password"
+            name={'pwd_' + Math.random().toString(36).substring(7)}
+          />
+          <button
+            type="button"
+            onClick={() => setShow(!show)}
+            title={show ? 'Hide password' : 'Show password'}
+            style={{
+              position: 'absolute',
+              right: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '1.2rem',
+              padding: '4px',
+              color: '#6C757D',
+              lineHeight: 1
+            }}
+          >
+            {show ? '🙈' : '👁️'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -696,18 +745,27 @@ export default function AccountPage() {
           )}
 
           <form onSubmit={handlePasswordChange} autoComplete="off">
-            <div style={{ marginBottom: '18px' }}>
-              <label style={labelStyle}>Current Password</label>
-              <input type="password" value={curPwd} onChange={(e) => setCurPwd(e.target.value)} style={inputStyle} autoComplete="new-password" name={'p1_' + Math.random().toString(36).substring(7)} />
-            </div>
-            <div style={{ marginBottom: '18px' }}>
-              <label style={labelStyle}>New Password (min 6 chars)</label>
-              <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} style={inputStyle} autoComplete="new-password" name={'p2_' + Math.random().toString(36).substring(7)} />
-            </div>
-            <div style={{ marginBottom: '20px' }}>
-              <label style={labelStyle}>Confirm New Password</label>
-              <input type="password" value={newPwd2} onChange={(e) => setNewPwd2(e.target.value)} style={inputStyle} autoComplete="new-password" name={'p3_' + Math.random().toString(36).substring(7)} />
-            </div>
+            <PasswordField
+              label="Current Password"
+              value={curPwd}
+              onChange={setCurPwd}
+              show={showCurPwd}
+              setShow={setShowCurPwd}
+            />
+            <PasswordField
+              label="New Password (min 6 chars)"
+              value={newPwd}
+              onChange={setNewPwd}
+              show={showNewPwd}
+              setShow={setShowNewPwd}
+            />
+            <PasswordField
+              label="Confirm New Password"
+              value={newPwd2}
+              onChange={setNewPwd2}
+              show={showNewPwd2}
+              setShow={setShowNewPwd2}
+            />
             <button type="submit" disabled={pwdLoading} style={{
               padding: '14px 30px', background: '#003366', color: 'white',
               border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem',
