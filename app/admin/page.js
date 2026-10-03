@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../components/Header';
@@ -8,6 +8,38 @@ import Footer from '../components/Footer';
 import BillingPanel from '../components/BillingPanel';
 import CancellationPanel from '../components/CancellationPanel';
 import CreditRequestsPanel from '../components/CreditRequestsPanel';
+
+const COL_W_TRACKING = 160;
+const COL_W_MODE = 105;
+const COL_W_ROUTE = 170;
+const FROZEN_LEFT_TRACKING = 0;
+const FROZEN_LEFT_MODE = COL_W_TRACKING;
+const FROZEN_LEFT_ROUTE = COL_W_TRACKING + COL_W_MODE;
+
+const TH_STYLE = {
+  padding: '14px 12px',
+  textAlign: 'left',
+  fontWeight: 700,
+  color: '#003366',
+  fontSize: '0.72rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  background: '#E9ECEF',
+  borderBottom: '2px solid #D0D6DB',
+  whiteSpace: 'nowrap'
+};
+
+const TD_STYLE = {
+  padding: '10px 12px',
+  borderBottom: '1px solid #F1F3F5',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  height: '48px',
+  verticalAlign: 'middle'
+};
+
+const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -69,16 +101,11 @@ export default function AdminPage() {
 function TopTab({ active, onClick, label }) {
   return (
     <button onClick={onClick} style={{
-      cursor: 'pointer',
-      padding: '12px 22px',
-      borderRadius: '10px 10px 0 0',
-      fontWeight: 700,
-      fontSize: '0.9rem',
-      border: 'none',
+      cursor: 'pointer', padding: '12px 22px', borderRadius: '10px 10px 0 0',
+      fontWeight: 700, fontSize: '0.9rem', border: 'none',
       background: active ? '#FF6B00' : '#E9ECEF',
       color: active ? 'white' : '#003366',
-      fontFamily: 'inherit',
-      whiteSpace: 'nowrap'
+      fontFamily: 'inherit', whiteSpace: 'nowrap'
     }}>
       {label}
     </button>
@@ -86,18 +113,22 @@ function TopTab({ active, onClick, label }) {
 }
 
 /* ============================================================
-   SHIPMENTS PANEL — NEW
+   SHIPMENTS PANEL
    ============================================================ */
 function ShipmentsPanel() {
   const [tab, setTab] = useState('active');
   const [shipperFilter, setShipperFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterMode, setFilterMode] = useState('all');
   const [shipperList, setShipperList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
   const [counts, setCounts] = useState({ active: 0, awaiting: 0, paid: 0, total: 0 });
-  const [summary, setSummary] = useState({ total: 0, currency: 'USD', count: 0, shippers: [] });
   const [error, setError] = useState('');
+
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const downloadMenuRef = useRef(null);
 
   const [quTn, setQuTn] = useState('');
   const [quCurrentStatus, setQuCurrentStatus] = useState('');
@@ -107,6 +138,7 @@ function ShipmentsPanel() {
   const [quNotes, setQuNotes] = useState('');
   const [quMsg, setQuMsg] = useState('');
   const [quLoading, setQuLoading] = useState(false);
+  const [quFetchingLocation, setQuFetchingLocation] = useState(false);
 
   const [sendingWh, setSendingWh] = useState('');
 
@@ -114,6 +146,25 @@ function ShipmentsPanel() {
     loadShipments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, shipperFilter]);
+
+  useEffect(() => {
+    setSearch('');
+    setFilterStatus('all');
+    setFilterMode('all');
+    setShowDownloadMenu(false);
+  }, [tab]);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target)) {
+        setShowDownloadMenu(false);
+      }
+    }
+    if (showDownloadMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showDownloadMenu]);
 
   async function loadShipments() {
     setLoading(true);
@@ -124,7 +175,6 @@ function ShipmentsPanel() {
     try {
       const params = new URLSearchParams({ tab });
       if (shipperFilter) params.set('shipper', shipperFilter);
-      if (search) params.set('search', search);
 
       const res = await fetch('/api/admin/shipments?' + params.toString(), {
         headers: { Authorization: 'Bearer ' + token },
@@ -135,7 +185,6 @@ function ShipmentsPanel() {
 
       setShipments(data.shipments || []);
       setCounts(data.counts || { active: 0, awaiting: 0, paid: 0, total: 0 });
-      setSummary(data.summary || { total: 0, currency: 'USD', count: 0, shippers: [] });
 
       const names = {};
       (data.shipments || []).forEach((s) => { if (s.senderName) names[s.senderName] = true; });
@@ -151,15 +200,84 @@ function ShipmentsPanel() {
 
   function handleSearch(e) { e.preventDefault(); loadShipments(); }
 
-  function handleUseRow(s) {
+  // Client-side filtered list
+  const filtered = useMemo(() => {
+    let list = shipments;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((s) =>
+        String(s.trackingNumber || '').toLowerCase().includes(q) ||
+        String(s.senderName || '').toLowerCase().includes(q) ||
+        String(s.recipientName || '').toLowerCase().includes(q)
+      );
+    }
+    if (filterStatus !== 'all') {
+      list = list.filter((s) => String(s.status || '').toLowerCase() === filterStatus.toLowerCase());
+    }
+    if (filterMode !== 'all') {
+      list = list.filter((s) => String(s.shipMode || '').toUpperCase() === filterMode.toUpperCase());
+    }
+    return list;
+  }, [shipments, search, filterStatus, filterMode]);
+
+  const statusOptions = useMemo(() => {
+    const set = new Set(shipments.map((s) => s.status).filter(Boolean));
+    return Array.from(set).sort();
+  }, [shipments]);
+
+  async function handleDownload(format) {
+    setShowDownloadMenu(false);
+    const token = localStorage.getItem('sxl_token');
+    if (!token) return;
+
+    const params = new URLSearchParams({ scope: 'admin', tab: tab });
+    if (shipperFilter) params.set('shipper', shipperFilter);
+    if (search.trim()) params.set('search', search.trim());
+
+    const url = '/api/export/' + format + '?' + params.toString();
+
+    try {
+      const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) { window.alert('Export failed: ' + res.status); return; }
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      const ext = format === 'pdf' ? 'pdf' : 'csv';
+      a.download = `sxl-${tab}-${new Date().toISOString().slice(0, 10)}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      window.alert('Download error: ' + err.message);
+    }
+  }
+
+  async function handleUseRow(s) {
     setQuTn(s.trackingNumber);
     setQuCurrentStatus(s.status || '');
-    setQuStatus('');
-    setQuLocation('');
+    setQuStatus(s.status || ''); // default to current status
     setQuEta(s.estimatedDelivery || '');
     setQuNotes('');
     setQuMsg('');
-    // Scroll to Quick Update panel
+    setQuLocation('');
+    setQuFetchingLocation(true);
+
+    // Fetch last known location from tracking history
+    try {
+      const token = localStorage.getItem('sxl_token');
+      const res = await fetch('/api/admin/shipments/tracking-history?tn=' + encodeURIComponent(s.trackingNumber), {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const data = await res.json();
+      if (data.success && data.location) {
+        setQuLocation(data.location);
+      }
+    } catch (e) { /* silent */ }
+
+    setQuFetchingLocation(false);
+
     setTimeout(() => {
       const el = document.getElementById('quick-update-panel');
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -236,31 +354,8 @@ function ShipmentsPanel() {
     return { bg: '#FFF3CD', color: '#856404' };
   }
 
-  // Determine summary card label by tab
-  const summaryLabel = tab === 'active' ? '💰 Active Billing' :
-                       tab === 'awaiting' ? '💵 Accounts Receivable' :
-                       '✅ Collected Revenue';
-
   return (
     <div>
-      {/* Summary Card */}
-      <div style={{
-        background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-        padding: '20px 25px', marginBottom: '20px', borderLeft: '5px solid #FF6B00',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px'
-      }}>
-        <div>
-          <div style={{ fontWeight: 800, color: '#003366', fontSize: '1.1rem' }}>{summaryLabel}</div>
-          <div style={{ color: '#6C757D', fontSize: '0.85rem' }}>
-            {summary.count} shipment{summary.count !== 1 ? 's' : ''}
-            {shipperFilter ? ` for ${shipperFilter}` : ''}
-          </div>
-        </div>
-        <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FF6B00' }}>
-          {summary.currency} {Number(summary.total).toFixed(2)}
-        </div>
-      </div>
-
       {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
         <StatCard num={counts.total} label="Total" color="#FF6B00" />
@@ -269,30 +364,88 @@ function ShipmentsPanel() {
         <StatCard num={counts.paid} label="Paid & Completed" color="#D4EDDA" />
       </div>
 
-      {/* Filters */}
-      <form onSubmit={handleSearch} style={{
-        display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center',
-        marginBottom: '20px', background: 'white', padding: '15px',
-        borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
+      {/* Filter Bar */}
+      <div style={{
+        background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+        padding: '15px', marginBottom: '20px',
+        display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center'
       }}>
-        <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#6C757D' }}>Shipper:</label>
-        <select value={shipperFilter} onChange={(e) => setShipperFilter(e.target.value)} style={{
-          padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit'
-        }}>
+        <input
+          type="text"
+          placeholder="🔍 Search tracking, shipper, recipient..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: '220px', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}
+        />
+        <select
+          value={shipperFilter}
+          onChange={(e) => setShipperFilter(e.target.value)}
+          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '160px' }}
+        >
           <option value="">All Shippers</option>
           {shipperList.map((name) => <option key={name} value={name}>{name}</option>)}
         </select>
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '150px' }}
+        >
+          <option value="all">All Statuses</option>
+          {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select
+          value={filterMode}
+          onChange={(e) => setFilterMode(e.target.value)}
+          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '120px' }}
+        >
+          <option value="all">All Modes</option>
+          <option value="SEA">SEA</option>
+          <option value="AIR">AIR</option>
+        </select>
+        <button
+          onClick={() => { setSearch(''); setFilterStatus('all'); setFilterMode('all'); setShipperFilter(''); }}
+          style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          ✕ Clear
+        </button>
 
-        <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#6C757D' }}>Search:</label>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Tracking #, sender, recipient..."
-          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', flex: 1, minWidth: '200px', fontFamily: 'inherit' }} />
+        {/* Download Dropdown */}
+        <div style={{ position: 'relative' }} ref={downloadMenuRef}>
+          <button
+            onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+            style={{
+              padding: '10px 16px', background: '#003366', color: 'white',
+              border: 'none', borderRadius: '8px', fontWeight: 700,
+              fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', gap: '6px'
+            }}
+          >
+            ⬇ Download All ▾
+          </button>
+          {showDownloadMenu && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: '6px',
+              background: 'white', border: '1px solid #E9ECEF', borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 100, minWidth: '160px', overflow: 'hidden'
+            }}>
+              <button
+                onClick={() => handleDownload('pdf')}
+                style={{ display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366', borderBottom: '1px solid #F1F3F5' }}
+              >
+                📄 PDF (.pdf)
+              </button>
+              <button
+                onClick={() => handleDownload('csv')}
+                style={{ display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366' }}
+              >
+                📊 Excel / CSV (.csv)
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
-        <button type="submit" style={{ padding: '10px 16px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Apply</button>
-        <button type="button" onClick={() => { setShipperFilter(''); setSearch(''); setTimeout(loadShipments, 50); }} style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
-      </form>
-
-      {/* Tabs */}
+      {/* Sub-tabs */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
         <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Awaiting Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
@@ -339,7 +492,9 @@ function ShipmentsPanel() {
               </select>
             </div>
             <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Location</label>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                Location {quFetchingLocation && <span style={{ color: '#FF6B00', fontSize: '0.7rem' }}>(loading...)</span>}
+              </label>
               <input type="text" value={quLocation} onChange={(e) => setQuLocation(e.target.value)} placeholder="City, Country"
                 style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
             </div>
@@ -380,78 +535,105 @@ function ShipmentsPanel() {
         </div>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && filtered.length === 0 && (
+        <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
+          {shipments.length === 0 ? 'No shipments in this category.' : 'No shipments match your filters.'}
+        </div>
+      )}
+
+      {!loading && !error && filtered.length > 0 && (
         <>
-          {shipments.length === 0 ? (
-            <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
-              No shipments in this category.
-            </div>
-          ) : (
-            <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '1400px' }}>
-                <thead>
-                  <tr style={{ background: '#F8F9FA' }}>
-                    {['Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status', 'Booking Wt', 'Actual Wt', 'Cost', 'Payment', 'Booked', 'ETA', 'Actions'].map((h) => (
-                      <th key={h} style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.72rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF', whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {shipments.map((s, i) => {
-                    const sc = statusClass(s.status);
-                    const pc = paymentClass(s.paymentStatus);
-                    const isSelfDelivery = s.pickupService === false;
-                    const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
-                    return (
-                      <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
-                        <td style={{ padding: '12px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                        <td style={{ padding: '12px' }}>{s.shipmentType || s.shipMode || '-'}</td>
-                        <td style={{ padding: '12px' }}>{s.origin || '-'} → {s.destination || '-'}</td>
-                        <td style={{ padding: '12px' }}>{s.senderName || '-'}</td>
-                        <td style={{ padding: '12px' }}>{s.recipientName || '-'}</td>
-                        <td style={{ padding: '12px' }}>
-                          <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
-                        </td>
-                        <td style={{ padding: '12px' }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
-                        <td style={{ padding: '12px' }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
-                        <td style={{ padding: '12px' }}>
-                          {hasCost
-                            ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
-                            : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
-                        </td>
-                        <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatDate(s.bookedAt)}</td>
-                        <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
-                          <span style={{ color: '#FF6B00', fontWeight: 800 }}>
-                            {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
-                          {tab === 'active' && (
-                            <button onClick={() => handleUseRow(s)} style={{
-                              padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none',
-                              borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px'
-                            }}>📋 Use</button>
-                          )}
-                          {isSelfDelivery && (
-                            <button onClick={() => handleSendWarehouse(s.trackingNumber)} disabled={sendingWh === s.trackingNumber} style={{
-                              padding: '5px 10px', background: '#003366', color: 'white', border: 'none',
-                              borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit',
-                              opacity: sendingWh === s.trackingNumber ? 0.6 : 1, whiteSpace: 'nowrap'
-                            }}>
-                              {sendingWh === s.trackingNumber ? '...' : '📧 Send Warehouse'}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div style={{
+            background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto',
+            maxHeight: '70vh', position: 'relative'
+          }}>
+            <table style={{
+              borderCollapse: 'separate', borderSpacing: 0,
+              fontSize: '0.85rem', minWidth: '1650px',
+              tableLayout: 'fixed', width: '100%'
+            }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 20, background: '#E9ECEF' }}>
+                <tr>
+                  <th style={{ ...TH_STYLE, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, position: 'sticky', left: FROZEN_LEFT_TRACKING, zIndex: 22 }}>Tracking #</th>
+                  <th style={{ ...TH_STYLE, width: COL_W_MODE, minWidth: COL_W_MODE, position: 'sticky', left: FROZEN_LEFT_MODE, zIndex: 22 }}>Mode</th>
+                  <th style={{ ...TH_STYLE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, position: 'sticky', left: FROZEN_LEFT_ROUTE, zIndex: 22, boxShadow: FROZEN_SHADOW }}>Route</th>
+                  <th style={{ ...TH_STYLE, width: 150, minWidth: 150 }}>Shipper</th>
+                  <th style={{ ...TH_STYLE, width: 150, minWidth: 150 }}>Recipient</th>
+                  <th style={{ ...TH_STYLE, width: 130, minWidth: 130 }}>Status</th>
+                  <th style={{ ...TH_STYLE, width: 110, minWidth: 110 }}>Booking Wt</th>
+                  <th style={{ ...TH_STYLE, width: 105, minWidth: 105 }}>Actual Wt</th>
+                  <th style={{ ...TH_STYLE, width: 115, minWidth: 115 }}>Cost</th>
+                  <th style={{ ...TH_STYLE, width: 110, minWidth: 110 }}>Payment</th>
+                  <th style={{ ...TH_STYLE, width: 120, minWidth: 120 }}>Booked</th>
+                  <th style={{ ...TH_STYLE, width: 125, minWidth: 125 }}>ETA</th>
+                  <th style={{ ...TH_STYLE, width: 260, minWidth: 260 }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s, i) => {
+                  const sc = statusClass(s.status);
+                  const pc = paymentClass(s.paymentStatus);
+                  const isSelfDelivery = s.pickupService === false;
+                  const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
+                  const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+
+                  const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
+
+                  return (
+                    <tr key={i} style={{ background: rowBg }}>
+                      <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
+                      <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
+                      <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
+
+                      <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 130 }}>
+                        <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
+                      </td>
+                      <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 105 }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
+                      <td style={{ ...TD_STYLE, width: 115 }}>
+                        {hasCost
+                          ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
+                          : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
+                      </td>
+                      <td style={{ ...TD_STYLE, width: 110 }}>
+                        <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
+                      </td>
+                      <td style={{ ...TD_STYLE, width: 120 }}>{formatDate(s.bookedAt)}</td>
+                      <td style={{ ...TD_STYLE, width: 125 }}>
+                        <span style={{ color: '#FF6B00', fontWeight: 800 }}>
+                          {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
+                        </span>
+                      </td>
+                      <td style={{ ...TD_STYLE, width: 260 }}>
+                        {tab === 'active' && (
+                          <button onClick={() => handleUseRow(s)} style={{
+                            padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none',
+                            borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px'
+                          }}>📋 Use</button>
+                        )}
+                        {isSelfDelivery && (
+                          <button onClick={() => handleSendWarehouse(s.trackingNumber)} disabled={sendingWh === s.trackingNumber} style={{
+                            padding: '5px 10px', background: '#003366', color: 'white', border: 'none',
+                            borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit',
+                            opacity: sendingWh === s.trackingNumber ? 0.6 : 1, whiteSpace: 'nowrap'
+                          }}>
+                            {sendingWh === s.trackingNumber ? '...' : '📧 Send Warehouse'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: '12px', textAlign: 'right', fontSize: '0.85rem', color: '#6C757D' }}>
+            Showing <b>{filtered.length}</b> of <b>{shipments.length}</b> shipment{shipments.length !== 1 ? 's' : ''}
+          </div>
         </>
       )}
     </div>
