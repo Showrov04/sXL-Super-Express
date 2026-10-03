@@ -131,7 +131,15 @@ function ShipmentsPanel() {
   const [quLoading, setQuLoading] = useState(false);
   const [quFetchingLocation, setQuFetchingLocation] = useState(false);
 
-  const [sendingWh, setSendingWh] = useState('');
+  // Warehouse modal state
+  const [whModal, setWhModal] = useState(null); // { trackingNumber, senderName }
+  const [whFields, setWhFields] = useState({ name: '', address: '', city: '', state: '', country: '', phone: '', email: '', hours: '' });
+  const [whLoading, setWhLoading] = useState(false);
+  const [whError, setWhError] = useState('');
+  const [whFetchingDefaults, setWhFetchingDefaults] = useState(false);
+
+  // Toast
+  const [toast, setToast] = useState('');
 
   const [filesModal, setFilesModal] = useState(null);
 
@@ -160,6 +168,14 @@ function ShipmentsPanel() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Auto-clear toast
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
 
   async function loadShipments() {
     setLoading(true);
@@ -332,22 +348,61 @@ function ShipmentsPanel() {
     } catch (err) { setQuMsg('❌ Connection error.'); setQuLoading(false); }
   }
 
-  async function handleSendWarehouse(trackingNumber) {
-    if (!window.confirm('Send warehouse details email for ' + trackingNumber + '?')) return;
-    setSendingWh(trackingNumber);
+  // ===== Warehouse modal flow =====
+  async function openWarehouseModal(s) {
+    setWhModal({ trackingNumber: s.trackingNumber, senderName: s.senderName });
+    setWhFields({ name: '', address: '', city: '', state: '', country: '', phone: '', email: '', hours: '' });
+    setWhError('');
+    setWhFetchingDefaults(true);
+
+    try {
+      const token = localStorage.getItem('sxl_token');
+      const res = await fetch('/api/admin/send-warehouse', {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const data = await res.json();
+      if (data.success && data.warehouse) {
+        setWhFields(data.warehouse);
+      }
+    } catch (e) { /* silent */ }
+
+    setWhFetchingDefaults(false);
+  }
+
+  async function handleSendWarehouseEmail() {
+    setWhError('');
+    if (!whFields.name.trim()) { setWhError('Warehouse name is required.'); return; }
+    if (!whFields.address.trim()) { setWhError('Warehouse address is required.'); return; }
+    if (!whFields.country.trim()) { setWhError('Country is required.'); return; }
+
+    setWhLoading(true);
     const token = localStorage.getItem('sxl_token');
+
     try {
       const res = await fetch('/api/admin/send-warehouse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ trackingNumber }),
+        body: JSON.stringify({
+          trackingNumber: whModal.trackingNumber,
+          warehouse: whFields,
+        }),
       });
       const data = await res.json();
-      if (!data.success) { window.alert('Error: ' + (data.error || 'Failed')); setSendingWh(''); return; }
-      window.alert('✅ Warehouse details sent to customer!');
-      setSendingWh('');
-      loadShipments();
-    } catch (err) { window.alert('Error: ' + err.message); setSendingWh(''); }
+
+      if (!data.success) {
+        setWhError(data.error || 'Failed to send.');
+        setWhLoading(false);
+        return;
+      }
+
+      setWhModal(null);
+      setWhLoading(false);
+      setToast('✅ Warehouse details sent to ' + whModal.senderName + '!');
+      setTimeout(loadShipments, 500);
+    } catch (err) {
+      setWhError('Connection error: ' + err.message);
+      setWhLoading(false);
+    }
   }
 
   function openFiles(s) {
@@ -478,6 +533,18 @@ function ShipmentsPanel() {
 
   return (
     <div>
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
+          background: '#D4EDDA', color: '#155724', border: '1px solid #28A745',
+          borderRadius: '10px', padding: '14px 24px', fontWeight: 700,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 99999
+        }}>
+          {toast}
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
         <StatCard num={counts.total} label="Total" color="#FF6B00" />
         <StatCard num={counts.active} label="Active" color="#CCE5FF" />
@@ -609,7 +676,7 @@ function ShipmentsPanel() {
       {!loading && !error && filtered.length > 0 && (
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1750px', tableLayout: 'fixed', width: '100%' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
                   <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
@@ -624,7 +691,7 @@ function ShipmentsPanel() {
                   <HeaderCell col="payment" label="Payment" width={120} />
                   <HeaderCell col="none" label="Booked" width={120} />
                   <HeaderCell col="none" label="ETA" width={125} />
-                  <HeaderCell col="none" label="Actions" width={300} />
+                  <HeaderCell col="none" label="Actions" width={420} />
                 </tr>
               </thead>
               <tbody>
@@ -636,6 +703,7 @@ function ShipmentsPanel() {
                   const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
                   const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
                   const rowHasFiles = hasFiles(s);
+                  const whSent = !!s.warehouseSentAt;
 
                   return (
                     <tr key={i} style={{ background: rowBg }}>
@@ -663,7 +731,7 @@ function ShipmentsPanel() {
                           {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                         </span>
                       </td>
-                      <td style={{ ...TD_STYLE, width: 300 }}>
+                      <td style={{ ...TD_STYLE, width: 420 }}>
                         {tab === 'active' && (
                           <button onClick={() => handleUseRow(s)} style={{ padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📋 Use</button>
                         )}
@@ -671,9 +739,33 @@ function ShipmentsPanel() {
                           <button onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
                         )}
                         {isSelfDelivery && (
-                          <button onClick={() => handleSendWarehouse(s.trackingNumber)} disabled={sendingWh === s.trackingNumber} style={{ padding: '5px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', opacity: sendingWh === s.trackingNumber ? 0.6 : 1, whiteSpace: 'nowrap' }}>
-                            {sendingWh === s.trackingNumber ? '...' : '📧 Send Warehouse'}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => openWarehouseModal(s)}
+                              style={{
+                                padding: '5px 10px',
+                                background: whSent ? '#28A745' : '#DC3545',
+                                color: 'white', border: 'none', borderRadius: '6px',
+                                fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer',
+                                fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {whSent ? '✅ Warehouse Sent' : '📧 Send Warehouse'}
+                            </button>
+                            {whSent && (
+                              <button
+                                onClick={() => openWarehouseModal(s)}
+                                style={{
+                                  padding: '5px 8px', background: 'transparent', color: '#003366',
+                                  border: '1px solid #E9ECEF', borderRadius: '6px',
+                                  fontWeight: 600, fontSize: '0.68rem', cursor: 'pointer',
+                                  fontFamily: 'inherit', textDecoration: 'underline'
+                                }}
+                              >
+                                Resend
+                              </button>
+                            )}
+                          </>
                         )}
                       </td>
                     </tr>
@@ -687,6 +779,75 @@ function ShipmentsPanel() {
             Showing <b>{filtered.length}</b> of <b>{shipments.length}</b> shipment{shipments.length !== 1 ? 's' : ''}
           </div>
         </>
+      )}
+
+      {/* ============ WAREHOUSE MODAL ============ */}
+      {whModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: 'white', maxWidth: '640px', width: '100%', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>📧 Send Warehouse Details</h2>
+                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
+                  To: <b>{whModal.senderName}</b> · Tracking: <b>{whModal.trackingNumber}</b>
+                </div>
+              </div>
+              <button onClick={() => setWhModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+            </div>
+
+            <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.85rem', color: '#8B4500' }}>
+              ✏️ You can edit any field below. Changes apply to this email only.
+              {whFetchingDefaults && <span style={{ marginLeft: '8px', fontStyle: 'italic' }}>(loading defaults...)</span>}
+            </div>
+
+            {whError && (
+              <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem' }}>
+                {whError}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gap: '14px' }}>
+              <WhField label="Warehouse Name *" value={whFields.name} onChange={(v) => setWhFields({ ...whFields, name: v })} />
+              <WhField label="Full Address *" value={whFields.address} onChange={(v) => setWhFields({ ...whFields, address: v })} textarea />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <WhField label="City" value={whFields.city} onChange={(v) => setWhFields({ ...whFields, city: v })} />
+                <WhField label="State" value={whFields.state} onChange={(v) => setWhFields({ ...whFields, state: v })} />
+              </div>
+              <WhField label="Country *" value={whFields.country} onChange={(v) => setWhFields({ ...whFields, country: v })} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <WhField label="Phone" value={whFields.phone} onChange={(v) => setWhFields({ ...whFields, phone: v })} />
+                <WhField label="Email" value={whFields.email} onChange={(v) => setWhFields({ ...whFields, email: v })} />
+              </div>
+              <WhField label="Operating Hours" value={whFields.hours} onChange={(v) => setWhFields({ ...whFields, hours: v })} placeholder="e.g., Mon–Fri 9am–6pm" />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px' }}>
+              <button
+                onClick={() => setWhModal(null)}
+                disabled={whLoading}
+                style={{
+                  padding: '12px 24px', background: 'transparent', color: '#003366',
+                  border: '2px solid #E9ECEF', borderRadius: '8px',
+                  fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendWarehouseEmail}
+                disabled={whLoading}
+                style={{
+                  padding: '12px 24px', background: '#DC3545', color: 'white',
+                  border: 'none', borderRadius: '8px', fontWeight: 700,
+                  cursor: whLoading ? 'not-allowed' : 'pointer',
+                  opacity: whLoading ? 0.6 : 1, fontFamily: 'inherit'
+                }}
+              >
+                {whLoading ? 'Sending...' : '📧 Send Email'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {filesModal && (
@@ -742,8 +903,27 @@ function ShipmentsPanel() {
   );
 }
 
+// Helper input for warehouse modal
+function WhField({ label, value, onChange, textarea, placeholder }) {
+  const baseStyle = {
+    width: '100%', padding: '10px 14px', fontSize: '0.9rem',
+    border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none',
+    fontFamily: 'inherit', boxSizing: 'border-box'
+  };
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>{label}</label>
+      {textarea ? (
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ ...baseStyle, minHeight: '70px', resize: 'vertical' }} />
+      ) : (
+        <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={baseStyle} />
+      )}
+    </div>
+  );
+}
+
 /* ============================================================
-   SHIPPERS PANEL — NOW WITH STICKY HEADER + COLUMN FILTERS
+   SHIPPERS PANEL
    ============================================================ */
 function ShippersPanel() {
   const [loading, setLoading] = useState(true);
@@ -752,7 +932,6 @@ function ShippersPanel() {
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState('');
 
-  // Column filters
   const [colFilters, setColFilters] = useState({
     name: [], contact: [], email: [], phone: [], status: [],
   });
@@ -806,7 +985,6 @@ function ShippersPanel() {
     } catch (err) { window.alert('Error: ' + err.message); setActionLoading(''); }
   }
 
-  // Filter helpers
   function getColumnValue(s, col) {
     if (col === 'name') return s.name || '';
     if (col === 'contact') return s.contactPerson || '';
