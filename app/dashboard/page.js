@@ -1,22 +1,19 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
-// Frozen column widths (first 4 columns)
+// Frozen column widths (first 3 columns)
 const COL_W_TRACKING = 160;
 const COL_W_MODE = 105;
-const COL_W_ROUTE = 160;
-const COL_W_SHIPPER = 140;
+const COL_W_ROUTE = 170;
 const FROZEN_LEFT_TRACKING = 0;
 const FROZEN_LEFT_MODE = COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE = COL_W_TRACKING + COL_W_MODE;
-const FROZEN_LEFT_SHIPPER = COL_W_TRACKING + COL_W_MODE + COL_W_ROUTE;
 
-// Common cell styles
 const TH_STYLE = {
   padding: '14px 12px',
   textAlign: 'left',
@@ -63,6 +60,9 @@ export default function DashboardPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterMode, setFilterMode] = useState('all');
 
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const downloadMenuRef = useRef(null);
+
   const [cancelModal, setCancelModal] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -85,7 +85,21 @@ export default function DashboardPage() {
     setSearchText('');
     setFilterStatus('all');
     setFilterMode('all');
+    setShowDownloadMenu(false);
   }, [tab]);
+
+  // Close download menu on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target)) {
+        setShowDownloadMenu(false);
+      }
+    }
+    if (showDownloadMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showDownloadMenu]);
 
   async function loadData(activeTab) {
     setLoading(true);
@@ -150,6 +164,46 @@ export default function DashboardPage() {
     const set = new Set(shipments.map((s) => s.status).filter(Boolean));
     return Array.from(set).sort();
   }, [shipments]);
+
+  async function handleDownload(format) {
+    setShowDownloadMenu(false);
+    const token = localStorage.getItem('sxl_token');
+    if (!token) return;
+
+    // Build query with current filters applied
+    const params = new URLSearchParams({
+      scope: 'customer',
+      tab: tab,
+    });
+    if (searchText.trim()) params.set('search', searchText.trim());
+    // Note: status/mode filters are client-side only, so we pass them too
+    // The export API currently doesn't use status/mode filters — send them anyway
+    // for future extension. Currently, search + tab are the main filters.
+
+    const url = '/api/export/' + format + '?' + params.toString();
+
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      if (!res.ok) {
+        window.alert('Export failed: ' + res.status);
+        return;
+      }
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      const ext = format === 'pdf' ? 'pdf' : 'csv';
+      a.download = `sxl-${tab}-${new Date().toISOString().slice(0, 10)}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      window.alert('Download error: ' + err.message);
+    }
+  }
 
   async function submitCancel() {
     setCancelError('');
@@ -315,6 +369,51 @@ export default function DashboardPage() {
             >
               ✕ Clear
             </button>
+
+            {/* Download Dropdown */}
+            <div style={{ position: 'relative' }} ref={downloadMenuRef}>
+              <button
+                onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+                style={{
+                  padding: '10px 16px', background: '#003366', color: 'white',
+                  border: 'none', borderRadius: '8px', fontWeight: 700,
+                  fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', gap: '6px'
+                }}
+              >
+                ⬇ Download All ▾
+              </button>
+              {showDownloadMenu && (
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: '6px',
+                  background: 'white', border: '1px solid #E9ECEF', borderRadius: '8px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 100, minWidth: '160px',
+                  overflow: 'hidden'
+                }}>
+                  <button
+                    onClick={() => handleDownload('pdf')}
+                    style={{
+                      display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left',
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366',
+                      borderBottom: '1px solid #F1F3F5'
+                    }}
+                  >
+                    📄 PDF (.pdf)
+                  </button>
+                  <button
+                    onClick={() => handleDownload('csv')}
+                    style={{
+                      display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left',
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366'
+                    }}
+                  >
+                    📊 Excel / CSV (.csv)
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -356,10 +455,10 @@ export default function DashboardPage() {
               }}>
                 <thead>
                   <tr>
-                    <th style={{ ...TH_STYLE, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, left: FROZEN_LEFT_TRACKING, zIndex: 12, boxShadow: 'none' }}>Tracking #</th>
+                    <th style={{ ...TH_STYLE, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, left: FROZEN_LEFT_TRACKING, zIndex: 12 }}>Tracking #</th>
                     <th style={{ ...TH_STYLE, width: COL_W_MODE, minWidth: COL_W_MODE, left: FROZEN_LEFT_MODE, zIndex: 12 }}>Mode</th>
-                    <th style={{ ...TH_STYLE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, left: FROZEN_LEFT_ROUTE, zIndex: 12 }}>Route</th>
-                    <th style={{ ...TH_STYLE, width: COL_W_SHIPPER, minWidth: COL_W_SHIPPER, left: FROZEN_LEFT_SHIPPER, zIndex: 12, boxShadow: FROZEN_SHADOW }}>Shipper</th>
+                    <th style={{ ...TH_STYLE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, left: FROZEN_LEFT_ROUTE, zIndex: 12, boxShadow: FROZEN_SHADOW }}>Route</th>
+                    <th style={{ ...TH_STYLE, width: 150, minWidth: 150 }}>Shipper</th>
                     <th style={{ ...TH_STYLE, width: 150, minWidth: 150 }}>Recipient</th>
                     <th style={{ ...TH_STYLE, width: 130, minWidth: 130 }}>Status</th>
                     <th style={{ ...TH_STYLE, width: 110, minWidth: 110 }}>Booking Wt</th>
@@ -393,9 +492,9 @@ export default function DashboardPage() {
                       <tr key={i} style={{ background: rowBg }}>
                         <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
                         <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
-                        <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE }}>{s.origin || '-'} → {s.destination || '-'}</td>
-                        <td style={{ ...frozenTd, left: FROZEN_LEFT_SHIPPER, width: COL_W_SHIPPER, minWidth: COL_W_SHIPPER, boxShadow: FROZEN_SHADOW }}>{s.senderName || '-'}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
 
+                        <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
                         <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
                         <td style={{ ...TD_STYLE, width: 130 }}>
                           <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
