@@ -421,7 +421,11 @@ export default function BookPage() {
         return;
       }
 
-      setSuccess({ trackingNumber: data.trackingNumber });
+      setSuccess({
+        trackingNumber: data.trackingNumber,
+        invoiceUrls,
+        packingListUrls,
+      });
       setLoading(false);
     } catch (err) {
       setError('Connection error. Please try again.');
@@ -443,6 +447,9 @@ export default function BookPage() {
   }
 
   if (success) {
+    const invoices = success.invoiceUrls || [];
+    const packingLists = success.packingListUrls || [];
+
     return (
       <>
         <Header />
@@ -476,12 +483,32 @@ export default function BookPage() {
                 <a href={'/api/pdf/booking/' + success.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '10px 16px', background: '#003366', color: 'white', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none' }}>
                   🖨️ Print Booking
                 </a>
-                <span style={{ padding: '10px 16px', background: '#E9ECEF', color: '#6C757D', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'not-allowed' }}>
-                  🖨️ Print Invoice (next task)
-                </span>
-                <span style={{ padding: '10px 16px', background: '#E9ECEF', color: '#6C757D', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'not-allowed' }}>
-                  🖨️ Print Packing List (next task)
-                </span>
+                {invoices.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => invoices.forEach((f) => window.open(f.url, '_blank', 'noopener'))}
+                    style={{ padding: '10px 16px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    🖨️ Print Invoice ({invoices.length})
+                  </button>
+                ) : (
+                  <span style={{ padding: '10px 16px', background: '#E9ECEF', color: '#6C757D', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem' }}>
+                    🖨️ Print Invoice
+                  </span>
+                )}
+                {packingLists.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => packingLists.forEach((f) => window.open(f.url, '_blank', 'noopener'))}
+                    style={{ padding: '10px 16px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    🖨️ Print Packing List ({packingLists.length})
+                  </button>
+                ) : (
+                  <span style={{ padding: '10px 16px', background: '#E9ECEF', color: '#6C757D', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem' }}>
+                    🖨️ Print Packing List
+                  </span>
+                )}
               </div>
             </div>
 
