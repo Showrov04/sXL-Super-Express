@@ -112,12 +112,7 @@ function ShipmentsPanel() {
   const [error, setError] = useState('');
 
   const [colFilters, setColFilters] = useState({
-    tracking: [],
-    mode: [],
-    shipper: [],
-    route: [],
-    status: [],
-    payment: [],
+    tracking: [], mode: [], shipper: [], route: [], status: [], payment: [],
   });
   const [openFilter, setOpenFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState('');
@@ -244,6 +239,16 @@ function ShipmentsPanel() {
   }
 
   const hasAnyFilter = Object.values(colFilters).some((arr) => arr.length > 0);
+
+  // ===== Summary computation (based on filtered list) =====
+  const summaryAmount = useMemo(() => {
+    if (tab === 'active') return null; // no card on active
+    let total = 0;
+    filtered.forEach((s) => {
+      total += parseFloat(s.shippingCost) || 0;
+    });
+    return Math.round(total * 100) / 100;
+  }, [filtered, tab]);
 
   async function handleDownload(format) {
     setShowDownloadMenu(false);
@@ -458,6 +463,28 @@ function ShipmentsPanel() {
         <StatCard num={counts.awaiting} label="Awaiting Payment" color="#FFE5B4" />
         <StatCard num={counts.paid} label="Paid & Completed" color="#D4EDDA" />
       </div>
+
+      {/* ===== Summary Card (Awaiting Payment + Paid & Completed only) ===== */}
+      {summaryAmount !== null && !loading && !error && (
+        <div style={{
+          background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+          padding: '20px 25px', marginBottom: '20px', borderLeft: '5px solid #FF6B00',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px'
+        }}>
+          <div>
+            <div style={{ fontWeight: 800, color: '#003366', fontSize: '1.1rem' }}>
+              {tab === 'awaiting' ? '💵 Accounts Receivable' : '✅ Collected Revenue'}
+            </div>
+            <div style={{ color: '#6C757D', fontSize: '0.85rem' }}>
+              {filtered.length} shipment{filtered.length !== 1 ? 's' : ''}
+              {shipperFilter ? ` for ${shipperFilter}` : ''}
+            </div>
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FF6B00' }}>
+            USD {Number(summaryAmount).toFixed(2)}
+          </div>
+        </div>
+      )}
 
       <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '15px', marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={shipperFilter} onChange={(e) => setShipperFilter(e.target.value)} style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '180px' }}>
