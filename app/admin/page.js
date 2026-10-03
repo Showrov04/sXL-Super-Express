@@ -107,7 +107,7 @@ function ShipmentsPanel() {
   const [shipperFilter, setShipperFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
-  const [counts, setCounts] = useState({ active: 0, awaiting: 0, paid: 0, total: 0 });
+  const [counts, setCounts] = useState({ active: 0, awaiting: 0, paid: 0, cancelled: 0, total: 0 });
   const [shipperList, setShipperList] = useState([]);
   const [error, setError] = useState('');
 
@@ -132,6 +132,9 @@ function ShipmentsPanel() {
   const [quFetchingLocation, setQuFetchingLocation] = useState(false);
 
   const [sendingWh, setSendingWh] = useState('');
+
+  // Files modal
+  const [filesModal, setFilesModal] = useState(null); // { trackingNumber, invoices, packingLists }
 
   useEffect(() => {
     loadShipments();
@@ -177,7 +180,7 @@ function ShipmentsPanel() {
       if (!data.success) { setError(data.error || 'Failed to load.'); setLoading(false); return; }
 
       setShipments(data.shipments || []);
-      setCounts(data.counts || { active: 0, awaiting: 0, paid: 0, total: 0 });
+      setCounts(data.counts || { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: 0 });
 
       const names = {};
       (data.shipments || []).forEach((s) => { if (s.senderName) names[s.senderName] = true; });
@@ -240,9 +243,9 @@ function ShipmentsPanel() {
 
   const hasAnyFilter = Object.values(colFilters).some((arr) => arr.length > 0);
 
-  // ===== Summary computation (based on filtered list) =====
+  // ===== Summary computation =====
   const summaryAmount = useMemo(() => {
-    if (tab === 'active') return null; // no card on active
+    if (tab === 'active' || tab === 'cancelled') return null;
     let total = 0;
     filtered.forEach((s) => {
       total += parseFloat(s.shippingCost) || 0;
@@ -347,6 +350,32 @@ function ShipmentsPanel() {
       setSendingWh('');
       loadShipments();
     } catch (err) { window.alert('Error: ' + err.message); setSendingWh(''); }
+  }
+
+  function openFiles(s) {
+    const docs = s.uploadedDocuments || {};
+    const invoices = Array.isArray(docs.invoices) ? docs.invoices : [];
+    const packingLists = Array.isArray(docs.packingLists) ? docs.packingLists : [];
+    setFilesModal({
+      trackingNumber: s.trackingNumber,
+      senderName: s.senderName,
+      invoices,
+      packingLists,
+    });
+  }
+
+  function hasFiles(s) {
+    const docs = s.uploadedDocuments || {};
+    const inv = Array.isArray(docs.invoices) ? docs.invoices.length : 0;
+    const pl = Array.isArray(docs.packingLists) ? docs.packingLists.length : 0;
+    return inv + pl > 0;
+  }
+
+  function formatBytes(bytes) {
+    const n = Number(bytes) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(2) + ' MB';
   }
 
   function formatDate(d) {
@@ -462,9 +491,10 @@ function ShipmentsPanel() {
         <StatCard num={counts.active} label="Active" color="#CCE5FF" />
         <StatCard num={counts.awaiting} label="Awaiting Payment" color="#FFE5B4" />
         <StatCard num={counts.paid} label="Paid & Completed" color="#D4EDDA" />
+        <StatCard num={counts.cancelled || 0} label="Cancelled" color="#E9ECEF" />
       </div>
 
-      {/* ===== Summary Card (Awaiting Payment + Paid & Completed only) ===== */}
+      {/* Summary Card (Awaiting + Paid only) */}
       {summaryAmount !== null && !loading && !error && (
         <div style={{
           background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
@@ -515,6 +545,7 @@ function ShipmentsPanel() {
         <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
         <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Awaiting Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
         <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="🟢 Paid & Completed" count={counts.paid} badgeBg="#D4EDDA" badgeColor="#155724" />
+        <TabButton active={tab === 'cancelled'} onClick={() => setTab('cancelled')} label="⚫ Cancelled" count={counts.cancelled || 0} badgeBg="#E9ECEF" badgeColor="#495057" />
       </div>
 
       {tab === 'active' && (
@@ -602,7 +633,7 @@ function ShipmentsPanel() {
                   <HeaderCell col="payment" label="Payment" width={120} />
                   <HeaderCell col="none" label="Booked" width={120} />
                   <HeaderCell col="none" label="ETA" width={125} />
-                  <HeaderCell col="none" label="Actions" width={260} />
+                  <HeaderCell col="none" label="Actions" width={320} />
                 </tr>
               </thead>
               <tbody>
@@ -613,6 +644,7 @@ function ShipmentsPanel() {
                   const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
                   const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
                   const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
+                  const rowHasFiles = hasFiles(s);
 
                   return (
                     <tr key={i} style={{ background: rowBg }}>
@@ -640,9 +672,12 @@ function ShipmentsPanel() {
                           {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                         </span>
                       </td>
-                      <td style={{ ...TD_STYLE, width: 260 }}>
+                      <td style={{ ...TD_STYLE, width: 320 }}>
                         {tab === 'active' && (
                           <button onClick={() => handleUseRow(s)} style={{ padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📋 Use</button>
+                        )}
+                        {rowHasFiles && (
+                          <button onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
                         )}
                         {isSelfDelivery && (
                           <button onClick={() => handleSendWarehouse(s.trackingNumber)} disabled={sendingWh === s.trackingNumber} style={{ padding: '5px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', opacity: sendingWh === s.trackingNumber ? 0.6 : 1, whiteSpace: 'nowrap' }}>
@@ -661,6 +696,71 @@ function ShipmentsPanel() {
             Showing <b>{filtered.length}</b> of <b>{shipments.length}</b> shipment{shipments.length !== 1 ? 's' : ''}
           </div>
         </>
+      )}
+
+      {/* ===== FILES MODAL ===== */}
+      {filesModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: 'white', maxWidth: '600px', width: '100%', maxHeight: '85vh', overflowY: 'auto', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>📎 Uploaded Documents</h2>
+                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
+                  {filesModal.trackingNumber} · {filesModal.senderName}
+                </div>
+              </div>
+              <button onClick={() => setFilesModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+            </div>
+
+            {/* Invoices */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '10px' }}>
+                📄 Invoices ({filesModal.invoices.length})
+              </div>
+              {filesModal.invoices.length === 0 ? (
+                <div style={{ color: '#ADB5BD', fontSize: '0.85rem', fontStyle: 'italic' }}>No invoice files</div>
+              ) : (
+                filesModal.invoices.map((f, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#F8F9FA', borderRadius: '8px', marginBottom: '6px' }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px', fontSize: '0.85rem' }}>
+                      📄 {f.name} <span style={{ color: '#6C757D' }}>({formatBytes(f.size)})</span>
+                    </div>
+                    <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#003366', color: 'white', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                      Download
+                    </a>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Packing Lists */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '10px' }}>
+                📋 Packing Lists ({filesModal.packingLists.length})
+              </div>
+              {filesModal.packingLists.length === 0 ? (
+                <div style={{ color: '#ADB5BD', fontSize: '0.85rem', fontStyle: 'italic' }}>No packing list files</div>
+              ) : (
+                filesModal.packingLists.map((f, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#F8F9FA', borderRadius: '8px', marginBottom: '6px' }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px', fontSize: '0.85rem' }}>
+                      📋 {f.name} <span style={{ color: '#6C757D' }}>({formatBytes(f.size)})</span>
+                    </div>
+                    <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#003366', color: 'white', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                      Download
+                    </a>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setFilesModal(null)} style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
