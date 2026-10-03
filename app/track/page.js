@@ -51,15 +51,6 @@ function TrackContent() {
     router.push('/track?tn=' + encodeURIComponent(clean));
   }
 
-  const statusClass = (status) => {
-    const s = String(status || '').toLowerCase();
-    if (s.includes('delivered')) return 'st-delivered';
-    if (s.includes('out for delivery')) return 'st-out';
-    if (s.includes('transit') || s.includes('shipped') || s.includes('picked')) return 'st-transit';
-    if (s.includes('exception') || s.includes('failed') || s.includes('returned')) return 'st-exception';
-    return 'st-pending';
-  };
-
   function formatDateTime(d) {
     if (!d) return '—';
     try {
@@ -72,12 +63,22 @@ function TrackContent() {
     } catch (e) { return String(d); }
   }
 
+  function formatDate(d) {
+    if (!d) return '—';
+    try {
+      const date = new Date(d);
+      if (isNaN(date.getTime())) return String(d);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric'
+      });
+    } catch (e) { return String(d); }
+  }
+
   return (
     <>
       <Header />
 
       <div style={{ maxWidth: '900px', margin: '40px auto', padding: '0 20px', minHeight: '60vh' }}>
-        {/* Search box */}
         <form onSubmit={handleSubmit} style={{
           background: 'white',
           borderRadius: '10px',
@@ -121,7 +122,6 @@ function TrackContent() {
           </button>
         </form>
 
-        {/* Loading */}
         {loading && (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div style={{
@@ -138,7 +138,6 @@ function TrackContent() {
           </div>
         )}
 
-        {/* Error */}
         {error && !loading && (
           <div style={{
             background: '#F8D7DA',
@@ -152,7 +151,6 @@ function TrackContent() {
           </div>
         )}
 
-        {/* Empty state */}
         {!loading && !error && !result && !tn && (
           <div style={{
             background: '#D1ECF1',
@@ -166,10 +164,8 @@ function TrackContent() {
           </div>
         )}
 
-        {/* Result */}
         {result && !loading && (
           <div>
-            {/* Header card */}
             <div style={{
               background: 'white',
               borderRadius: '10px',
@@ -213,7 +209,6 @@ function TrackContent() {
                 </div>
               </div>
 
-              {/* Stepper */}
               {!result.isException && result.stepper.length > 0 && (
                 <div style={{ padding: '30px 30px 10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
@@ -273,7 +268,6 @@ function TrackContent() {
                 </div>
               )}
 
-              {/* Details grid */}
               <div style={{ padding: '30px' }}>
                 <div style={{
                   display: 'grid',
@@ -283,15 +277,15 @@ function TrackContent() {
                   borderBottom: '1px solid #E9ECEF'
                 }}>
                   {[
-                    { label: 'Service', value: `${result.shipment.serviceType || '—'} / ${result.shipment.shipMode || ''}` },
-                    { label: 'Parcel Type', value: result.shipment.parcelType || '—' },
+                    { label: 'Shipment Type', value: result.shipment.shipmentType || '—' },
+                    ...(result.shipment.deliveryTimeline ? [{ label: 'Delivery Timeline', value: result.shipment.deliveryTimeline }] : []),
                     { label: 'Shipper', value: result.shipment.shipperName || '—' },
                     { label: 'From', value: result.shipment.origin || '—' },
                     { label: 'Consignee', value: result.shipment.recipientName || '—' },
                     { label: 'To', value: result.shipment.destination || '—' },
                     { label: 'Weight', value: `${result.shipment.weight || '—'} kg` },
                     { label: 'Packages', value: result.shipment.packages || '—' },
-                    { label: 'Est. Delivery', value: result.shipment.estimatedDelivery || '—' },
+                    { label: 'Est. Delivery', value: result.shipment.estimatedDelivery ? formatDate(result.shipment.estimatedDelivery) : 'Pending' },
                     { label: 'Last Update', value: formatDateTime(result.shipment.lastUpdate) },
                   ].map((item, i) => (
                     <div key={i}>
@@ -312,7 +306,6 @@ function TrackContent() {
                   ))}
                 </div>
 
-                {/* Timeline */}
                 <div style={{ marginTop: '30px' }}>
                   <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#003366', marginBottom: '25px' }}>
                     📍 Tracking Timeline
