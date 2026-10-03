@@ -6,7 +6,6 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
-// Frozen column widths (first 3 columns)
 const COL_W_TRACKING = 170;
 const COL_W_MODE = 105;
 const COL_W_ROUTE = 170;
@@ -26,33 +25,6 @@ const TD_STYLE = {
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
-function ServiceChip({ value }) {
-  const v = String(value || '').toLowerCase();
-  if (v === 'sxl') {
-    return (
-      <span style={{
-        background: '#E8F7EF', color: '#155724', padding: '4px 10px',
-        borderRadius: '12px', fontWeight: 700, fontSize: '0.68rem',
-        whiteSpace: 'nowrap', display: 'inline-block'
-      }}>
-        ✅ sXL
-      </span>
-    );
-  }
-  if (v === 'consignee') {
-    return (
-      <span style={{
-        background: '#FFF5EB', color: '#8B4500', padding: '4px 10px',
-        borderRadius: '12px', fontWeight: 700, fontSize: '0.68rem',
-        whiteSpace: 'nowrap', display: 'inline-block'
-      }}>
-        👤 Consignee
-      </span>
-    );
-  }
-  return <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>;
-}
-
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -69,7 +41,6 @@ export default function DashboardPage() {
 
   const [colFilters, setColFilters] = useState({
     tracking: [], mode: [], shipper: [], route: [], status: [], payment: [],
-    customs: [], delivery: [],
   });
   const [openFilter, setOpenFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState('');
@@ -99,7 +70,7 @@ export default function DashboardPage() {
   }, [user, tab]);
 
   useEffect(() => {
-    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [], customs: [], delivery: [] });
+    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
     setOpenFilter(null);
     setFilterSearch('');
     setShowDownloadMenu(false);
@@ -166,8 +137,6 @@ export default function DashboardPage() {
     if (col === 'route') return (s.origin || '') + ' → ' + (s.destination || '');
     if (col === 'status') return s.status || '';
     if (col === 'payment') return s.paymentStatus || '';
-    if (col === 'customs') return s.customService || '';
-    if (col === 'delivery') return s.deliveryService || '';
     return '';
   }
 
@@ -205,7 +174,7 @@ export default function DashboardPage() {
   }
 
   function clearAllFilters() {
-    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [], customs: [], delivery: [] });
+    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
   }
 
   const hasAnyFilter = Object.values(colFilters).some((arr) => arr.length > 0);
@@ -324,7 +293,7 @@ export default function DashboardPage() {
       : null;
 
   function HeaderCell({ col, label, width, frozenLeft, hasShadow }) {
-    const isFilterable = ['tracking', 'mode', 'shipper', 'route', 'status', 'payment', 'customs', 'delivery'].includes(col);
+    const isFilterable = ['tracking', 'mode', 'shipper', 'route', 'status', 'payment'].includes(col);
     const activeCount = (colFilters[col] || []).length;
     const isOpen = openFilter === col;
 
@@ -527,23 +496,21 @@ export default function DashboardPage() {
         {!loading && !error && filtered.length > 0 && (
           <>
             <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-              <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1950px', tableLayout: 'fixed', width: '100%' }}>
+              <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                   <tr>
                     <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
                     <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
                     <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={FROZEN_LEFT_ROUTE} hasShadow={true} />
-                    <HeaderCell col="shipper" label="Shipper" width={140} />
-                    <HeaderCell col="none" label="Recipient" width={140} />
-                    <HeaderCell col="status" label="Status" width={125} />
-                    <HeaderCell col="none" label="Booking Wt" width={100} />
-                    <HeaderCell col="none" label="Actual Wt" width={95} />
-                    <HeaderCell col="none" label="Cost" width={110} />
-                    <HeaderCell col="payment" label="Payment" width={110} />
-                    <HeaderCell col="customs" label="Customs" width={110} />
-                    <HeaderCell col="delivery" label="Delivery" width={110} />
-                    <HeaderCell col="none" label="Booked" width={110} />
-                    <HeaderCell col="none" label="ETA" width={120} />
+                    <HeaderCell col="shipper" label="Shipper" width={150} />
+                    <HeaderCell col="none" label="Recipient" width={150} />
+                    <HeaderCell col="status" label="Status" width={140} />
+                    <HeaderCell col="none" label="Booking Wt" width={110} />
+                    <HeaderCell col="none" label="Actual Wt" width={105} />
+                    <HeaderCell col="none" label="Cost" width={115} />
+                    <HeaderCell col="payment" label="Payment" width={120} />
+                    <HeaderCell col="none" label="Booked" width={120} />
+                    <HeaderCell col="none" label="ETA" width={125} />
                     <HeaderCell col="none" label="Actions" width={300} />
                   </tr>
                 </thead>
@@ -565,25 +532,23 @@ export default function DashboardPage() {
                         <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
                         <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
                         <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
-                        <td style={{ ...TD_STYLE, width: 140 }}>{s.senderName || '-'}</td>
-                        <td style={{ ...TD_STYLE, width: 140 }}>{s.recipientName || '-'}</td>
-                        <td style={{ ...TD_STYLE, width: 125 }}>
+                        <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 140 }}>
                           <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
                         </td>
-                        <td style={{ ...TD_STYLE, width: 100 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
-                        <td style={{ ...TD_STYLE, width: 95 }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
-                        <td style={{ ...TD_STYLE, width: 110 }}>
+                        <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 105 }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
+                        <td style={{ ...TD_STYLE, width: 115 }}>
                           {hasCost
                             ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
                             : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                         </td>
-                        <td style={{ ...TD_STYLE, width: 110 }}>
+                        <td style={{ ...TD_STYLE, width: 120 }}>
                           <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
                         </td>
-                        <td style={{ ...TD_STYLE, width: 110 }}><ServiceChip value={s.customService} /></td>
-                        <td style={{ ...TD_STYLE, width: 110 }}><ServiceChip value={s.deliveryService} /></td>
-                        <td style={{ ...TD_STYLE, width: 110 }}>{formatDate(s.bookedAt)}</td>
-                        <td style={{ ...TD_STYLE, width: 120 }}>
+                        <td style={{ ...TD_STYLE, width: 120 }}>{formatDate(s.bookedAt)}</td>
+                        <td style={{ ...TD_STYLE, width: 125 }}>
                           <span style={{ color: '#FF6B00', fontWeight: 800 }}>
                             {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                           </span>
