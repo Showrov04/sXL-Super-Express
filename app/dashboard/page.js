@@ -55,7 +55,6 @@ export default function DashboardPage() {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState('');
 
-  // Files modal
   const [filesModal, setFilesModal] = useState(null);
 
   useEffect(() => {
@@ -211,11 +210,7 @@ export default function DashboardPage() {
     const docs = s.uploadedDocuments || {};
     const invoices = Array.isArray(docs.invoices) ? docs.invoices : [];
     const packingLists = Array.isArray(docs.packingLists) ? docs.packingLists : [];
-    setFilesModal({
-      trackingNumber: s.trackingNumber,
-      invoices,
-      packingLists,
-    });
+    setFilesModal({ trackingNumber: s.trackingNumber, invoices, packingLists });
   }
 
   function hasFiles(s) {
@@ -502,10 +497,36 @@ export default function DashboardPage() {
 
         {!loading && !error && filtered.length > 0 && (
           <>
-            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-              <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
-                <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
-                  <tr>
+            {/* ============ TABLE WRAPPER ============ */}
+            {/* The wrapper is the scroll container. The <thead> <tr> is sticky. */}
+            <div
+              className="sxl-table-wrap"
+              style={{
+                background: 'white',
+                borderRadius: '12px',
+                border: '1px solid #E9ECEF',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                overflow: 'auto',
+                maxHeight: '70vh',
+                position: 'relative',
+              }}
+            >
+              <table
+                style={{
+                  borderCollapse: 'separate',
+                  borderSpacing: 0,
+                  fontSize: '0.85rem',
+                  minWidth: '1650px',
+                  width: '100%',
+                }}
+              >
+                <thead>
+                  {/* STICKY IS ON THE <tr> — most reliable cross-browser */}
+                  <tr style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 20,
+                  }}>
                     <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
                     <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
                     <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={FROZEN_LEFT_ROUTE} hasShadow={true} />
@@ -624,9 +645,7 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>📎 Uploaded Documents</h2>
-                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
-                  {filesModal.trackingNumber}
-                </div>
+                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>{filesModal.trackingNumber}</div>
               </div>
               <button onClick={() => setFilesModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
             </div>
