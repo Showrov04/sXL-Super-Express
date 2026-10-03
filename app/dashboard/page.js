@@ -55,6 +55,9 @@ export default function DashboardPage() {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState('');
 
+  // Files modal
+  const [filesModal, setFilesModal] = useState(null);
+
   useEffect(() => {
     const stored = localStorage.getItem('sxl_user');
     const token = localStorage.getItem('sxl_token');
@@ -202,6 +205,31 @@ export default function DashboardPage() {
     } catch (err) {
       window.alert('Download error: ' + err.message);
     }
+  }
+
+  function openFiles(s) {
+    const docs = s.uploadedDocuments || {};
+    const invoices = Array.isArray(docs.invoices) ? docs.invoices : [];
+    const packingLists = Array.isArray(docs.packingLists) ? docs.packingLists : [];
+    setFilesModal({
+      trackingNumber: s.trackingNumber,
+      invoices,
+      packingLists,
+    });
+  }
+
+  function hasFiles(s) {
+    const docs = s.uploadedDocuments || {};
+    const inv = Array.isArray(docs.invoices) ? docs.invoices.length : 0;
+    const pl = Array.isArray(docs.packingLists) ? docs.packingLists.length : 0;
+    return inv + pl > 0;
+  }
+
+  function formatBytes(bytes) {
+    const n = Number(bytes) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(2) + ' MB';
   }
 
   async function submitCancel() {
@@ -474,37 +502,9 @@ export default function DashboardPage() {
 
         {!loading && !error && filtered.length > 0 && (
           <>
-            {/* STICKY HEADER FIX: outer div with explicit height + inner table with borderCollapse separate */}
-            <div
-              className="table-scroll-container"
-              style={{
-                background: 'white',
-                borderRadius: '12px',
-                border: '1px solid #E9ECEF',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                overflow: 'auto',
-                maxHeight: '70vh',
-                position: 'relative',
-                // Force a new stacking context (helps sticky work in Chrome)
-                isolation: 'isolate',
-              }}
-            >
-              <table
-                style={{
-                  borderCollapse: 'separate',
-                  borderSpacing: 0,
-                  fontSize: '0.85rem',
-                  minWidth: '1650px',
-                  width: '100%',
-                }}
-              >
-                <thead style={{
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 30,
-                  // Force GPU layer for consistent sticky behavior
-                  transform: 'translateZ(0)',
-                }}>
+            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
+              <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                   <tr>
                     <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
                     <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
@@ -518,7 +518,7 @@ export default function DashboardPage() {
                     <HeaderCell col="payment" label="Payment" width={120} />
                     <HeaderCell col="none" label="Booked" width={120} />
                     <HeaderCell col="none" label="ETA" width={125} />
-                    <HeaderCell col="none" label="Actions" width={230} />
+                    <HeaderCell col="none" label="Actions" width={300} />
                   </tr>
                 </thead>
                 <tbody>
@@ -532,6 +532,7 @@ export default function DashboardPage() {
                     const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
                     const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
                     const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
+                    const rowHasFiles = hasFiles(s);
 
                     return (
                       <tr key={i} style={{ background: rowBg }}>
@@ -559,20 +560,19 @@ export default function DashboardPage() {
                             {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                           </span>
                         </td>
-                        <td style={{ ...TD_STYLE, width: 230 }}>
-                          {tab === 'active' && (
-                            <>
-                              <Link href={'/track?tn=' + s.trackingNumber} style={{ padding: '5px 10px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>View</Link>
-                              <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>PDF</a>
-                              {isBooked && (
-                                <button onClick={() => { setCancelModal({ trackingNumber: s.trackingNumber }); setCancelReason(''); setCancelError(''); }} style={{ padding: '5px 10px', background: 'transparent', color: '#DC3545', border: '2px solid #DC3545', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                              )}
-                              {isCancellationPending && (
-                                <span style={{ padding: '5px 10px', background: '#FFE5B4', color: '#8B4500', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic' }}>Pending</span>
-                              )}
-                            </>
+                        <td style={{ ...TD_STYLE, width: 300 }}>
+                          <Link href={'/track?tn=' + s.trackingNumber} style={{ padding: '5px 10px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>View</Link>
+                          <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>PDF</a>
+                          {rowHasFiles && (
+                            <button onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
                           )}
-                          {tab === 'cancelled' && isCancelled && (
+                          {tab === 'active' && isBooked && (
+                            <button onClick={() => { setCancelModal({ trackingNumber: s.trackingNumber }); setCancelReason(''); setCancelError(''); }} style={{ padding: '5px 10px', background: 'transparent', color: '#DC3545', border: '2px solid #DC3545', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                          )}
+                          {isCancellationPending && (
+                            <span style={{ padding: '5px 10px', background: '#FFE5B4', color: '#8B4500', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic' }}>Pending</span>
+                          )}
+                          {isCancelled && (
                             <span style={{ padding: '5px 10px', background: '#E9ECEF', color: '#495057', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic' }}>Cancelled</span>
                           )}
                         </td>
@@ -590,6 +590,7 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Cancel modal */}
       {cancelModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div style={{ background: 'white', maxWidth: '500px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
@@ -611,6 +612,59 @@ export default function DashboardPage() {
               <button onClick={submitCancel} disabled={cancelLoading} style={{ padding: '12px 24px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: cancelLoading ? 'not-allowed' : 'pointer', opacity: cancelLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
                 {cancelLoading ? 'Submitting...' : 'Submit Request'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Files modal */}
+      {filesModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: 'white', maxWidth: '600px', width: '100%', maxHeight: '85vh', overflowY: 'auto', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>📎 Uploaded Documents</h2>
+                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
+                  {filesModal.trackingNumber}
+                </div>
+              </div>
+              <button onClick={() => setFilesModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '10px' }}>📄 Invoices ({filesModal.invoices.length})</div>
+              {filesModal.invoices.length === 0 ? (
+                <div style={{ color: '#ADB5BD', fontSize: '0.85rem', fontStyle: 'italic' }}>No invoice files</div>
+              ) : (
+                filesModal.invoices.map((f, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#F8F9FA', borderRadius: '8px', marginBottom: '6px' }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px', fontSize: '0.85rem' }}>
+                      📄 {f.name} <span style={{ color: '#6C757D' }}>({formatBytes(f.size)})</span>
+                    </div>
+                    <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#003366', color: 'white', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>Download</a>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '10px' }}>📋 Packing Lists ({filesModal.packingLists.length})</div>
+              {filesModal.packingLists.length === 0 ? (
+                <div style={{ color: '#ADB5BD', fontSize: '0.85rem', fontStyle: 'italic' }}>No packing list files</div>
+              ) : (
+                filesModal.packingLists.map((f, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#F8F9FA', borderRadius: '8px', marginBottom: '6px' }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px', fontSize: '0.85rem' }}>
+                      📋 {f.name} <span style={{ color: '#6C757D' }}>({formatBytes(f.size)})</span>
+                    </div>
+                    <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 14px', background: '#003366', color: 'white', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>Download</a>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setFilesModal(null)} style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
             </div>
           </div>
         </div>
