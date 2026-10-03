@@ -8,7 +8,6 @@ const serviceSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Country code → full name
 const COUNTRY_NAMES = {
   AF: 'Afghanistan', AL: 'Albania', DZ: 'Algeria', AD: 'Andorra', AO: 'Angola',
   AR: 'Argentina', AM: 'Armenia', AU: 'Australia', AT: 'Austria', AZ: 'Azerbaijan',
@@ -57,6 +56,14 @@ function countryName(code) {
   return COUNTRY_NAMES[upper] || code;
 }
 
+function buildShipmentType(shipment) {
+  const mode = String(shipment.ship_mode || '').toUpperCase();
+  const load = String(shipment.sea_load_type || '').toUpperCase();
+  if (mode === 'SEA') return load ? ('SEA - ' + load) : 'SEA';
+  if (mode === 'AIR') return 'AIR';
+  return mode || '—';
+}
+
 async function requireAdmin(request) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.replace('Bearer ', '').trim();
@@ -90,7 +97,6 @@ export async function GET(request) {
     const shipperFilter = (searchParams.get('shipper') || '').trim();
     const search = (searchParams.get('search') || '').trim().toLowerCase();
 
-    // Fetch all shipments
     const { data: all, error } = await serviceSupabase
       .from('shipments')
       .select('*')
@@ -100,7 +106,7 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: error.message });
     }
 
-    // Compute counts
+    // Counts
     const counts = { active: 0, awaiting: 0, paid: 0, total: all.length };
     all.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
@@ -143,31 +149,60 @@ export async function GET(request) {
     }
 
     // Map shipments
-    const shipments = filtered.map((s) => ({
-      trackingNumber: s.tracking_number,
-      shipMode: s.ship_mode,
-      serviceType: s.service_type,
-      status: s.status,
-      origin: countryName(s.origin),
-      destination: countryName(s.destination),
-      senderName: s.sender_name,
-      senderEmail: s.sender_email,
-      recipientName: s.recipient_name,
-      weight: s.total_weight,
-      shippingCost: s.shipping_cost,
-      currency: s.currency || 'USD',
-      paymentStatus: s.payment_status,
-      paymentMethod: s.payment_method,
-      paymentTerms: s.payment_terms,
-      estimatedDelivery: s.estimated_delivery,
-      bookedAt: s.booked_at,
-      lastUpdate: s.last_update,
-    }));
+    const shipments = filtered.map((s) => {
+      const cost = parseFloat(s.shipping_cost) || 0;
+      return {
+        trackingNumber: s.tracking_number,
+        shipMode: s.ship_mode,
+        seaLoadType: s.sea_load_type || null,
+        shipmentType: buildShipmentType(s),
+        serviceType: s.service_type,
+        status: s.status,
+        origin: countryName(s.origin),
+        destination: countryName(s.destination),
+        senderName: s.sender_name,
+        senderEmail: s.sender_email,
+        recipientName: s.recipient_name,
+        bookingWeight: s.total_weight,
+        actualWeight: s.actual_weight,
+        weight: s.total_weight, // backward compat
+        shippingCost: cost > 0 ? cost : null,
+        currency: s.currency || 'USD',
+        paymentStatus: s.payment_status,
+        paymentMethod: s.payment_method,
+        paymentTerms: s.payment_terms,
+        estimatedDelivery: s.estimated_delivery,
+        bookedAt: s.booked_at,
+        lastUpdate: s.last_update,
+        // new fields
+        originCountry: s.origin_country || null,
+        freightBillTo: s.freight_bill_to || null,
+        dutyTaxBillTo: s.duty_tax_bill_to || null,
+        uploadedDocuments: s.uploaded_documents || null,
+      };
+    });
+
+    // ===== Summary computation (respects filters) =====
+    // Billed amount = sum of shipping_cost across filtered shipments
+    const billedTotal = filtered.reduce((sum, s) => {
+      return sum + (parseFloat(s.shipping_cost) || 0);
+    }, 0);
+
+    // Get unique shipper names from filtered set
+    const uniqueShippers = [...new Set(filtered.map((s) => s.sender_name).filter(Boolean))].sort();
+
+    const summary = {
+      total: Math.round(billedTotal * 100) / 100,
+      currency: 'USD',
+      count: filtered.length,
+      shippers: uniqueShippers,
+    };
 
     return NextResponse.json({
       success: true,
       shipments,
       counts,
+      summary,
     });
 
   } catch (err) {
@@ -189,7 +224,6 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Tracking number and status required.' });
     }
 
-    // Update shipment
     const updateData = {
       status: newStatus,
       last_update: new Date().toISOString(),
@@ -205,7 +239,6 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: updateErr.message });
     }
 
-    // Insert tracking history
     await serviceSupabase.from('tracking_history').insert({
       tracking_number: trackingNumber,
       status: newStatus,
