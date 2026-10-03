@@ -30,8 +30,48 @@ async function requireAdmin(request) {
 }
 
 /**
+ * GET — fetch current warehouse settings (used to pre-fill modal)
+ */
+export async function GET(request) {
+  try {
+    const session = await requireAdmin(request);
+    if (!session) return NextResponse.json({ success: false, error: 'Permission denied.' });
+
+    const { data: rows } = await serviceSupabase
+      .from('settings')
+      .select('key, value')
+      .in('key', [
+        'warehouse_name', 'warehouse_address', 'warehouse_city',
+        'warehouse_state', 'warehouse_country', 'warehouse_phone',
+        'warehouse_email', 'warehouse_hours',
+      ]);
+
+    const settings = {};
+    (rows || []).forEach((row) => { settings[row.key] = row.value; });
+
+    return NextResponse.json({
+      success: true,
+      warehouse: {
+        name: settings.warehouse_name || '',
+        address: settings.warehouse_address || '',
+        city: settings.warehouse_city || '',
+        state: settings.warehouse_state || '',
+        country: settings.warehouse_country || '',
+        phone: settings.warehouse_phone || '',
+        email: settings.warehouse_email || '',
+        hours: settings.warehouse_hours || '',
+      },
+    });
+
+  } catch (err) {
+    return NextResponse.json({ success: false, error: err.message });
+  }
+}
+
+/**
  * POST — send warehouse details email
- * Body: { trackingNumber }
+ * Body: { trackingNumber, warehouse: { name, address, city, state, country, phone, email, hours } }
+ * If warehouse is not provided, falls back to settings table.
  */
 export async function POST(request) {
   try {
@@ -63,29 +103,46 @@ export async function POST(request) {
       });
     }
 
-    // Fetch warehouse settings
-    const { data: settingsRows } = await serviceSupabase
-      .from('settings')
-      .select('key, value')
-      .in('key', [
-        'warehouse_name', 'warehouse_address', 'warehouse_city',
-        'warehouse_state', 'warehouse_country', 'warehouse_phone',
-        'warehouse_email', 'warehouse_hours',
-      ]);
+    // Warehouse details: prefer values from request body, fallback to settings
+    let warehouse = body.warehouse || null;
 
-    const settings = {};
-    (settingsRows || []).forEach((row) => { settings[row.key] = row.value; });
+    if (!warehouse || typeof warehouse !== 'object') {
+      // Fallback: read from settings
+      const { data: settingsRows } = await serviceSupabase
+        .from('settings')
+        .select('key, value')
+        .in('key', [
+          'warehouse_name', 'warehouse_address', 'warehouse_city',
+          'warehouse_state', 'warehouse_country', 'warehouse_phone',
+          'warehouse_email', 'warehouse_hours',
+        ]);
 
-    const warehouse = {
-      name: settings.warehouse_name || 'sXL Warehouse',
-      address: settings.warehouse_address || '',
-      city: settings.warehouse_city || '',
-      state: settings.warehouse_state || '',
-      country: settings.warehouse_country || '',
-      phone: settings.warehouse_phone || '',
-      email: settings.warehouse_email || '',
-      hours: settings.warehouse_hours || '',
-    };
+      const settings = {};
+      (settingsRows || []).forEach((row) => { settings[row.key] = row.value; });
+
+      warehouse = {
+        name: settings.warehouse_name || 'sXL Warehouse',
+        address: settings.warehouse_address || '',
+        city: settings.warehouse_city || '',
+        state: settings.warehouse_state || '',
+        country: settings.warehouse_country || '',
+        phone: settings.warehouse_phone || '',
+        email: settings.warehouse_email || '',
+        hours: settings.warehouse_hours || '',
+      };
+    } else {
+      // Sanitize values from request
+      warehouse = {
+        name: String(warehouse.name || '').trim() || 'sXL Warehouse',
+        address: String(warehouse.address || '').trim(),
+        city: String(warehouse.city || '').trim(),
+        state: String(warehouse.state || '').trim(),
+        country: String(warehouse.country || '').trim(),
+        phone: String(warehouse.phone || '').trim(),
+        email: String(warehouse.email || '').trim(),
+        hours: String(warehouse.hours || '').trim(),
+      };
+    }
 
     // Send email
     const result = await sendWarehouseDetails(shipment, warehouse);
