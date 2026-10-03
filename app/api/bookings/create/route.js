@@ -58,6 +58,8 @@ export async function POST(request) {
     const paymentMethod = body.paymentMethod || '';
     const freightBillTo = body.freightBillTo ? String(body.freightBillTo).trim() : null;
     const dutyTaxBillTo = body.dutyTaxBillTo ? String(body.dutyTaxBillTo).trim() : null;
+    const invoiceUrls = Array.isArray(body.invoiceUrls) ? body.invoiceUrls : [];
+    const packingListUrls = Array.isArray(body.packingListUrls) ? body.packingListUrls : [];
 
     if (!['AIR', 'SEA'].includes(shipMode)) return NextResponse.json({ success: false, error: 'Ship mode is required.' });
     if (shipMode === 'SEA' && !['LCL', 'FCL'].includes(seaLoadType)) {
@@ -78,9 +80,14 @@ export async function POST(request) {
     if (!paymentTerms || !paymentMethod) {
       return NextResponse.json({ success: false, error: 'Payment required.' });
     }
+    if (invoiceUrls.length === 0) {
+      return NextResponse.json({ success: false, error: 'At least one Invoice file is required.' });
+    }
+    if (packingListUrls.length === 0) {
+      return NextResponse.json({ success: false, error: 'At least one Packing List file is required.' });
+    }
 
     // Parcel type + Delivery Timeline
-    // Delivery Timeline is only required for Special Parcel (AIR).
     if (shipMode === 'AIR') {
       if (!body.parcelType) {
         return NextResponse.json({ success: false, error: 'Parcel Type is required for AIR shipments.' });
@@ -160,6 +167,13 @@ export async function POST(request) {
 
     // Country of origin
     const originCountry = shipment.originCountry ? String(shipment.originCountry).trim() : null;
+
+    // Uploaded documents (JSON)
+    const uploadedDocuments = {
+      invoices: invoiceUrls,
+      packingLists: packingListUrls,
+      uploadedAt: new Date().toISOString(),
+    };
 
     // Tracking number
     const shortForm = generateShortForm(shipper.name);
@@ -253,6 +267,7 @@ export async function POST(request) {
         packaging_type_custom: packagingTypeCustom || null,
         freight_bill_to: freightBillTo,
         duty_tax_bill_to: dutyTaxBillTo,
+        uploaded_documents: uploadedDocuments,
         currency: 'USD',
         payment_status: 'Unpaid',
         payment_terms: paymentTerms,
