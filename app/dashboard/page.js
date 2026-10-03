@@ -6,13 +6,10 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
-// Frozen column widths (first 3 columns)
-const COL_W_TRACKING = 170;
-const COL_W_MODE = 105;
-const COL_W_ROUTE = 170;
-const FROZEN_LEFT_TRACKING = 0;
-const FROZEN_LEFT_MODE = COL_W_TRACKING;
-const FROZEN_LEFT_ROUTE = COL_W_TRACKING + COL_W_MODE;
+// Column widths
+const COL_W_TRACKING = 160;
+const COL_W_MODE = 100;
+const COL_W_ROUTE = 160;
 
 const TD_STYLE = {
   padding: '10px 12px',
@@ -23,8 +20,6 @@ const TD_STYLE = {
   height: '48px',
   verticalAlign: 'middle'
 };
-
-const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -293,7 +288,8 @@ export default function DashboardPage() {
       ? { label: '✅ Total Paid', data: summary.totalPaid }
       : null;
 
-  function HeaderCell({ col, label, width, frozenLeft, hasShadow }) {
+  // Simple header cell (no sticky on th — sticky is on the tr)
+  function HeaderCell({ col, label, width }) {
     const isFilterable = ['tracking', 'mode', 'shipper', 'route', 'status', 'payment'].includes(col);
     const activeCount = (colFilters[col] || []).length;
     const isOpen = openFilter === col;
@@ -304,10 +300,6 @@ export default function DashboardPage() {
         fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
         background: isOpen ? '#DDE3E9' : '#E9ECEF', borderBottom: '2px solid #D0D6DB',
         whiteSpace: 'nowrap', width, minWidth: width,
-        position: 'sticky', top: 0,
-        zIndex: frozenLeft !== undefined ? 22 : 20,
-        ...(frozenLeft !== undefined ? { left: frozenLeft } : {}),
-        ...(hasShadow ? { boxShadow: FROZEN_SHADOW } : {})
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 12px' }}>
           <span>{label}{activeCount > 0 && <span style={{ marginLeft: '6px', color: '#FF6B00' }}>({activeCount})</span>}</span>
@@ -333,8 +325,7 @@ export default function DashboardPage() {
             style={{
               position: 'absolute',
               top: '100%',
-              left: frozenLeft !== undefined ? frozenLeft : 'auto',
-              right: frozenLeft !== undefined ? 'auto' : 0,
+              right: 0,
               minWidth: '200px', background: 'white',
               border: '1px solid #D0D6DB', borderRadius: '8px',
               boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 200,
@@ -497,10 +488,8 @@ export default function DashboardPage() {
 
         {!loading && !error && filtered.length > 0 && (
           <>
-            {/* ============ TABLE WRAPPER ============ */}
-            {/* The wrapper is the scroll container. The <thead> <tr> is sticky. */}
+            {/* ============ SIMPLE STICKY TABLE ============ */}
             <div
-              className="sxl-table-wrap"
               style={{
                 background: 'white',
                 borderRadius: '12px',
@@ -508,28 +497,26 @@ export default function DashboardPage() {
                 boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
                 overflow: 'auto',
                 maxHeight: '70vh',
-                position: 'relative',
               }}
             >
               <table
                 style={{
-                  borderCollapse: 'separate',
-                  borderSpacing: 0,
+                  borderCollapse: 'collapse',
                   fontSize: '0.85rem',
-                  minWidth: '1650px',
+                  minWidth: '1600px',
                   width: '100%',
                 }}
               >
-                <thead>
-                  {/* STICKY IS ON THE <tr> — most reliable cross-browser */}
-                  <tr style={{
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 20,
-                  }}>
-                    <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
-                    <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
-                    <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={FROZEN_LEFT_ROUTE} hasShadow={true} />
+                <thead style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10,
+                  background: '#E9ECEF',
+                }}>
+                  <tr>
+                    <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} />
+                    <HeaderCell col="mode" label="Mode" width={COL_W_MODE} />
+                    <HeaderCell col="route" label="Route" width={COL_W_ROUTE} />
                     <HeaderCell col="shipper" label="Shipper" width={150} />
                     <HeaderCell col="none" label="Recipient" width={150} />
                     <HeaderCell col="status" label="Status" width={140} />
@@ -539,7 +526,7 @@ export default function DashboardPage() {
                     <HeaderCell col="payment" label="Payment" width={120} />
                     <HeaderCell col="none" label="Booked" width={120} />
                     <HeaderCell col="none" label="ETA" width={125} />
-                    <HeaderCell col="none" label="Actions" width={300} />
+                    <HeaderCell col="none" label="Actions" width={280} />
                   </tr>
                 </thead>
                 <tbody>
@@ -552,14 +539,13 @@ export default function DashboardPage() {
                     const isCancelled = statusLower === 'cancelled';
                     const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
                     const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
-                    const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
                     const rowHasFiles = hasFiles(s);
 
                     return (
                       <tr key={i} style={{ background: rowBg }}>
-                        <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                        <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
-                        <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
+                        <td style={{ ...TD_STYLE, width: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: COL_W_ROUTE }}>{s.origin || '-'} → {s.destination || '-'}</td>
                         <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
                         <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
                         <td style={{ ...TD_STYLE, width: 140 }}>
@@ -581,7 +567,7 @@ export default function DashboardPage() {
                             {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                           </span>
                         </td>
-                        <td style={{ ...TD_STYLE, width: 300 }}>
+                        <td style={{ ...TD_STYLE, width: 280 }}>
                           <Link href={'/track?tn=' + s.trackingNumber} style={{ padding: '5px 10px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>View</Link>
                           <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>PDF</a>
                           {rowHasFiles && (
@@ -611,7 +597,6 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Cancel modal */}
       {cancelModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div style={{ background: 'white', maxWidth: '500px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
@@ -638,7 +623,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Files modal */}
       {filesModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div style={{ background: 'white', maxWidth: '600px', width: '100%', maxHeight: '85vh', overflowY: 'auto', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
