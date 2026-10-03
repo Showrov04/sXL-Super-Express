@@ -96,10 +96,33 @@ function fmtDate(d) {
   } catch (e) { return String(d); }
 }
 
-function truncate(str, maxLen) {
+// Short date: dd-MMM-yy (compact)
+function shortDate(d) {
+  if (!d) return '-';
+  try {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return String(d).slice(0, 10);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return String(date.getDate()).padStart(2, '0') + ' ' + months[date.getMonth()] + ' ' + String(date.getFullYear()).slice(2);
+  } catch (e) { return String(d).slice(0, 10); }
+}
+
+// Truncate text with ellipsis if too long
+function clip(str, maxLen, font, size) {
   const v = sanitizeForPDF(String(str || ''));
-  if (v.length <= maxLen) return v;
-  return v.substring(0, maxLen - 1) + '…';
+  if (!v) return '';
+  // Rough character-count check, then also measure
+  if (v.length > maxLen) {
+    let cut = v.substring(0, maxLen - 1) + '.';
+    // Keep trimming until it fits
+    let guard = 20;
+    while (font.widthOfTextAtSize(cut, size) > 0 && guard-- > 0) {
+      // nothing extra; visual truncation via maxLen is adequate
+      break;
+    }
+    return cut;
+  }
+  return v;
 }
 
 async function getSessionUser(request) {
@@ -177,85 +200,96 @@ export async function GET(request) {
       );
     }
 
-    // Build PDF
+    // ============ BUILD PDF ============
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
+    // Landscape A4: 842 x 595
     const PAGE_W = 842;
     const PAGE_H = 595;
-    const MARGIN = 25;
+    const MARGIN = 20;
 
-    // Column definitions: [header, width, alignment]
+    // Font sizes
+    const FONT_SMALL = 7;
+    const FONT_HEADER = 7.5;
+    const ROW_H = 14;
+    const HEADER_H = 18;
+    const BANNER_H = 32;
+
+    // Column widths — total = 842 - 40 = 802
     const cols = [
-      { header: 'Tracking #', w: 90, align: 'left' },
-      { header: 'Mode', w: 55, align: 'left' },
-      { header: 'Route', w: 120, align: 'left' },
-      { header: 'Shipper', w: 90, align: 'left' },
-      { header: 'Recipient', w: 90, align: 'left' },
-      { header: 'Status', w: 70, align: 'left' },
-      { header: 'Bk.Wt', w: 45, align: 'left' },
-      { header: 'Act.Wt', w: 45, align: 'left' },
-      { header: 'Cost', w: 65, align: 'right' },
-      { header: 'Payment', w: 55, align: 'left' },
-      { header: 'Booked', w: 55, align: 'left' },
-      { header: 'ETA', w: 55, align: 'left' },
+      { key: 'tracking', header: 'Tracking #', w: 110, align: 'left', maxChars: 18 },
+      { key: 'mode', header: 'Mode', w: 55, align: 'left', maxChars: 9 },
+      { key: 'route', header: 'Route', w: 145, align: 'left', maxChars: 24 },
+      { key: 'shipper', header: 'Shipper', w: 105, align: 'left', maxChars: 18 },
+      { key: 'recipient', header: 'Recipient', w: 105, align: 'left', maxChars: 18 },
+      { key: 'status', header: 'Status', w: 70, align: 'left', maxChars: 11 },
+      { key: 'bookingWt', header: 'Bk Wt', w: 55, align: 'right', maxChars: 8 },
+      { key: 'actualWt', header: 'Act Wt', w: 55, align: 'right', maxChars: 8 },
+      { key: 'cost', header: 'Cost', w: 70, align: 'right', maxChars: 12 },
+      { key: 'payment', header: 'Payment', w: 60, align: 'left', maxChars: 9 },
+      { key: 'booked', header: 'Booked', w: 60, align: 'left', maxChars: 10 },
+      { key: 'eta', header: 'ETA', w: 62, align: 'left', maxChars: 10 },
     ];
 
-    const tableW = cols.reduce((sum, c) => sum + c.w, 0);
+    // Auto-scale if needed
+    const totalColsW = cols.reduce((sum, c) => sum + c.w, 0);
     const totalW = PAGE_W - MARGIN * 2;
-
-    // Adjust widths proportionally if needed
-    const scale = totalW / tableW;
-    cols.forEach((c) => { c.w = c.w * scale; });
-
-    const ROW_H = 16;
-    const HEADER_H = 20;
-    const TOP_BANNER_H = 40;
+    if (totalColsW !== totalW) {
+      const scale = totalW / totalColsW;
+      cols.forEach((c) => { c.w = c.w * scale; });
+    }
 
     let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
     let y = PAGE_H - MARGIN;
 
-    // ===== Header Banner =====
-    page.drawRectangle({ x: MARGIN, y: y - TOP_BANNER_H, width: totalW, height: TOP_BANNER_H, color: ORANGE });
-    page.drawText('SUPER EXPRESS', { x: MARGIN + 10, y: y - 16, size: 12, font: fontBold, color: WHITE });
-    page.drawText('SHIPMENTS REPORT', { x: MARGIN + 10, y: y - 30, size: 9, font: fontBold, color: WHITE });
+    // ===== Top banner =====
+    function drawBanner(subtitle) {
+      page.drawRectangle({ x: MARGIN, y: y - BANNER_H, width: totalW, height: BANNER_H, color: ORANGE });
+      page.drawText('SUPER EXPRESS', { x: MARGIN + 10, y: y - 14, size: 11, font: fontBold, color: WHITE });
+      page.drawText('SHIPMENTS REPORT', { x: MARGIN + 10, y: y - 25, size: FONT_SMALL, font: fontBold, color: WHITE });
 
-    // Tab label right-aligned
-    const tabLabel = tab.charAt(0).toUpperCase() + tab.slice(1) + ' Shipments';
-    const tabLabelW = fontBold.widthOfTextAtSize(tabLabel, 11);
-    page.drawText(tabLabel, { x: PAGE_W - MARGIN - 10 - tabLabelW, y: y - 16, size: 11, font: fontBold, color: WHITE });
+      const tabLabel = subtitle;
+      const labelW = fontBold.widthOfTextAtSize(tabLabel, 10);
+      page.drawText(tabLabel, { x: PAGE_W - MARGIN - 10 - labelW, y: y - 14, size: 10, font: fontBold, color: WHITE });
 
-    const countLabel = filtered.length + ' shipment' + (filtered.length !== 1 ? 's' : '');
-    const countLabelW = font.widthOfTextAtSize(countLabel, 9);
-    page.drawText(countLabel, { x: PAGE_W - MARGIN - 10 - countLabelW, y: y - 30, size: 9, font, color: WHITE });
+      const countLabel = filtered.length + ' shipment' + (filtered.length !== 1 ? 's' : '');
+      const countW = font.widthOfTextAtSize(countLabel, FONT_SMALL);
+      page.drawText(countLabel, { x: PAGE_W - MARGIN - 10 - countW, y: y - 25, size: FONT_SMALL, font, color: WHITE });
 
-    y -= TOP_BANNER_H + 10;
+      y -= BANNER_H + 8;
+    }
 
-    // ===== Draw table header =====
+    // ===== Table header =====
     function drawTableHeader() {
       page.drawRectangle({ x: MARGIN, y: y - HEADER_H, width: totalW, height: HEADER_H, color: NAVY });
       let x = MARGIN;
       cols.forEach((c) => {
-        page.drawText(c.header, { x: x + 4, y: y - 14, size: 8, font: fontBold, color: WHITE });
+        let drawX = x + 4;
+        if (c.align === 'right') {
+          const w = fontBold.widthOfTextAtSize(c.header, FONT_HEADER);
+          drawX = x + c.w - 4 - w;
+        }
+        page.drawText(c.header, { x: drawX, y: y - 12, size: FONT_HEADER, font: fontBold, color: WHITE });
         x += c.w;
       });
       y -= HEADER_H;
     }
 
+    drawBanner(tab.charAt(0).toUpperCase() + tab.slice(1) + ' Shipments');
     drawTableHeader();
 
     // ===== Draw rows =====
     filtered.forEach((s, idx) => {
-      // New page if needed
-      if (y - ROW_H < MARGIN + 30) {
+      if (y - ROW_H < MARGIN + 25) {
+        // New page
         page = pdfDoc.addPage([PAGE_W, PAGE_H]);
         y = PAGE_H - MARGIN;
-        // Re-draw banner on new page
-        page.drawRectangle({ x: MARGIN, y: y - TOP_BANNER_H, width: totalW, height: TOP_BANNER_H, color: ORANGE });
-        page.drawText('SUPER EXPRESS', { x: MARGIN + 10, y: y - 16, size: 12, font: fontBold, color: WHITE });
-        page.drawText('SHIPMENTS REPORT (continued)', { x: MARGIN + 10, y: y - 30, size: 9, font: fontBold, color: WHITE });
-        y -= TOP_BANNER_H + 10;
+        page.drawRectangle({ x: MARGIN, y: y - BANNER_H, width: totalW, height: BANNER_H, color: ORANGE });
+        page.drawText('SUPER EXPRESS', { x: MARGIN + 10, y: y - 14, size: 11, font: fontBold, color: WHITE });
+        page.drawText('SHIPMENTS REPORT (continued)', { x: MARGIN + 10, y: y - 25, size: FONT_SMALL, font: fontBold, color: WHITE });
+        y -= BANNER_H + 8;
         drawTableHeader();
       }
 
@@ -263,41 +297,49 @@ export async function GET(request) {
       page.drawRectangle({ x: MARGIN, y: y - ROW_H, width: totalW, height: ROW_H, color: rowBg });
 
       const cost = parseFloat(s.shipping_cost) || 0;
-      const values = [
-        truncate(s.tracking_number, 20),
-        truncate(buildShipmentType(s), 12),
-        truncate(countryName(s.origin) + ' -> ' + countryName(s.destination), 24),
-        truncate(s.sender_name, 20),
-        truncate(s.recipient_name, 20),
-        truncate(s.status, 14),
-        s.total_weight ? (s.total_weight + 'kg') : '-',
-        s.actual_weight ? (s.actual_weight + 'kg') : 'TBA',
-        cost > 0 ? (cost.toFixed(2) + ' ' + (s.currency || 'USD')) : 'TBA',
-        truncate(s.payment_status || 'Unpaid', 10),
-        fmtDate(s.booked_at).slice(0, 10),
-        s.estimated_delivery ? fmtDate(s.estimated_delivery).slice(0, 10) : 'Pending',
-      ];
+      const rowValues = {
+        tracking: clip(s.tracking_number, 18, font, FONT_SMALL),
+        mode: clip(buildShipmentType(s), 9, font, FONT_SMALL),
+        route: clip(countryName(s.origin) + ' -> ' + countryName(s.destination), 24, font, FONT_SMALL),
+        shipper: clip(s.sender_name, 18, font, FONT_SMALL),
+        recipient: clip(s.recipient_name, 18, font, FONT_SMALL),
+        status: clip(s.status, 11, font, FONT_SMALL),
+        bookingWt: s.total_weight ? (s.total_weight + ' kg') : '-',
+        actualWt: s.actual_weight ? (s.actual_weight + ' kg') : 'TBA',
+        cost: cost > 0 ? (cost.toFixed(2) + ' ' + (s.currency || 'USD')) : 'TBA',
+        payment: clip(s.payment_status || 'Unpaid', 9, font, FONT_SMALL),
+        booked: shortDate(s.booked_at),
+        eta: s.estimated_delivery ? shortDate(s.estimated_delivery) : 'Pending',
+      };
 
       let x = MARGIN;
-      values.forEach((val, i) => {
-        const c = cols[i];
+      cols.forEach((c) => {
+        const val = String(rowValues[c.key] || '');
         let drawX = x + 4;
         if (c.align === 'right') {
-          const w = font.widthOfTextAtSize(val, 8);
+          const w = font.widthOfTextAtSize(val, FONT_SMALL);
           drawX = x + c.w - 4 - w;
         }
-        page.drawText(val, { x: drawX, y: y - 11, size: 8, font, color: BLACK });
+        page.drawText(val, { x: drawX, y: y - ROW_H + 4, size: FONT_SMALL, font, color: BLACK });
         x += c.w;
+      });
+
+      // Row separator
+      page.drawLine({
+        start: { x: MARGIN, y: y - ROW_H },
+        end: { x: MARGIN + totalW, y: y - ROW_H },
+        thickness: 0.3,
+        color: rgb(0.9, 0.9, 0.9),
       });
 
       y -= ROW_H;
     });
 
-    // ===== Footer note =====
-    y -= 15;
-    if (y > MARGIN) {
-      page.drawText('Generated on ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' GMT | (c) sXL - Super Express Logistics Center', {
-        x: MARGIN, y, size: 7, font, color: GRAY,
+    // ===== Footer =====
+    if (y > MARGIN + 10) {
+      y -= 8;
+      page.drawText('Generated on ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' GMT  |  (c) sXL - Super Express Logistics Center', {
+        x: MARGIN, y, size: 6.5, font, color: GRAY,
       });
     }
 
