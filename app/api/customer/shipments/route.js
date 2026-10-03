@@ -121,7 +121,7 @@ export async function GET(request) {
     shipments.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
-      const isCancelled = status === 'cancelled';
+      const isCancelled = status === 'cancelled' || status.includes('cancellation');
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
       if (isCancelled) { counts.cancelled++; return; }
@@ -133,7 +133,7 @@ export async function GET(request) {
     const filtered = shipments.filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
-      const isCancelled = status === 'cancelled';
+      const isCancelled = status === 'cancelled' || status.includes('cancellation');
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
 
@@ -170,18 +170,16 @@ export async function GET(request) {
         estimatedDelivery: s.estimated_delivery,
         lastUpdate: s.last_update,
         pdfUrl: s.pdf_url,
-        // new fields
         originCountry: s.origin_country || null,
         freightBillTo: s.freight_bill_to || null,
         dutyTaxBillTo: s.duty_tax_bill_to || null,
+        // NEW
+        customService: s.custom_service || null,
+        deliveryService: s.delivery_service || null,
         uploadedDocuments: s.uploaded_documents || null,
       };
     });
 
-    // ===== Summary computation =====
-    // For "Active" → active billing
-    // For "Awaiting" → outstanding (existing calculation preserved + total)
-    // For "Paid" → total paid
     const activeShipments = filtered.filter((s) => {
       const status = String(s.status || '').toLowerCase();
       return status !== 'delivered' && status !== 'cancelled';
@@ -212,7 +210,6 @@ export async function GET(request) {
       },
     };
 
-    // Existing outstanding calculation for 'awaiting' tab
     let outstanding = null;
     if (tab === 'awaiting') {
       let total = 0;
