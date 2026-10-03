@@ -102,6 +102,9 @@ export default function BookPage() {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [freightBillTo, setFreightBillTo] = useState('');
   const [dutyTaxBillTo, setDutyTaxBillTo] = useState('');
+  const [invoiceFiles, setInvoiceFiles] = useState([]);
+  const [packingListFiles, setPackingListFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('sxl_user');
@@ -276,6 +279,8 @@ export default function BookPage() {
     if (paymentTerms === 'Credit Account' && !creditApproved) {
       return 'Credit Account is not available. Please choose Prepaid or Collect.';
     }
+    if (invoiceFiles.length === 0) return 'Please upload at least one Invoice file.';
+    if (packingListFiles.length === 0) return 'Please upload at least one Packing List file.';
     return null;
   }
 
@@ -295,6 +300,56 @@ export default function BookPage() {
   }
 
   function goPrev() { setError(''); setStep(getPrevStep(step)); }
+
+  async function uploadFileToSupabase(file, kind) {
+    const token = localStorage.getItem('sxl_token');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('kind', kind);
+
+    const res = await fetch('/api/bookings/upload', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+      body: formData,
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Upload failed');
+    return data.url;
+  }
+
+  function handleFileDrop(e, kind) {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length === 0) return;
+    addFiles(files, kind);
+  }
+
+  function handleFileInput(e, kind) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    addFiles(files, kind);
+  }
+
+  function addFiles(files, kind) {
+    const validFiles = files.filter((f) => f.size <= 10 * 1024 * 1024);
+    if (validFiles.length !== files.length) {
+      setError('Some files exceed the 10 MB limit and were skipped.');
+    }
+    if (kind === 'invoice') setInvoiceFiles((prev) => [...prev, ...validFiles]);
+    else setPackingListFiles((prev) => [...prev, ...validFiles]);
+  }
+
+  function removeFile(kind, index) {
+    if (kind === 'invoice') setInvoiceFiles((prev) => prev.filter((_, i) => i !== index));
+    else setPackingListFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
 
   async function saveAddressIfChecked(type, data, checked) {
     if (!checked) return;
@@ -322,6 +377,27 @@ export default function BookPage() {
     await saveAddressIfChecked('Shipper', shipper, saveShipper);
     await saveAddressIfChecked('Consignee', consignee, saveConsignee);
 
+    // Upload invoice + packing list files first
+    let invoiceUrls = [];
+    let packingListUrls = [];
+    try {
+      setUploading(true);
+      for (const file of invoiceFiles) {
+        const url = await uploadFileToSupabase(file, 'invoice');
+        invoiceUrls.push({ name: file.name, url, size: file.size });
+      }
+      for (const file of packingListFiles) {
+        const url = await uploadFileToSupabase(file, 'packingList');
+        packingListUrls.push({ name: file.name, url, size: file.size });
+      }
+      setUploading(false);
+    } catch (uploadErr) {
+      setError('File upload failed: ' + uploadErr.message);
+      setUploading(false);
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/bookings/create', {
         method: 'POST',
@@ -334,6 +410,7 @@ export default function BookPage() {
           shipper, consignee, shipment,
           freightBillTo, dutyTaxBillTo,
           paymentTerms, paymentMethod,
+          invoiceUrls, packingListUrls,
         }),
       });
       const data = await res.json();
@@ -1010,6 +1087,97 @@ export default function BookPage() {
                   <button key={m} onClick={() => setPaymentMethod(m)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (paymentMethod === m ? '#FF6B00' : '#E9ECEF'), background: paymentMethod === m ? '#FF6B00' : 'white', color: paymentMethod === m ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>{m}</button>
                 ))}
               </div>
+
+              <div style={{ marginTop: '25px', paddingTop: '20px', borderTop: '2px solid #F1F3F5' }}>
+                <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>📎 Upload Documents *</h4>
+                <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
+                  Please upload your <b>Invoice</b> and <b>Packing List</b>. Both are required to submit this booking.
+                  Max 10 MB per file. Accepted: PDF, Excel, Word, Images.
+                </p>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#343A40', marginBottom: '6px' }}>
+                    Invoice * ({invoiceFiles.length} file{invoiceFiles.length !== 1 ? 's' : ''})
+                  </label>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => handleFileDrop(e, 'invoice')}
+                    style={{
+                      border: '2px dashed ' + (invoiceFiles.length > 0 ? '#00A86B' : '#FF6B00'),
+                      background: invoiceFiles.length > 0 ? '#E8F7EF' : '#FFF5EB',
+                      borderRadius: '10px', padding: '25px 20px', textAlign: 'center',
+                      cursor: 'pointer', position: 'relative'
+                    }}
+                    onClick={() => document.getElementById('invoice-file-input').click()}
+                  >
+                    <input
+                      id="invoice-file-input"
+                      type="file"
+                      multiple
+                      onChange={(e) => handleFileInput(e, 'invoice')}
+                      style={{ display: 'none' }}
+                    />
+                    <div style={{ fontSize: '1.8rem', marginBottom: '5px' }}>📄</div>
+                    <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '3px' }}>
+                      Drag & drop Invoice here, or click to browse
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#6C757D' }}>PDF, XLSX, XLS, DOC, DOCX, JPG, PNG · Max 10 MB each</div>
+                  </div>
+
+                  {invoiceFiles.length > 0 && (
+                    <div style={{ marginTop: '10px' }}>
+                      {invoiceFiles.map((f, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#F8F9FA', borderRadius: '6px', marginBottom: '5px', fontSize: '0.85rem' }}>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px' }}>📄 {f.name} <span style={{ color: '#6C757D' }}>({formatBytes(f.size)})</span></span>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); removeFile('invoice', i); }} style={{ padding: '4px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#343A40', marginBottom: '6px' }}>
+                    Packing List * ({packingListFiles.length} file{packingListFiles.length !== 1 ? 's' : ''})
+                  </label>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => handleFileDrop(e, 'packingList')}
+                    style={{
+                      border: '2px dashed ' + (packingListFiles.length > 0 ? '#00A86B' : '#FF6B00'),
+                      background: packingListFiles.length > 0 ? '#E8F7EF' : '#FFF5EB',
+                      borderRadius: '10px', padding: '25px 20px', textAlign: 'center',
+                      cursor: 'pointer', position: 'relative'
+                    }}
+                    onClick={() => document.getElementById('packing-file-input').click()}
+                  >
+                    <input
+                      id="packing-file-input"
+                      type="file"
+                      multiple
+                      onChange={(e) => handleFileInput(e, 'packingList')}
+                      style={{ display: 'none' }}
+                    />
+                    <div style={{ fontSize: '1.8rem', marginBottom: '5px' }}>📋</div>
+                    <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '3px' }}>
+                      Drag & drop Packing List here, or click to browse
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#6C757D' }}>PDF, XLSX, XLS, DOC, DOCX, JPG, PNG · Max 10 MB each</div>
+                  </div>
+
+                  {packingListFiles.length > 0 && (
+                    <div style={{ marginTop: '10px' }}>
+                      {packingListFiles.map((f, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#F8F9FA', borderRadius: '6px', marginBottom: '5px', fontSize: '0.85rem' }}>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px' }}>📋 {f.name} <span style={{ color: '#6C757D' }}>({formatBytes(f.size)})</span></span>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); removeFile('packingList', i); }} style={{ padding: '4px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
                 <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
@@ -1060,6 +1228,8 @@ export default function BookPage() {
                       <div><b>Total Value:</b> {shipment.totalValue} {shipment.valueCurrency}</div>
                       {showBillingParty && freightBillTo && <div><b>Freight Bill To:</b> {freightBillTo}</div>}
                       {showBillingParty && dutyTaxBillTo && <div><b>Duty & Taxes Bill To:</b> {dutyTaxBillTo}</div>}
+                      {invoiceFiles.length > 0 && <div><b>Invoices Attached:</b> {invoiceFiles.length} file(s)</div>}
+                      {packingListFiles.length > 0 && <div><b>Packing Lists Attached:</b> {packingListFiles.length} file(s)</div>}
                     </div>
                   </div>
 
@@ -1133,9 +1303,9 @@ export default function BookPage() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
-                <button onClick={goPrev} disabled={loading} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
-                <button onClick={handleSubmit} disabled={loading} style={{ padding: '14px 30px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit' }}>
-                  {loading ? 'Submitting...' : 'Submit Booking'}
+                <button onClick={goPrev} disabled={loading || uploading} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
+                <button onClick={handleSubmit} disabled={loading || uploading} style={{ padding: '14px 30px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem', cursor: (loading || uploading) ? 'not-allowed' : 'pointer', opacity: (loading || uploading) ? 0.6 : 1, fontFamily: 'inherit' }}>
+                  {uploading ? 'Uploading files...' : (loading ? 'Submitting...' : 'Submit Booking')}
                 </button>
               </div>
             </>
