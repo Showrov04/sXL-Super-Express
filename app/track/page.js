@@ -269,6 +269,42 @@ function TrackContent() {
               )}
 
               <div style={{ padding: '30px' }}>
+                {/* ===== ESTIMATED DELIVERY (HIGHLIGHTED) ===== */}
+                <div style={{
+                  background: '#FFF5EB',
+                  border: '2px solid #FF6B00',
+                  borderRadius: '12px',
+                  padding: '18px 22px',
+                  marginBottom: '25px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '10px'
+                }}>
+                  <div>
+                    <div style={{
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1.5px',
+                      color: '#8B4500',
+                      fontWeight: 700,
+                      marginBottom: '4px'
+                    }}>
+                      📅 Estimated Delivery
+                    </div>
+                    <div style={{
+                      fontSize: '1.6rem',
+                      fontWeight: 800,
+                      color: '#FF6B00',
+                      letterSpacing: '0.3px'
+                    }}>
+                      {result.shipment.estimatedDelivery ? formatDate(result.shipment.estimatedDelivery) : 'Pending'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ===== OTHER DETAILS GRID ===== */}
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -285,7 +321,6 @@ function TrackContent() {
                     { label: 'To', value: result.shipment.destination || '—' },
                     { label: 'Weight', value: `${result.shipment.weight || '—'} kg` },
                     { label: 'Packages', value: result.shipment.packages || '—' },
-                    { label: 'Est. Delivery', value: result.shipment.estimatedDelivery ? formatDate(result.shipment.estimatedDelivery) : 'Pending' },
                     { label: 'Last Update', value: formatDateTime(result.shipment.lastUpdate) },
                   ].map((item, i) => (
                     <div key={i}>
