@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../components/Header';
@@ -20,6 +20,11 @@ export default function DashboardPage() {
   });
   const [error, setError] = useState('');
 
+  // Filters
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterMode, setFilterMode] = useState('all');
+
   const [cancelModal, setCancelModal] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -37,6 +42,13 @@ export default function DashboardPage() {
     loadData(tab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, tab]);
+
+  // Reset filters on tab change
+  useEffect(() => {
+    setSearchText('');
+    setFilterStatus('all');
+    setFilterMode('all');
+  }, [tab]);
 
   async function loadData(activeTab) {
     setLoading(true);
@@ -77,6 +89,32 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }
+
+  // Client-side filter
+  const filtered = useMemo(() => {
+    let list = shipments;
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      list = list.filter((s) =>
+        String(s.trackingNumber || '').toLowerCase().includes(q) ||
+        String(s.senderName || '').toLowerCase().includes(q) ||
+        String(s.recipientName || '').toLowerCase().includes(q)
+      );
+    }
+    if (filterStatus !== 'all') {
+      list = list.filter((s) => String(s.status || '').toLowerCase() === filterStatus.toLowerCase());
+    }
+    if (filterMode !== 'all') {
+      list = list.filter((s) => String(s.shipMode || '').toUpperCase() === filterMode.toUpperCase());
+    }
+    return list;
+  }, [shipments, searchText, filterStatus, filterMode]);
+
+  // Available statuses for the dropdown
+  const statusOptions = useMemo(() => {
+    const set = new Set(shipments.map((s) => s.status).filter(Boolean));
+    return Array.from(set).sort();
+  }, [shipments]);
 
   async function submitCancel() {
     setCancelError('');
@@ -137,14 +175,13 @@ export default function DashboardPage() {
     return { bg: '#FFF3CD', color: '#856404' };
   }
 
-  // Determine summary card by tab
-  const summaryCardConfig = tab === 'active'
-    ? { label: '💰 Active Billing', data: summary.activeBilling }
-    : tab === 'awaiting'
-    ? { label: '💵 Total Outstanding', data: { total: outstanding?.total || 0, currency: outstanding?.currency || 'USD', count: outstanding?.count || 0 } }
-    : tab === 'paid'
-    ? { label: '✅ Total Paid', data: summary.totalPaid }
-    : null;
+  // Determine summary card by tab (only for awaiting + paid)
+  const summaryCardConfig =
+    tab === 'awaiting'
+      ? { label: '💵 Total Outstanding', data: { total: outstanding?.total || 0, currency: outstanding?.currency || 'USD', count: outstanding?.count || 0 } }
+      : tab === 'paid'
+      ? { label: '✅ Total Paid', data: summary.totalPaid }
+      : null;
 
   if (!user) {
     return (
@@ -191,7 +228,7 @@ export default function DashboardPage() {
           <TabButton active={tab === 'cancelled'} onClick={() => setTab('cancelled')} label="⚫ Cancelled" count={counts.cancelled} badgeBg="#E9ECEF" badgeColor="#495057" />
         </div>
 
-        {/* Summary Card */}
+        {/* Summary Card (only for awaiting + paid) */}
         {summaryCardConfig && !loading && !error && (
           <div style={{
             background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
@@ -210,6 +247,60 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Filter Bar */}
+        {!loading && !error && (
+          <div style={{
+            background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+            padding: '15px', marginBottom: '20px',
+            display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center'
+          }}>
+            <input
+              type="text"
+              placeholder="🔍 Search tracking, shipper, recipient..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              style={{
+                flex: 1, minWidth: '220px', padding: '10px 14px',
+                border: '2px solid #E9ECEF', borderRadius: '8px',
+                fontSize: '0.9rem', fontFamily: 'inherit'
+              }}
+            />
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              style={{
+                padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px',
+                fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '150px'
+              }}
+            >
+              <option value="all">All Statuses</option>
+              {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              value={filterMode}
+              onChange={(e) => setFilterMode(e.target.value)}
+              style={{
+                padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px',
+                fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '120px'
+              }}
+            >
+              <option value="all">All Modes</option>
+              <option value="SEA">SEA</option>
+              <option value="AIR">AIR</option>
+            </select>
+            <button
+              onClick={() => { setSearchText(''); setFilterStatus('all'); setFilterMode('all'); }}
+              style={{
+                padding: '10px 16px', background: '#E9ECEF', color: '#003366',
+                border: 'none', borderRadius: '8px', fontWeight: 700,
+                fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit'
+              }}
+            >
+              ✕ Clear
+            </button>
+          </div>
+        )}
+
         {loading && (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div style={{ width: '45px', height: '45px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 15px' }} />
@@ -223,42 +314,36 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {!loading && !error && tab === 'awaiting' && outstanding && outstanding.items.length > 0 && (
-          <div style={{ marginBottom: '20px' }}>
-            {outstanding.items.map((it, i) => (
-              <div key={i} style={{ background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '15px 20px', marginBottom: '10px', borderLeft: '5px solid #FFE5B4' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                  <div>
-                    <div style={{ fontWeight: 800, color: '#003366', fontSize: '1rem' }}>{it.trackingNumber}</div>
-                    <div style={{ color: '#6C757D', fontSize: '0.85rem' }}>{it.recipientName} - {it.destination}</div>
-                  </div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#FF6B00' }}>
-                    {it.currency} {Number(it.cost).toFixed(2)}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!loading && !error && shipments.length === 0 && (
+        {!loading && !error && filtered.length === 0 && (
           <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
-            No shipments in this category.
+            {shipments.length === 0 ? 'No shipments in this category.' : 'No shipments match your filters.'}
           </div>
         )}
 
-        {!loading && !error && shipments.length > 0 && (
-          <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '1400px' }}>
+        {!loading && !error && filtered.length > 0 && (
+          <div style={{
+            background: 'white', borderRadius: '10px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+            overflow: 'auto', maxHeight: '70vh'
+          }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1400px' }}>
               <thead>
-                <tr style={{ background: '#F8F9FA' }}>
+                <tr>
                   {['Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status', 'Booking Wt', 'Actual Wt', 'Cost', 'Payment', 'Booked', 'ETA', 'Actions'].map((h) => (
-                    <th key={h} style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.72rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF', whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{
+                      padding: '14px 12px', textAlign: 'left', fontWeight: 700,
+                      color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      background: '#F1F3F5',
+                      borderBottom: '2px solid #E9ECEF',
+                      position: 'sticky', top: 0, zIndex: 5,
+                      whiteSpace: 'nowrap'
+                    }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {shipments.map((s, i) => {
+                {filtered.map((s, i) => {
                   const sc = statusClass(s.status);
                   const pc = paymentClass(s.paymentStatus);
                   const statusLower = String(s.status).toLowerCase();
@@ -266,39 +351,44 @@ export default function DashboardPage() {
                   const isCancellationPending = statusLower.includes('cancellation');
                   const isCancelled = statusLower === 'cancelled';
                   const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
+                  const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
 
                   return (
-                    <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
-                      <td style={{ padding: '12px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                      <td style={{ padding: '12px' }}>{s.shipmentType || s.shipMode || '-'}</td>
-                      <td style={{ padding: '12px' }}>{s.origin || '-'} → {s.destination || '-'}</td>
-                      <td style={{ padding: '12px' }}>{s.senderName || '-'}</td>
-                      <td style={{ padding: '12px' }}>{s.recipientName || '-'}</td>
-                      <td style={{ padding: '12px' }}>
+                    <tr
+                      key={i}
+                      style={{ background: rowBg, transition: 'background 0.15s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#FFF5EB'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = rowBg; }}
+                    >
+                      <td style={{ padding: '10px 12px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366', borderBottom: '1px solid #F1F3F5' }}>{s.trackingNumber}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.shipmentType || s.shipMode || '-'}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.origin || '-'} → {s.destination || '-'}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.senderName || '-'}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.recipientName || '-'}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>
                         <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                           {s.status}
                         </span>
                       </td>
-                      <td style={{ padding: '12px' }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
-                      <td style={{ padding: '12px' }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
-                      <td style={{ padding: '12px' }}>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>
                         {hasCost
                           ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
                           : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                       </td>
-                      <td style={{ padding: '12px' }}>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>
                         <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
                           {s.paymentStatus || 'Unpaid'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatDate(s.bookedAt)}</td>
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', borderBottom: '1px solid #F1F3F5' }}>{formatDate(s.bookedAt)}</td>
+                      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', borderBottom: '1px solid #F1F3F5' }}>
                         <span style={{ color: '#FF6B00', fontWeight: 800 }}>
                           {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
-                        {/* Only show actions on Active tab */}
+                      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', borderBottom: '1px solid #F1F3F5' }}>
                         {tab === 'active' && (
                           <>
                             <Link href={'/track?tn=' + s.trackingNumber} style={{
@@ -347,6 +437,12 @@ export default function DashboardPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!loading && !error && filtered.length > 0 && (
+          <div style={{ marginTop: '12px', textAlign: 'right', fontSize: '0.85rem', color: '#6C757D' }}>
+            Showing <b>{filtered.length}</b> of <b>{shipments.length}</b> shipment{shipments.length !== 1 ? 's' : ''}
           </div>
         )}
       </div>
