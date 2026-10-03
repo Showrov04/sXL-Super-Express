@@ -9,25 +9,12 @@ import BillingPanel from '../components/BillingPanel';
 import CancellationPanel from '../components/CancellationPanel';
 import CreditRequestsPanel from '../components/CreditRequestsPanel';
 
-const COL_W_TRACKING = 160;
+const COL_W_TRACKING = 170;
 const COL_W_MODE = 105;
 const COL_W_ROUTE = 170;
 const FROZEN_LEFT_TRACKING = 0;
 const FROZEN_LEFT_MODE = COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE = COL_W_TRACKING + COL_W_MODE;
-
-const TH_STYLE = {
-  padding: '14px 12px',
-  textAlign: 'left',
-  fontWeight: 700,
-  color: '#003366',
-  fontSize: '0.72rem',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
-  background: '#E9ECEF',
-  borderBottom: '2px solid #D0D6DB',
-  whiteSpace: 'nowrap'
-};
 
 const TD_STYLE = {
   padding: '10px 12px',
@@ -118,17 +105,26 @@ function TopTab({ active, onClick, label }) {
 function ShipmentsPanel() {
   const [tab, setTab] = useState('active');
   const [shipperFilter, setShipperFilter] = useState('');
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterMode, setFilterMode] = useState('all');
-  const [shipperList, setShipperList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
   const [counts, setCounts] = useState({ active: 0, awaiting: 0, paid: 0, total: 0 });
+  const [shipperList, setShipperList] = useState([]);
   const [error, setError] = useState('');
+
+  const [colFilters, setColFilters] = useState({
+    tracking: [],
+    mode: [],
+    shipper: [],
+    route: [],
+    status: [],
+    payment: [],
+  });
+  const [openFilter, setOpenFilter] = useState(null);
+  const [filterSearch, setFilterSearch] = useState('');
 
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const downloadMenuRef = useRef(null);
+  const filterDropdownRef = useRef(null);
 
   const [quTn, setQuTn] = useState('');
   const [quCurrentStatus, setQuCurrentStatus] = useState('');
@@ -148,9 +144,9 @@ function ShipmentsPanel() {
   }, [tab, shipperFilter]);
 
   useEffect(() => {
-    setSearch('');
-    setFilterStatus('all');
-    setFilterMode('all');
+    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
+    setOpenFilter(null);
+    setFilterSearch('');
     setShowDownloadMenu(false);
   }, [tab]);
 
@@ -159,12 +155,14 @@ function ShipmentsPanel() {
       if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target)) {
         setShowDownloadMenu(false);
       }
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target)) {
+        setOpenFilter(null);
+        setFilterSearch('');
+      }
     }
-    if (showDownloadMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showDownloadMenu]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   async function loadShipments() {
     setLoading(true);
@@ -198,32 +196,54 @@ function ShipmentsPanel() {
     } catch (err) { setError('Connection error.'); setLoading(false); }
   }
 
-  function handleSearch(e) { e.preventDefault(); loadShipments(); }
+  function getColumnValue(s, col) {
+    if (col === 'tracking') return s.trackingNumber || '';
+    if (col === 'mode') return s.shipmentType || s.shipMode || '';
+    if (col === 'shipper') return s.senderName || '';
+    if (col === 'route') return (s.origin || '') + ' → ' + (s.destination || '');
+    if (col === 'status') return s.status || '';
+    if (col === 'payment') return s.paymentStatus || '';
+    return '';
+  }
 
-  // Client-side filtered list
   const filtered = useMemo(() => {
     let list = shipments;
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter((s) =>
-        String(s.trackingNumber || '').toLowerCase().includes(q) ||
-        String(s.senderName || '').toLowerCase().includes(q) ||
-        String(s.recipientName || '').toLowerCase().includes(q)
-      );
-    }
-    if (filterStatus !== 'all') {
-      list = list.filter((s) => String(s.status || '').toLowerCase() === filterStatus.toLowerCase());
-    }
-    if (filterMode !== 'all') {
-      list = list.filter((s) => String(s.shipMode || '').toUpperCase() === filterMode.toUpperCase());
-    }
+    Object.entries(colFilters).forEach(([col, values]) => {
+      if (values.length > 0) {
+        list = list.filter((s) => values.includes(getColumnValue(s, col)));
+      }
+    });
     return list;
-  }, [shipments, search, filterStatus, filterMode]);
+  }, [shipments, colFilters]);
 
-  const statusOptions = useMemo(() => {
-    const set = new Set(shipments.map((s) => s.status).filter(Boolean));
+  function getUniqueValues(col) {
+    const set = new Set();
+    shipments.forEach((s) => {
+      const v = getColumnValue(s, col);
+      if (v) set.add(v);
+    });
     return Array.from(set).sort();
-  }, [shipments]);
+  }
+
+  function toggleFilterValue(col, value) {
+    setColFilters((prev) => {
+      const current = prev[col] || [];
+      const next = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      return { ...prev, [col]: next };
+    });
+  }
+
+  function clearColumn(col) {
+    setColFilters((prev) => ({ ...prev, [col]: [] }));
+  }
+
+  function clearAllFilters() {
+    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
+  }
+
+  const hasAnyFilter = Object.values(colFilters).some((arr) => arr.length > 0);
 
   async function handleDownload(format) {
     setShowDownloadMenu(false);
@@ -232,7 +252,6 @@ function ShipmentsPanel() {
 
     const params = new URLSearchParams({ scope: 'admin', tab: tab });
     if (shipperFilter) params.set('shipper', shipperFilter);
-    if (search.trim()) params.set('search', search.trim());
 
     const url = '/api/export/' + format + '?' + params.toString();
 
@@ -257,23 +276,20 @@ function ShipmentsPanel() {
   async function handleUseRow(s) {
     setQuTn(s.trackingNumber);
     setQuCurrentStatus(s.status || '');
-    setQuStatus(s.status || ''); // default to current status
+    setQuStatus(s.status || '');
     setQuEta(s.estimatedDelivery || '');
     setQuNotes('');
     setQuMsg('');
     setQuLocation('');
     setQuFetchingLocation(true);
 
-    // Fetch last known location from tracking history
     try {
       const token = localStorage.getItem('sxl_token');
       const res = await fetch('/api/admin/shipments/tracking-history?tn=' + encodeURIComponent(s.trackingNumber), {
         headers: { Authorization: 'Bearer ' + token },
       });
       const data = await res.json();
-      if (data.success && data.location) {
-        setQuLocation(data.location);
-      }
+      if (data.success && data.location) setQuLocation(data.location);
     } catch (e) { /* silent */ }
 
     setQuFetchingLocation(false);
@@ -354,9 +370,88 @@ function ShipmentsPanel() {
     return { bg: '#FFF3CD', color: '#856404' };
   }
 
+  function HeaderCell({ col, label, width, frozenLeft, hasShadow }) {
+    const isFilterable = ['tracking', 'mode', 'shipper', 'route', 'status', 'payment'].includes(col);
+    const activeCount = (colFilters[col] || []).length;
+    const isOpen = openFilter === col;
+
+    return (
+      <th style={{
+        padding: 0, textAlign: 'left', fontWeight: 700, color: '#003366',
+        fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
+        background: isOpen ? '#DDE3E9' : '#E9ECEF', borderBottom: '2px solid #D0D6DB',
+        whiteSpace: 'nowrap', width, minWidth: width,
+        position: 'sticky', top: 0,
+        zIndex: frozenLeft !== undefined ? 22 : 20,
+        ...(frozenLeft !== undefined ? { left: frozenLeft } : {}),
+        ...(hasShadow ? { boxShadow: FROZEN_SHADOW } : {})
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 12px' }}>
+          <span>{label}{activeCount > 0 && <span style={{ marginLeft: '6px', color: '#FF6B00' }}>({activeCount})</span>}</span>
+          {isFilterable && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setOpenFilter(isOpen ? null : col); setFilterSearch(''); }}
+              style={{
+                padding: '2px 6px',
+                background: activeCount > 0 ? '#FF6B00' : 'transparent',
+                border: 'none', borderRadius: '4px', cursor: 'pointer',
+                color: activeCount > 0 ? 'white' : '#003366',
+                fontSize: '0.7rem', fontWeight: 700, fontFamily: 'inherit', lineHeight: 1
+              }}
+            >
+              ▼
+            </button>
+          )}
+        </div>
+
+        {isOpen && (
+          <div
+            ref={filterDropdownRef}
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: frozenLeft !== undefined ? frozenLeft : 'auto',
+              right: frozenLeft !== undefined ? 'auto' : 0,
+              minWidth: '200px', background: 'white',
+              border: '1px solid #D0D6DB', borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 200,
+              padding: '8px', marginTop: '4px',
+              textTransform: 'none', letterSpacing: 'normal',
+              fontSize: '0.85rem', color: '#343A40', fontWeight: 500
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Search values..."
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              style={{ width: '100%', padding: '6px 10px', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: '8px' }}
+            />
+            <div style={{ maxHeight: '220px', overflowY: 'auto', marginBottom: '8px' }}>
+              {getUniqueValues(col)
+                .filter((v) => !filterSearch || v.toLowerCase().includes(filterSearch.toLowerCase()))
+                .map((v) => {
+                  const checked = (colFilters[col] || []).includes(v);
+                  return (
+                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', cursor: 'pointer', borderRadius: '4px', background: checked ? '#FFF5EB' : 'transparent' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleFilterValue(col, v)} style={{ width: '14px', height: '14px', accentColor: '#FF6B00', cursor: 'pointer' }} />
+                      <span style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
+                    </label>
+                  );
+                })}
+            </div>
+            <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #F1F3F5', paddingTop: '8px' }}>
+              <button onClick={() => clearColumn(col)} style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+              <button onClick={() => { setOpenFilter(null); setFilterSearch(''); }} style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
+            </div>
+          </div>
+        )}
+      </th>
+    );
+  }
+
   return (
     <div>
-      {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
         <StatCard num={counts.total} label="Total" color="#FF6B00" />
         <StatCard num={counts.active} label="Active" color="#CCE5FF" />
@@ -364,109 +459,43 @@ function ShipmentsPanel() {
         <StatCard num={counts.paid} label="Paid & Completed" color="#D4EDDA" />
       </div>
 
-      {/* Filter Bar */}
-      <div style={{
-        background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-        padding: '15px', marginBottom: '20px',
-        display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center'
-      }}>
-        <input
-          type="text"
-          placeholder="🔍 Search tracking, shipper, recipient..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: '220px', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}
-        />
-        <select
-          value={shipperFilter}
-          onChange={(e) => setShipperFilter(e.target.value)}
-          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '160px' }}
-        >
+      <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '15px', marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={shipperFilter} onChange={(e) => setShipperFilter(e.target.value)} style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '180px' }}>
           <option value="">All Shippers</option>
           {shipperList.map((name) => <option key={name} value={name}>{name}</option>)}
         </select>
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '150px' }}
-        >
-          <option value="all">All Statuses</option>
-          {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select
-          value={filterMode}
-          onChange={(e) => setFilterMode(e.target.value)}
-          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '120px' }}
-        >
-          <option value="all">All Modes</option>
-          <option value="SEA">SEA</option>
-          <option value="AIR">AIR</option>
-        </select>
-        <button
-          onClick={() => { setSearch(''); setFilterStatus('all'); setFilterMode('all'); setShipperFilter(''); }}
-          style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}
-        >
-          ✕ Clear
-        </button>
 
-        {/* Download Dropdown */}
-        <div style={{ position: 'relative' }} ref={downloadMenuRef}>
-          <button
-            onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-            style={{
-              padding: '10px 16px', background: '#003366', color: 'white',
-              border: 'none', borderRadius: '8px', fontWeight: 700,
-              fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit',
-              display: 'flex', alignItems: 'center', gap: '6px'
-            }}
-          >
+        {hasAnyFilter && (
+          <button onClick={clearAllFilters} style={{ padding: '10px 16px', background: '#FFF5EB', color: '#FF6B00', border: '2px solid #FF6B00', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+            ✕ Clear Filters ({Object.values(colFilters).reduce((n, arr) => n + arr.length, 0)})
+          </button>
+        )}
+
+        <div style={{ position: 'relative', marginLeft: 'auto' }} ref={downloadMenuRef}>
+          <button onClick={() => setShowDownloadMenu(!showDownloadMenu)} style={{ padding: '10px 16px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
             ⬇ Download All ▾
           </button>
           {showDownloadMenu && (
-            <div style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-              background: 'white', border: '1px solid #E9ECEF', borderRadius: '8px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 100, minWidth: '160px', overflow: 'hidden'
-            }}>
-              <button
-                onClick={() => handleDownload('pdf')}
-                style={{ display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366', borderBottom: '1px solid #F1F3F5' }}
-              >
-                📄 PDF (.pdf)
-              </button>
-              <button
-                onClick={() => handleDownload('csv')}
-                style={{ display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366' }}
-              >
-                📊 Excel / CSV (.csv)
-              </button>
+            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '6px', background: 'white', border: '1px solid #E9ECEF', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 100, minWidth: '160px', overflow: 'hidden' }}>
+              <button onClick={() => handleDownload('pdf')} style={{ display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366', borderBottom: '1px solid #F1F3F5' }}>📄 PDF (.pdf)</button>
+              <button onClick={() => handleDownload('csv')} style={{ display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366' }}>📊 Excel / CSV (.csv)</button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Sub-tabs */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
         <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Awaiting Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
         <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="🟢 Paid & Completed" count={counts.paid} badgeBg="#D4EDDA" badgeColor="#155724" />
       </div>
 
-      {/* Quick Update Panel */}
       {tab === 'active' && (
-        <form id="quick-update-panel" onSubmit={handleQuickUpdate} style={{
-          background: 'white', padding: '20px', borderRadius: '12px',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px',
-          borderLeft: '5px solid #FF6B00'
-        }}>
+        <form id="quick-update-panel" onSubmit={handleQuickUpdate} style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px', borderLeft: '5px solid #FF6B00' }}>
           <h3 style={{ color: '#003366', fontSize: '1.1rem', marginBottom: '12px' }}>⚡ Quick Update Status</h3>
 
           {quCurrentStatus && (
-            <div style={{
-              background: '#FFF5EB', border: '1px solid #FF6B00',
-              borderRadius: '8px', padding: '10px 14px', marginBottom: '14px',
-              fontSize: '0.9rem', color: '#8B4500'
-            }}>
+            <div style={{ background: '#FFF5EB', border: '1px solid #FF6B00', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', fontSize: '0.9rem', color: '#8B4500' }}>
               <b>Current Status:</b> <span style={{ fontWeight: 700 }}>{quCurrentStatus}</span>
               {quTn && <span style={{ marginLeft: '12px', color: '#6C757D' }}>• Tracking: <b>{quTn}</b></span>}
             </div>
@@ -475,13 +504,11 @@ function ShipmentsPanel() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Tracking Number *</label>
-              <input type="text" value={quTn} onChange={(e) => setQuTn(e.target.value)} placeholder="e.g., SM0310202612"
-                style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+              <input type="text" value={quTn} onChange={(e) => setQuTn(e.target.value)} placeholder="e.g., SM0310202612" style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>New Status *</label>
-              <select value={quStatus} onChange={(e) => setQuStatus(e.target.value)}
-                style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}>
+              <select value={quStatus} onChange={(e) => setQuStatus(e.target.value)} style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}>
                 <option value="">-- Select New Status --</option>
                 <option>Booked</option>
                 <option>Picked Up</option>
@@ -492,34 +519,23 @@ function ShipmentsPanel() {
               </select>
             </div>
             <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                Location {quFetchingLocation && <span style={{ color: '#FF6B00', fontSize: '0.7rem' }}>(loading...)</span>}
-              </label>
-              <input type="text" value={quLocation} onChange={(e) => setQuLocation(e.target.value)} placeholder="City, Country"
-                style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Location {quFetchingLocation && <span style={{ color: '#FF6B00', fontSize: '0.7rem' }}>(loading...)</span>}</label>
+              <input type="text" value={quLocation} onChange={(e) => setQuLocation(e.target.value)} placeholder="City, Country" style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Estimated Delivery</label>
-              <input type="date" value={quEta} onChange={(e) => setQuEta(e.target.value)}
-                style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+              <input type="date" value={quEta} onChange={(e) => setQuEta(e.target.value)} style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
             </div>
           </div>
           <div style={{ marginTop: '10px' }}>
             <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Notes</label>
-            <input type="text" value={quNotes} onChange={(e) => setQuNotes(e.target.value)} placeholder="Optional"
-              style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+            <input type="text" value={quNotes} onChange={(e) => setQuNotes(e.target.value)} placeholder="Optional" style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
           </div>
-          <button type="submit" disabled={quLoading} style={{
-            marginTop: '12px', padding: '12px 24px', background: '#FF6B00', color: 'white',
-            border: 'none', borderRadius: '8px', fontWeight: 700,
-            cursor: quLoading ? 'not-allowed' : 'pointer', opacity: quLoading ? 0.6 : 1, fontFamily: 'inherit'
-          }}>
+          <button type="submit" disabled={quLoading} style={{ marginTop: '12px', padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: quLoading ? 'not-allowed' : 'pointer', opacity: quLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
             {quLoading ? 'Updating...' : '✅ Update Status'}
           </button>
           {quMsg && (
-            <div style={{ marginTop: '10px', padding: '10px 15px', borderRadius: '8px', fontSize: '0.9rem',
-              background: quMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA',
-              color: quMsg.startsWith('✅') ? '#155724' : '#721C24' }}>
+            <div style={{ marginTop: '10px', padding: '10px 15px', borderRadius: '8px', fontSize: '0.9rem', background: quMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: quMsg.startsWith('✅') ? '#155724' : '#721C24' }}>
               {quMsg}
             </div>
           )}
@@ -543,31 +559,23 @@ function ShipmentsPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <>
-          <div style={{
-            background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto',
-            maxHeight: '70vh', position: 'relative'
-          }}>
-            <table style={{
-              borderCollapse: 'separate', borderSpacing: 0,
-              fontSize: '0.85rem', minWidth: '1650px',
-              tableLayout: 'fixed', width: '100%'
-            }}>
-              <thead style={{ position: 'sticky', top: 0, zIndex: 20, background: '#E9ECEF' }}>
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
-                  <th style={{ ...TH_STYLE, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, position: 'sticky', left: FROZEN_LEFT_TRACKING, zIndex: 22 }}>Tracking #</th>
-                  <th style={{ ...TH_STYLE, width: COL_W_MODE, minWidth: COL_W_MODE, position: 'sticky', left: FROZEN_LEFT_MODE, zIndex: 22 }}>Mode</th>
-                  <th style={{ ...TH_STYLE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, position: 'sticky', left: FROZEN_LEFT_ROUTE, zIndex: 22, boxShadow: FROZEN_SHADOW }}>Route</th>
-                  <th style={{ ...TH_STYLE, width: 150, minWidth: 150 }}>Shipper</th>
-                  <th style={{ ...TH_STYLE, width: 150, minWidth: 150 }}>Recipient</th>
-                  <th style={{ ...TH_STYLE, width: 130, minWidth: 130 }}>Status</th>
-                  <th style={{ ...TH_STYLE, width: 110, minWidth: 110 }}>Booking Wt</th>
-                  <th style={{ ...TH_STYLE, width: 105, minWidth: 105 }}>Actual Wt</th>
-                  <th style={{ ...TH_STYLE, width: 115, minWidth: 115 }}>Cost</th>
-                  <th style={{ ...TH_STYLE, width: 110, minWidth: 110 }}>Payment</th>
-                  <th style={{ ...TH_STYLE, width: 120, minWidth: 120 }}>Booked</th>
-                  <th style={{ ...TH_STYLE, width: 125, minWidth: 125 }}>ETA</th>
-                  <th style={{ ...TH_STYLE, width: 260, minWidth: 260 }}>Actions</th>
+                  <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
+                  <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
+                  <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={FROZEN_LEFT_ROUTE} hasShadow={true} />
+                  <HeaderCell col="shipper" label="Shipper" width={150} />
+                  <HeaderCell col="none" label="Recipient" width={150} />
+                  <HeaderCell col="status" label="Status" width={140} />
+                  <HeaderCell col="none" label="Booking Wt" width={110} />
+                  <HeaderCell col="none" label="Actual Wt" width={105} />
+                  <HeaderCell col="none" label="Cost" width={115} />
+                  <HeaderCell col="payment" label="Payment" width={120} />
+                  <HeaderCell col="none" label="Booked" width={120} />
+                  <HeaderCell col="none" label="ETA" width={125} />
+                  <HeaderCell col="none" label="Actions" width={260} />
                 </tr>
               </thead>
               <tbody>
@@ -577,7 +585,6 @@ function ShipmentsPanel() {
                   const isSelfDelivery = s.pickupService === false;
                   const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
                   const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
-
                   const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
 
                   return (
@@ -585,10 +592,9 @@ function ShipmentsPanel() {
                       <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
                       <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
                       <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
-
                       <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
                       <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 130 }}>
+                      <td style={{ ...TD_STYLE, width: 140 }}>
                         <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
                       </td>
                       <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
@@ -598,7 +604,7 @@ function ShipmentsPanel() {
                           ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
                           : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                       </td>
-                      <td style={{ ...TD_STYLE, width: 110 }}>
+                      <td style={{ ...TD_STYLE, width: 120 }}>
                         <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
                       </td>
                       <td style={{ ...TD_STYLE, width: 120 }}>{formatDate(s.bookedAt)}</td>
@@ -609,17 +615,10 @@ function ShipmentsPanel() {
                       </td>
                       <td style={{ ...TD_STYLE, width: 260 }}>
                         {tab === 'active' && (
-                          <button onClick={() => handleUseRow(s)} style={{
-                            padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none',
-                            borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px'
-                          }}>📋 Use</button>
+                          <button onClick={() => handleUseRow(s)} style={{ padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📋 Use</button>
                         )}
                         {isSelfDelivery && (
-                          <button onClick={() => handleSendWarehouse(s.trackingNumber)} disabled={sendingWh === s.trackingNumber} style={{
-                            padding: '5px 10px', background: '#003366', color: 'white', border: 'none',
-                            borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit',
-                            opacity: sendingWh === s.trackingNumber ? 0.6 : 1, whiteSpace: 'nowrap'
-                          }}>
+                          <button onClick={() => handleSendWarehouse(s.trackingNumber)} disabled={sendingWh === s.trackingNumber} style={{ padding: '5px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', opacity: sendingWh === s.trackingNumber ? 0.6 : 1, whiteSpace: 'nowrap' }}>
                             {sendingWh === s.trackingNumber ? '...' : '📧 Send Warehouse'}
                           </button>
                         )}
@@ -669,7 +668,6 @@ function ShippersPanel() {
   async function toggleStatus(shipperID, newStatus) {
     const msg = newStatus === 'Suspended' ? 'Suspend this shipper?' : 'Activate this shipper?';
     if (!window.confirm(msg)) return;
-
     setActionLoading(shipperID);
     const token = localStorage.getItem('sxl_token');
     try {
@@ -710,9 +708,7 @@ function ShippersPanel() {
       {!loading && !error && (
         <>
           {shippers.length === 0 ? (
-            <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
-              No shippers yet.
-            </div>
+            <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>No shippers yet.</div>
           ) : (
             <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '900px' }}>
@@ -735,11 +731,7 @@ function ShippersPanel() {
                         <td style={{ padding: '12px 16px' }}>{s.phone || '-'}</td>
                         <td style={{ padding: '12px 16px' }}>{s.country || '-'}</td>
                         <td style={{ padding: '12px 16px' }}>
-                          <span style={{
-                            background: isActive ? '#D4EDDA' : '#F8D7DA',
-                            color: isActive ? '#155724' : '#721C24',
-                            padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem'
-                          }}>{s.status}</span>
+                          <span style={{ background: isActive ? '#D4EDDA' : '#F8D7DA', color: isActive ? '#155724' : '#721C24', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem' }}>{s.status}</span>
                         </td>
                         <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                           {isActive ? (
@@ -772,14 +764,7 @@ function StatCard({ num, label, color }) {
 
 function TabButton({ active, onClick, label, count, badgeBg, badgeColor }) {
   return (
-    <button onClick={onClick} style={{
-      cursor: 'pointer', padding: '12px 22px', borderRadius: '10px',
-      fontWeight: 700, fontSize: '0.9rem',
-      border: '2px solid ' + (active ? '#FF6B00' : '#E9ECEF'),
-      background: active ? '#FFF5EB' : 'white',
-      color: active ? '#FF6B00' : '#343A40',
-      fontFamily: 'inherit'
-    }}>
+    <button onClick={onClick} style={{ cursor: 'pointer', padding: '12px 22px', borderRadius: '10px', fontWeight: 700, fontSize: '0.9rem', border: '2px solid ' + (active ? '#FF6B00' : '#E9ECEF'), background: active ? '#FFF5EB' : 'white', color: active ? '#FF6B00' : '#343A40', fontFamily: 'inherit' }}>
       {label}{' '}
       <span style={{ background: active ? '#FF6B00' : badgeBg, color: active ? 'white' : badgeColor, padding: '2px 8px', borderRadius: '10px', marginLeft: '6px', fontSize: '0.8rem' }}>{count}</span>
     </button>
