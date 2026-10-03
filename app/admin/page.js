@@ -743,7 +743,7 @@ function ShipmentsPanel() {
 }
 
 /* ============================================================
-   SHIPPERS PANEL — unchanged
+   SHIPPERS PANEL — NOW WITH STICKY HEADER + COLUMN FILTERS
    ============================================================ */
 function ShippersPanel() {
   const [loading, setLoading] = useState(true);
@@ -752,7 +752,26 @@ function ShippersPanel() {
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState('');
 
+  // Column filters
+  const [colFilters, setColFilters] = useState({
+    name: [], contact: [], email: [], phone: [], status: [],
+  });
+  const [openFilter, setOpenFilter] = useState(null);
+  const [filterSearch, setFilterSearch] = useState('');
+  const filterDropdownRef = useRef(null);
+
   useEffect(() => { loadShippers(); }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target)) {
+        setOpenFilter(null);
+        setFilterSearch('');
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   async function loadShippers() {
     setLoading(true);
@@ -787,6 +806,129 @@ function ShippersPanel() {
     } catch (err) { window.alert('Error: ' + err.message); setActionLoading(''); }
   }
 
+  // Filter helpers
+  function getColumnValue(s, col) {
+    if (col === 'name') return s.name || '';
+    if (col === 'contact') return s.contactPerson || '';
+    if (col === 'email') return s.email || '';
+    if (col === 'phone') return s.phone || '';
+    if (col === 'status') return s.status || '';
+    return '';
+  }
+
+  const filtered = useMemo(() => {
+    let list = shippers;
+    Object.entries(colFilters).forEach(([col, values]) => {
+      if (values.length > 0) {
+        list = list.filter((s) => values.includes(getColumnValue(s, col)));
+      }
+    });
+    return list;
+  }, [shippers, colFilters]);
+
+  function getUniqueValues(col) {
+    const set = new Set();
+    shippers.forEach((s) => {
+      const v = getColumnValue(s, col);
+      if (v) set.add(v);
+    });
+    return Array.from(set).sort();
+  }
+
+  function toggleFilterValue(col, value) {
+    setColFilters((prev) => {
+      const current = prev[col] || [];
+      const next = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      return { ...prev, [col]: next };
+    });
+  }
+
+  function clearColumn(col) {
+    setColFilters((prev) => ({ ...prev, [col]: [] }));
+  }
+
+  function clearAllFilters() {
+    setColFilters({ name: [], contact: [], email: [], phone: [], status: [] });
+  }
+
+  const hasAnyFilter = Object.values(colFilters).some((arr) => arr.length > 0);
+
+  function FilterHeaderCell({ col, label, width }) {
+    const isFilterable = ['name', 'contact', 'email', 'phone', 'status'].includes(col);
+    const activeCount = (colFilters[col] || []).length;
+    const isOpen = openFilter === col;
+
+    return (
+      <th style={{
+        padding: 0, textAlign: 'left', fontWeight: 700, color: '#003366',
+        fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
+        background: isOpen ? '#DDE3E9' : '#E9ECEF', borderBottom: '2px solid #D0D6DB',
+        whiteSpace: 'nowrap', width, minWidth: width,
+        position: 'sticky', top: 0, zIndex: 20,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px' }}>
+          <span>{label}{activeCount > 0 && <span style={{ marginLeft: '6px', color: '#FF6B00' }}>({activeCount})</span>}</span>
+          {isFilterable && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setOpenFilter(isOpen ? null : col); setFilterSearch(''); }}
+              style={{
+                padding: '2px 6px',
+                background: activeCount > 0 ? '#FF6B00' : 'transparent',
+                border: 'none', borderRadius: '4px', cursor: 'pointer',
+                color: activeCount > 0 ? 'white' : '#003366',
+                fontSize: '0.7rem', fontWeight: 700, fontFamily: 'inherit', lineHeight: 1
+              }}
+            >
+              ▼
+            </button>
+          )}
+        </div>
+
+        {isOpen && (
+          <div
+            ref={filterDropdownRef}
+            style={{
+              position: 'absolute', top: '100%', right: 0,
+              minWidth: '200px', background: 'white',
+              border: '1px solid #D0D6DB', borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 200,
+              padding: '8px', marginTop: '4px',
+              textTransform: 'none', letterSpacing: 'normal',
+              fontSize: '0.85rem', color: '#343A40', fontWeight: 500
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Search values..."
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              style={{ width: '100%', padding: '6px 10px', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: '8px' }}
+            />
+            <div style={{ maxHeight: '220px', overflowY: 'auto', marginBottom: '8px' }}>
+              {getUniqueValues(col)
+                .filter((v) => !filterSearch || v.toLowerCase().includes(filterSearch.toLowerCase()))
+                .map((v) => {
+                  const checked = (colFilters[col] || []).includes(v);
+                  return (
+                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', cursor: 'pointer', borderRadius: '4px', background: checked ? '#FFF5EB' : 'transparent' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleFilterValue(col, v)} style={{ width: '14px', height: '14px', accentColor: '#FF6B00', cursor: 'pointer' }} />
+                      <span style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
+                    </label>
+                  );
+                })}
+            </div>
+            <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #F1F3F5', paddingTop: '8px' }}>
+              <button onClick={() => clearColumn(col)} style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+              <button onClick={() => { setOpenFilter(null); setFilterSearch(''); }} style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
+            </div>
+          </div>
+        )}
+      </th>
+    );
+  }
+
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
@@ -795,8 +937,13 @@ function ShippersPanel() {
         <StatCard num={counts.suspended} label="Suspended" color="#F8D7DA" />
       </div>
 
-      <div style={{ marginBottom: '15px' }}>
+      <div style={{ marginBottom: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={loadShippers} style={{ padding: '10px 20px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 Refresh</button>
+        {hasAnyFilter && (
+          <button onClick={clearAllFilters} style={{ padding: '10px 16px', background: '#FFF5EB', color: '#FF6B00', border: '2px solid #FF6B00', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+            ✕ Clear Filters ({Object.values(colFilters).reduce((n, arr) => n + arr.length, 0)})
+          </button>
+        )}
       </div>
 
       {error && <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>❌ {error}</div>}
@@ -808,48 +955,60 @@ function ShippersPanel() {
         </div>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && filtered.length === 0 && (
+        <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
+          {shippers.length === 0 ? 'No shippers yet.' : 'No shippers match your filters.'}
+        </div>
+      )}
+
+      {!loading && !error && filtered.length > 0 && (
         <>
-          {shippers.length === 0 ? (
-            <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>No shippers yet.</div>
-          ) : (
-            <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '900px' }}>
-                <thead>
-                  <tr style={{ background: '#F8F9FA' }}>
-                    {['Short Form', 'Name', 'Contact', 'Email', 'Phone', 'Country', 'Status', 'Actions'].map((h) => (
-                      <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 700, color: '#343A40', fontSize: '0.78rem', textTransform: 'uppercase', borderBottom: '2px solid #E9ECEF' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {shippers.map((s, i) => {
-                    const isActive = s.status === 'Active';
-                    return (
-                      <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
-                        <td style={{ padding: '12px 16px', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.shortForm || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.name || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.contactPerson || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.email || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.phone || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{s.country || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{ background: isActive ? '#D4EDDA' : '#F8D7DA', color: isActive ? '#155724' : '#721C24', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem' }}>{s.status}</span>
-                        </td>
-                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
-                          {isActive ? (
-                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Suspended')} style={{ padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>🚫 Suspend</button>
-                          ) : (
-                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Active')} style={{ padding: '6px 12px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>✅ Activate</button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '900px', tableLayout: 'fixed' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
+                <tr>
+                  <FilterHeaderCell col="none" label="Short Form" width={110} />
+                  <FilterHeaderCell col="name" label="Name" width={200} />
+                  <FilterHeaderCell col="contact" label="Contact" width={160} />
+                  <FilterHeaderCell col="email" label="Email" width={220} />
+                  <FilterHeaderCell col="phone" label="Phone" width={150} />
+                  <FilterHeaderCell col="none" label="Country" width={100} />
+                  <FilterHeaderCell col="status" label="Status" width={130} />
+                  <FilterHeaderCell col="none" label="Actions" width={140} />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s, i) => {
+                  const isActive = s.status === 'Active';
+                  const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+                  return (
+                    <tr key={i} style={{ background: rowBg }}>
+                      <td style={{ ...TD_STYLE, width: 110, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.shortForm || '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 200 }}>{s.name || '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 160 }}>{s.contactPerson || '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 220 }}>{s.email || '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 150 }}>{s.phone || '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 100 }}>{s.country || '-'}</td>
+                      <td style={{ ...TD_STYLE, width: 130 }}>
+                        <span style={{ background: isActive ? '#D4EDDA' : '#F8D7DA', color: isActive ? '#155724' : '#721C24', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem' }}>{s.status}</span>
+                      </td>
+                      <td style={{ ...TD_STYLE, width: 140, whiteSpace: 'nowrap' }}>
+                        {isActive ? (
+                          <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Suspended')} style={{ padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>🚫 Suspend</button>
+                        ) : (
+                          <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Active')} style={{ padding: '6px 12px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>✅ Activate</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: '12px', textAlign: 'right', fontSize: '0.85rem', color: '#6C757D' }}>
+            Showing <b>{filtered.length}</b> of <b>{shippers.length}</b> shipper{shippers.length !== 1 ? 's' : ''}
+          </div>
         </>
       )}
     </div>
