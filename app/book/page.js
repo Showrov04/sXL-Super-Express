@@ -106,6 +106,10 @@ export default function BookPage() {
   const [packingListFiles, setPackingListFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
 
+  // NEW: Custom & Delivery service
+  const [customService, setCustomService] = useState('sxl');
+  const [deliveryService, setDeliveryService] = useState('sxl');
+
   useEffect(() => {
     const stored = localStorage.getItem('sxl_user');
     if (!stored) { router.push('/login'); return; }
@@ -203,9 +207,10 @@ export default function BookPage() {
   const isSpecialParcel = parcelType === 'Special Parcel';
   const showBillingParty = !(!isSea && isSpecialParcel);
 
+  // NEW STEP ORDER: Custom & Delivery inserted after Pickup
   const steps = isSea
-    ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Payment', 'Review']
-    : ['Ship Mode', 'Parcel Type', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Payment', 'Review'];
+    ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Custom & Delivery', 'Payment', 'Review']
+    : ['Ship Mode', 'Parcel Type', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Custom & Delivery', 'Payment', 'Review'];
 
   function getNextStep(current) { return current + 1; }
   function getPrevStep(current) {
@@ -273,6 +278,11 @@ export default function BookPage() {
     if (!shipment.parcelReadyTime) return 'Goods Ready Time is required.';
     return null;
   }
+  function validateCustomDelivery() {
+    if (!customService) return 'Please select who will handle Customs.';
+    if (!deliveryService) return 'Please select who will handle Delivery.';
+    return null;
+  }
   function validatePayment() {
     if (!paymentTerms) return 'Please select a payment type.';
     if (!paymentMethod) return 'Please select a payment method.';
@@ -293,7 +303,8 @@ export default function BookPage() {
     else if ((step === 3 && isSea) || (step === 4 && !isSea)) err = validateShipment();
     else if ((step === 4 && isSea) || (step === 5 && !isSea)) err = validatePackaging();
     else if ((step === 5 && isSea) || (step === 6 && !isSea)) err = validatePickup();
-    else if ((step === 6 && isSea) || (step === 7 && !isSea)) err = validatePayment();
+    else if ((step === 6 && isSea) || (step === 7 && !isSea)) err = validateCustomDelivery();
+    else if ((step === 7 && isSea) || (step === 8 && !isSea)) err = validatePayment();
 
     if (err) { setError(err); return; }
     setStep(getNextStep(step));
@@ -377,7 +388,6 @@ export default function BookPage() {
     await saveAddressIfChecked('Shipper', shipper, saveShipper);
     await saveAddressIfChecked('Consignee', consignee, saveConsignee);
 
-    // Upload invoice + packing list files first
     let invoiceUrls = [];
     let packingListUrls = [];
     try {
@@ -411,6 +421,7 @@ export default function BookPage() {
           freightBillTo, dutyTaxBillTo,
           paymentTerms, paymentMethod,
           invoiceUrls, packingListUrls,
+          customService, deliveryService,
         }),
       });
       const data = await res.json();
@@ -421,11 +432,7 @@ export default function BookPage() {
         return;
       }
 
-      setSuccess({
-        trackingNumber: data.trackingNumber,
-        invoiceUrls,
-        packingListUrls,
-      });
+      setSuccess({ trackingNumber: data.trackingNumber, invoiceUrls, packingListUrls });
       setLoading(false);
     } catch (err) {
       setError('Connection error. Please try again.');
@@ -483,31 +490,15 @@ export default function BookPage() {
                 <a href={'/api/pdf/booking/' + success.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '10px 16px', background: '#003366', color: 'white', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none' }}>
                   🖨️ Print Booking
                 </a>
-                {invoices.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => invoices.forEach((f) => window.open(f.url, '_blank', 'noopener'))}
-                    style={{ padding: '10px 16px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
+                {invoices.length > 0 && (
+                  <button type="button" onClick={() => invoices.forEach((f) => window.open(f.url, '_blank', 'noopener'))} style={{ padding: '10px 16px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>
                     🖨️ Print Invoice ({invoices.length})
                   </button>
-                ) : (
-                  <span style={{ padding: '10px 16px', background: '#E9ECEF', color: '#6C757D', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem' }}>
-                    🖨️ Print Invoice
-                  </span>
                 )}
-                {packingLists.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => packingLists.forEach((f) => window.open(f.url, '_blank', 'noopener'))}
-                    style={{ padding: '10px 16px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
+                {packingLists.length > 0 && (
+                  <button type="button" onClick={() => packingLists.forEach((f) => window.open(f.url, '_blank', 'noopener'))} style={{ padding: '10px 16px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>
                     🖨️ Print Packing List ({packingLists.length})
                   </button>
-                ) : (
-                  <span style={{ padding: '10px 16px', background: '#E9ECEF', color: '#6C757D', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem' }}>
-                    🖨️ Print Packing List
-                  </span>
                 )}
               </div>
             </div>
@@ -960,6 +951,7 @@ export default function BookPage() {
             </>
           )}
 
+          {/* STEP 6 / 5 — PICKUP SERVICE */}
           {((step === 5 && isSea) || (step === 6 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -1054,11 +1046,117 @@ export default function BookPage() {
             </>
           )}
 
+          {/* NEW STEP 7 / 6 — CUSTOM & DELIVERY SERVICE */}
           {((step === 6 && isSea) || (step === 7 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
                 <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
-                  {isSea ? 'Step 6' : 'Step 7'} - Payment Terms
+                  {isSea ? 'Step 6' : 'Step 7'} - Custom & Delivery Service
+                </h3>
+                <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
+              </div>
+
+              {/* Custom Service */}
+              <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>🛃 Customs Clearance</h4>
+              <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
+                Who will handle the customs clearance for this shipment?
+              </p>
+
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '28px' }}>
+                <button
+                  type="button"
+                  onClick={() => setCustomService('sxl')}
+                  style={{
+                    flex: 1, minWidth: '200px', padding: '18px 20px',
+                    border: '3px solid ' + (customService === 'sxl' ? '#28A745' : '#E9ECEF'),
+                    background: customService === 'sxl' ? '#E8F7EF' : 'white',
+                    borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+                    textAlign: 'left'
+                  }}>
+                  <div style={{ fontWeight: 800, color: customService === 'sxl' ? '#155724' : '#343A40', fontSize: '1rem', marginBottom: '4px' }}>
+                    ✅ Yes — Customs handled by sXL
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#6C757D' }}>
+                    sXL will manage the customs clearance process
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCustomService('consignee')}
+                  style={{
+                    flex: 1, minWidth: '200px', padding: '18px 20px',
+                    border: '3px solid ' + (customService === 'consignee' ? '#FF6B00' : '#E9ECEF'),
+                    background: customService === 'consignee' ? '#FFF5EB' : 'white',
+                    borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+                    textAlign: 'left'
+                  }}>
+                  <div style={{ fontWeight: 800, color: customService === 'consignee' ? '#8B4500' : '#343A40', fontSize: '1rem', marginBottom: '4px' }}>
+                    ⬜ No — Consignee will handle customs
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#6C757D' }}>
+                    Consignee is responsible for customs clearance
+                  </div>
+                </button>
+              </div>
+
+              {/* Delivery Service */}
+              <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>📦 Delivery Service</h4>
+              <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
+                Who will handle the final delivery to the consignee?
+              </p>
+
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '18px' }}>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryService('sxl')}
+                  style={{
+                    flex: 1, minWidth: '200px', padding: '18px 20px',
+                    border: '3px solid ' + (deliveryService === 'sxl' ? '#28A745' : '#E9ECEF'),
+                    background: deliveryService === 'sxl' ? '#E8F7EF' : 'white',
+                    borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+                    textAlign: 'left'
+                  }}>
+                  <div style={{ fontWeight: 800, color: deliveryService === 'sxl' ? '#155724' : '#343A40', fontSize: '1rem', marginBottom: '4px' }}>
+                    ✅ Yes — Delivery handled by sXL
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#6C757D' }}>
+                    sXL will deliver to the consignee's location
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeliveryService('consignee')}
+                  style={{
+                    flex: 1, minWidth: '200px', padding: '18px 20px',
+                    border: '3px solid ' + (deliveryService === 'consignee' ? '#FF6B00' : '#E9ECEF'),
+                    background: deliveryService === 'consignee' ? '#FFF5EB' : 'white',
+                    borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+                    textAlign: 'left'
+                  }}>
+                  <div style={{ fontWeight: 800, color: deliveryService === 'consignee' ? '#8B4500' : '#343A40', fontSize: '1rem', marginBottom: '4px' }}>
+                    ⬜ No — Consignee will handle delivery
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#6C757D' }}>
+                    Consignee will arrange their own delivery
+                  </div>
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
+                <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
+                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
+              </div>
+            </>
+          )}
+
+          {/* PAYMENT */}
+          {((step === 7 && isSea) || (step === 8 && !isSea)) && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
+                  {isSea ? 'Step 7' : 'Step 8'} - Payment Terms
                 </h3>
                 <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
               </div>
@@ -1137,13 +1235,7 @@ export default function BookPage() {
                     }}
                     onClick={() => document.getElementById('invoice-file-input').click()}
                   >
-                    <input
-                      id="invoice-file-input"
-                      type="file"
-                      multiple
-                      onChange={(e) => handleFileInput(e, 'invoice')}
-                      style={{ display: 'none' }}
-                    />
+                    <input id="invoice-file-input" type="file" multiple onChange={(e) => handleFileInput(e, 'invoice')} style={{ display: 'none' }} />
                     <div style={{ fontSize: '1.8rem', marginBottom: '5px' }}>📄</div>
                     <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '3px' }}>
                       Drag & drop Invoice here, or click to browse
@@ -1178,13 +1270,7 @@ export default function BookPage() {
                     }}
                     onClick={() => document.getElementById('packing-file-input').click()}
                   >
-                    <input
-                      id="packing-file-input"
-                      type="file"
-                      multiple
-                      onChange={(e) => handleFileInput(e, 'packingList')}
-                      style={{ display: 'none' }}
-                    />
+                    <input id="packing-file-input" type="file" multiple onChange={(e) => handleFileInput(e, 'packingList')} style={{ display: 'none' }} />
                     <div style={{ fontSize: '1.8rem', marginBottom: '5px' }}>📋</div>
                     <div style={{ fontWeight: 700, color: '#003366', fontSize: '0.95rem', marginBottom: '3px' }}>
                       Drag & drop Packing List here, or click to browse
@@ -1212,21 +1298,20 @@ export default function BookPage() {
             </>
           )}
 
-          {((step === 7 && isSea) || (step === 8 && !isSea)) && (
+          {/* REVIEW */}
+          {((step === 8 && isSea) || (step === 9 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
                 <h3 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>
-                  {isSea ? 'Step 7' : 'Step 8'} - Review & Submit
+                  {isSea ? 'Step 8' : 'Step 9'} - Review & Submit
                 </h3>
                 <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
               </div>
 
               <div style={{
                 background: 'linear-gradient(135deg, #FFF5EB 0%, #FFE8D1 100%)',
-                border: '2px solid #FF6B00',
-                borderRadius: '12px',
-                padding: '20px 25px',
-                marginBottom: '25px'
+                border: '2px solid #FF6B00', borderRadius: '12px',
+                padding: '20px 25px', marginBottom: '25px'
               }}>
                 <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#8B4500', fontWeight: 700, marginBottom: '8px' }}>
                   Tracking Number (will be assigned)
@@ -1255,6 +1340,8 @@ export default function BookPage() {
                       <div><b>Total Value:</b> {shipment.totalValue} {shipment.valueCurrency}</div>
                       {showBillingParty && freightBillTo && <div><b>Freight Bill To:</b> {freightBillTo}</div>}
                       {showBillingParty && dutyTaxBillTo && <div><b>Duty & Taxes Bill To:</b> {dutyTaxBillTo}</div>}
+                      <div><b>Customs:</b> {customService === 'sxl' ? 'Handled by sXL' : 'Handled by Consignee'}</div>
+                      <div><b>Delivery:</b> {deliveryService === 'sxl' ? 'Handled by sXL' : 'Handled by Consignee'}</div>
                       {invoiceFiles.length > 0 && <div><b>Invoices Attached:</b> {invoiceFiles.length} file(s)</div>}
                       {packingListFiles.length > 0 && <div><b>Packing Lists Attached:</b> {packingListFiles.length} file(s)</div>}
                     </div>
