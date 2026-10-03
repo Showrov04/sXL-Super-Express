@@ -1,330 +1,572 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { generateBookingPDF } from '@/lib/pdf';
-import { sendBookingConfirmation, sendAdminNewBookingAlert } from '@/lib/email';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
-export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+const ORANGE = rgb(1, 0.42, 0);
+const ORANGE_LIGHT = rgb(1, 0.94, 0.85);
+const ORANGE_SOFT = rgb(1, 0.97, 0.92);
+const NAVY = rgb(0, 0.2, 0.4);
+const GRAY = rgb(0.4, 0.4, 0.4);
+const GRAY_LIGHT = rgb(0.6, 0.6, 0.6);
+const LIGHT = rgb(0.97, 0.97, 0.98);
+const WHITE = rgb(1, 1, 1);
+const BLACK = rgb(0.1, 0.1, 0.1);
 
-const serviceSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const COUNTRY_NAMES = {
+  AF: 'Afghanistan', AL: 'Albania', DZ: 'Algeria', AD: 'Andorra', AO: 'Angola',
+  AR: 'Argentina', AM: 'Armenia', AU: 'Australia', AT: 'Austria', AZ: 'Azerbaijan',
+  BS: 'Bahamas', BH: 'Bahrain', BD: 'Bangladesh', BB: 'Barbados', BY: 'Belarus',
+  BE: 'Belgium', BZ: 'Belize', BJ: 'Benin', BT: 'Bhutan', BO: 'Bolivia',
+  BA: 'Bosnia and Herzegovina', BW: 'Botswana', BR: 'Brazil', BN: 'Brunei',
+  BG: 'Bulgaria', BF: 'Burkina Faso', BI: 'Burundi', KH: 'Cambodia',
+  CM: 'Cameroon', CA: 'Canada', CV: 'Cape Verde', CF: 'Central African Republic',
+  TD: 'Chad', CL: 'Chile', CN: 'China', CO: 'Colombia', KM: 'Comoros',
+  CG: 'Congo', CD: 'Congo (DRC)', CR: 'Costa Rica', CI: 'Ivory Coast',
+  HR: 'Croatia', CU: 'Cuba', CY: 'Cyprus', CZ: 'Czechia', DK: 'Denmark',
+  DJ: 'Djibouti', DM: 'Dominica', DO: 'Dominican Republic', EC: 'Ecuador',
+  EG: 'Egypt', SV: 'El Salvador', GQ: 'Equatorial Guinea', ER: 'Eritrea',
+  EE: 'Estonia', ET: 'Ethiopia', FJ: 'Fiji', FI: 'Finland', FR: 'France',
+  GA: 'Gabon', GM: 'Gambia', GE: 'Georgia', DE: 'Germany', GH: 'Ghana',
+  GR: 'Greece', GD: 'Grenada', GT: 'Guatemala', GN: 'Guinea', GY: 'Guyana',
+  HT: 'Haiti', HN: 'Honduras', HK: 'Hong Kong', HU: 'Hungary', IS: 'Iceland',
+  IN: 'India', ID: 'Indonesia', IR: 'Iran', IQ: 'Iraq', IE: 'Ireland',
+  IL: 'Israel', IT: 'Italy', JM: 'Jamaica', JP: 'Japan', JO: 'Jordan',
+  KZ: 'Kazakhstan', KE: 'Kenya', KW: 'Kuwait', KG: 'Kyrgyzstan', LA: 'Laos',
+  LV: 'Latvia', LB: 'Lebanon', LS: 'Lesotho', LR: 'Liberia', LY: 'Libya',
+  LI: 'Liechtenstein', LT: 'Lithuania', LU: 'Luxembourg', MO: 'Macao',
+  MG: 'Madagascar', MW: 'Malawi', MY: 'Malaysia', MV: 'Maldives', ML: 'Mali',
+  MT: 'Malta', MH: 'Marshall Islands', MR: 'Mauritania', MU: 'Mauritius',
+  MX: 'Mexico', FM: 'Micronesia', MD: 'Moldova', MC: 'Monaco', MN: 'Mongolia',
+  ME: 'Montenegro', MA: 'Morocco', MZ: 'Mozambique', MM: 'Myanmar',
+  NA: 'Namibia', NP: 'Nepal', NL: 'Netherlands', NZ: 'New Zealand',
+  NI: 'Nicaragua', NE: 'Niger', NG: 'Nigeria', NO: 'Norway', OM: 'Oman',
+  PK: 'Pakistan', PA: 'Panama', PG: 'Papua New Guinea', PY: 'Paraguay',
+  PE: 'Peru', PH: 'Philippines', PL: 'Poland', PT: 'Portugal', QA: 'Qatar',
+  RO: 'Romania', RU: 'Russia', RW: 'Rwanda', SA: 'Saudi Arabia', SN: 'Senegal',
+  RS: 'Serbia', SC: 'Seychelles', SG: 'Singapore', SK: 'Slovakia', SI: 'Slovenia',
+  SB: 'Solomon Islands', SO: 'Somalia', ZA: 'South Africa', KR: 'South Korea',
+  SS: 'South Sudan', ES: 'Spain', LK: 'Sri Lanka', SD: 'Sudan', SR: 'Suriname',
+  SE: 'Sweden', CH: 'Switzerland', SY: 'Syria', TW: 'Taiwan', TJ: 'Tajikistan',
+  TZ: 'Tanzania', TH: 'Thailand', TL: 'Timor-Leste', TG: 'Togo', TO: 'Tonga',
+  TT: 'Trinidad and Tobago', TN: 'Tunisia', TR: 'Turkey', TM: 'Turkmenistan',
+  UG: 'Uganda', UA: 'Ukraine', AE: 'United Arab Emirates', GB: 'United Kingdom',
+  US: 'United States', UY: 'Uruguay', UZ: 'Uzbekistan', VU: 'Vanuatu',
+  VE: 'Venezuela', VN: 'Vietnam', YE: 'Yemen', ZM: 'Zambia', ZW: 'Zimbabwe'
+};
 
-async function getSessionUser(request) {
-  const authHeader = request.headers.get('authorization') || '';
-  const token = authHeader.replace('Bearer ', '').trim();
-  if (!token) return null;
-
-  const { data: session } = await serviceSupabase
-    .from('sessions')
-    .select('*')
-    .eq('token', token)
-    .maybeSingle();
-
-  if (!session) return null;
-  const expiresAt = new Date(session.expires_at).getTime();
-  if (isNaN(expiresAt) || expiresAt < Date.now()) return null;
-  return { userId: session.user_id, role: session.role };
+function sanitizeForPDF(text) {
+  if (text === null || text === undefined) return '';
+  let out = String(text);
+  out = out.replace(/↔/g, '<->');
+  out = out.replace(/→/g, '->');
+  out = out.replace(/←/g, '<-');
+  out = out.replace(/↑/g, '^');
+  out = out.replace(/↓/g, 'v');
+  out = out.replace(/[–—]/g, '-');
+  out = out.replace(/['']/g, "'");
+  out = out.replace(/[""]/g, '"');
+  out = out.replace(/…/g, '...');
+  out = out.replace(/•/g, '*');
+  out = out.replace(/✓/g, 'v');
+  out = out.replace(/✔/g, 'v');
+  out = out.replace(/✕/g, 'x');
+  out = out.replace(/×/g, 'x');
+  out = out.replace(/[^\x00-\xFF]/g, '?');
+  return out;
 }
 
-function generateShortForm(name) {
-  if (!name || !String(name).trim()) return 'SXL';
-  const words = String(name).trim().split(/\s+/).filter(w => w.length > 0);
-  let short = words.map(w => w[0].toUpperCase()).join('');
-  short = short.replace(/[^A-Z0-9]/g, '');
-  if (short.length > 4) short = short.substring(0, 4);
-  return short || 'SXL';
+function countryName(code) {
+  if (!code) return '';
+  const upper = String(code).toUpperCase().trim();
+  return COUNTRY_NAMES[upper] || code;
 }
 
-function mapServiceType(shipMode) {
-  if (shipMode === 'AIR') return 'Freight-Air';
-  if (shipMode === 'SEA') return 'Freight-Sea';
-  return 'Courier';
+function expandCountryCodes(text) {
+  if (!text) return '';
+  let out = String(text);
+  out = out.replace(/\b([A-Z]{2})\b/g, (match) => {
+    if (COUNTRY_NAMES[match]) return COUNTRY_NAMES[match];
+    return match;
+  });
+  return out;
 }
 
-export async function POST(request) {
+function s(v) {
+  if (v === null || v === undefined) return '';
+  return sanitizeForPDF(String(v));
+}
+
+function fmtDate(d) {
+  if (!d) return '-';
   try {
-    const session = await getSessionUser(request);
-    if (!session) return NextResponse.json({ success: false, error: 'Session expired.' });
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return String(d);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return String(date.getDate()).padStart(2, '0') + ' ' + months[date.getMonth()] + ' ' + date.getFullYear();
+  } catch (e) { return String(d); }
+}
 
-    const body = await request.json();
-    const shipMode = String(body.shipMode || '').toUpperCase();
-    const seaLoadType = String(body.seaLoadType || '').trim().toUpperCase();
-    const shipper = body.shipper || {};
-    const consignee = body.consignee || {};
-    const shipment = body.shipment || {};
-    const paymentTerms = body.paymentTerms || '';
-    const paymentMethod = body.paymentMethod || '';
-    const freightBillTo = body.freightBillTo ? String(body.freightBillTo).trim() : null;
-    const dutyTaxBillTo = body.dutyTaxBillTo ? String(body.dutyTaxBillTo).trim() : null;
-    const invoiceUrls = Array.isArray(body.invoiceUrls) ? body.invoiceUrls : [];
-    const packingListUrls = Array.isArray(body.packingListUrls) ? body.packingListUrls : [];
+function fmtTime(t) {
+  if (!t) return '-';
+  return String(t).slice(0, 5);
+}
 
-    // NEW: Custom & Delivery service
-    const customService = String(body.customService || '').trim().toLowerCase();
-    const deliveryService = String(body.deliveryService || '').trim().toLowerCase();
+function truncate(str, maxLen) {
+  const v = String(str || '');
+  if (v.length <= maxLen) return v;
+  return v.substring(0, maxLen - 3) + '...';
+}
 
-    if (!['AIR', 'SEA'].includes(shipMode)) return NextResponse.json({ success: false, error: 'Ship mode is required.' });
-    if (shipMode === 'SEA' && !['LCL', 'FCL'].includes(seaLoadType)) {
-      return NextResponse.json({ success: false, error: 'Please select LCL or FCL for SEA shipments.' });
-    }
-    if (!shipper.name || !shipper.fullAddress || !shipper.country || !shipper.email || !shipper.phone) {
-      return NextResponse.json({ success: false, error: 'Shipper details incomplete.' });
-    }
-    if (!consignee.name || !consignee.fullAddress || !consignee.country || !consignee.email || !consignee.phone) {
-      return NextResponse.json({ success: false, error: 'Consignee details incomplete.' });
-    }
-    if (!shipment.description || !String(shipment.description).trim()) {
-      return NextResponse.json({ success: false, error: 'Description required.' });
-    }
-    if (!shipment.totalWeight || parseFloat(shipment.totalWeight) <= 0) {
-      return NextResponse.json({ success: false, error: 'Weight required.' });
-    }
-    if (!paymentTerms || !paymentMethod) {
-      return NextResponse.json({ success: false, error: 'Payment required.' });
-    }
-    if (invoiceUrls.length === 0) {
-      return NextResponse.json({ success: false, error: 'At least one Invoice file is required.' });
-    }
-    if (packingListUrls.length === 0) {
-      return NextResponse.json({ success: false, error: 'At least one Packing List file is required.' });
-    }
-
-    // Custom & Delivery validation
-    if (!['sxl', 'consignee'].includes(customService)) {
-      return NextResponse.json({ success: false, error: 'Please select who will handle customs.' });
-    }
-    if (!['sxl', 'consignee'].includes(deliveryService)) {
-      return NextResponse.json({ success: false, error: 'Please select who will handle delivery.' });
-    }
-
-    if (shipMode === 'AIR') {
-      if (!body.parcelType) {
-        return NextResponse.json({ success: false, error: 'Parcel Type is required for AIR shipments.' });
-      }
-      if (body.parcelType === 'Special Parcel' && (!shipment.deliveryTimeline || !String(shipment.deliveryTimeline).trim())) {
-        return NextResponse.json({ success: false, error: 'Delivery Timeline is required for Special Parcel shipments.' });
-      }
-    }
-
-    const requiresBilling = !(shipMode === 'AIR' && body.parcelType === 'Special Parcel');
-    if (requiresBilling) {
-      if (!freightBillTo) {
-        return NextResponse.json({ success: false, error: 'Please select who pays the freight cost.' });
-      }
-      if (!dutyTaxBillTo) {
-        return NextResponse.json({ success: false, error: 'Please select who pays the duty & taxes.' });
-      }
-    }
-
-    if (paymentTerms === 'Credit Account') {
-      const { data: userRecord } = await serviceSupabase
-        .from('users')
-        .select('credit_approved, credit_limit, credit_request_status')
-        .eq('user_id', session.userId)
-        .maybeSingle();
-
-      if (!userRecord || userRecord.credit_approved !== true) {
-        return NextResponse.json({
-          success: false,
-          error: 'Your account is not approved for Credit Account. Please use Prepaid or Collect, or apply for credit in My Account.',
-        });
-      }
-
-      const { data: existingShipments } = await serviceSupabase
-        .from('shipments')
-        .select('shipping_cost, payment_status')
-        .eq('booked_by', session.userId)
-        .neq('payment_status', 'Paid');
-
-      let currentBalance = 0;
-      (existingShipments || []).forEach((s) => {
-        currentBalance += parseFloat(s.shipping_cost) || 0;
-      });
-
-      const creditLimit = parseFloat(userRecord.credit_limit) || 0;
-      if (creditLimit > 0 && currentBalance >= creditLimit) {
-        return NextResponse.json({
-          success: false,
-          error: 'Your credit limit has been reached. Please settle outstanding invoices or use Prepaid / Collect.',
-        });
-      }
-    }
-
-    const pickupService = shipment.pickupService !== false;
-    const pickupSameAsShipper = pickupService && shipment.pickupSameAsShipper !== false;
-
-    const dimLength = parseFloat(shipment.dimLength) || 0;
-    const dimWidth = parseFloat(shipment.dimWidth) || 0;
-    const dimHeight = parseFloat(shipment.dimHeight) || 0;
-    let dimensionsStr = '';
-    if (dimLength > 0 && dimWidth > 0 && dimHeight > 0) {
-      dimensionsStr = dimLength + 'x' + dimWidth + 'x' + dimHeight;
-    }
-
-    const packagingType = String(shipment.packagingType || '').trim();
-    const packagingTypeCustom = String(shipment.packagingTypeCustom || '').trim();
-
-    const deliveryTimeline = (shipMode === 'AIR' && body.parcelType === 'Special Parcel' && shipment.deliveryTimeline)
-      ? String(shipment.deliveryTimeline).trim()
-      : null;
-
-    const originCountry = shipment.originCountry ? String(shipment.originCountry).trim() : null;
-
-    const uploadedDocuments = {
-      invoices: invoiceUrls,
-      packingLists: packingListUrls,
-      uploadedAt: new Date().toISOString(),
-    };
-
-    const shortForm = generateShortForm(shipper.name);
-    const today = new Date();
-    const ddmmyyyy = String(today.getDate()).padStart(2, '0') +
-                     String(today.getMonth() + 1).padStart(2, '0') +
-                     today.getFullYear();
-
-    const { data: existingCounter } = await serviceSupabase
-      .from('counters').select('*').eq('short_form', shortForm).maybeSingle();
-
-    let nextNum = 1;
-    if (existingCounter) {
-      nextNum = (parseInt(existingCounter.last_number, 10) || 0) + 1;
-      await serviceSupabase.from('counters')
-        .update({ last_number: nextNum, updated_at: new Date().toISOString() })
-        .eq('short_form', shortForm);
+function wrapText(str, maxChars) {
+  const text = sanitizeForPDF(String(str || '')).trim();
+  if (!text) return [''];
+  const words = text.split(/\s+/);
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    if ((cur + ' ' + w).trim().length <= maxChars) {
+      cur = (cur + ' ' + w).trim();
     } else {
-      await serviceSupabase.from('counters').insert({ short_form: shortForm, last_number: 1 });
-    }
-
-    const modeSuffix = shipMode === 'SEA' ? 'S' : '';
-    const trackingNumber = shortForm + ddmmyyyy + nextNum + modeSuffix;
-
-    let pickupAddress = '';
-    let pickupCity = '';
-    let pickupState = '';
-    let pickupCountry = '';
-
-    if (pickupService) {
-      if (pickupSameAsShipper) {
-        pickupAddress = shipper.fullAddress || '';
-        pickupCity = shipper.city || '';
-        pickupState = shipper.state || '';
-        pickupCountry = shipper.country || '';
+      if (cur) lines.push(cur);
+      if (w.length > maxChars) {
+        let rest = w;
+        while (rest.length > maxChars) {
+          lines.push(rest.slice(0, maxChars));
+          rest = rest.slice(maxChars);
+        }
+        cur = rest;
       } else {
-        pickupAddress = shipment.pickupAddress || '';
-        pickupCity = shipment.pickupCity || '';
-        pickupState = shipment.pickupState || '';
-        pickupCountry = shipment.pickupCountry || '';
+        cur = w;
       }
     }
-
-    const { data: newShipment, error: insertError } = await serviceSupabase
-      .from('shipments')
-      .insert({
-        tracking_number: trackingNumber,
-        short_form: shortForm,
-        ship_mode: shipMode,
-        sea_load_type: shipMode === 'SEA' ? seaLoadType : null,
-        service_type: mapServiceType(shipMode),
-        parcel_type: body.parcelType || null,
-        parcel_type_custom: body.parcelTypeCustom || null,
-        delivery_timeline: deliveryTimeline,
-        status: 'Booked',
-        shipper_ref: shipment.shipperRef || null,
-        shipment_date: shipment.shipmentDate || null,
-        description: shipment.description,
-        packages: shipment.packages ? parseInt(shipment.packages, 10) : null,
-        total_weight: parseFloat(shipment.totalWeight) || null,
-        total_value: shipment.totalValue ? parseFloat(shipment.totalValue) : null,
-        value_currency: shipment.valueCurrency || 'USD',
-        special_instruction: shipment.specialInstruction || null,
-        parcel_ready_date: shipment.parcelReadyDate || null,
-        parcel_ready_time: shipment.parcelReadyTime || null,
-        pickup_service: pickupService,
-        pickup_same_as_shipper: pickupSameAsShipper,
-        pickup_address: pickupAddress || null,
-        pickup_city: pickupCity || null,
-        pickup_state: pickupState || null,
-        pickup_country: pickupCountry || null,
-        origin: shipper.country,
-        destination: consignee.country,
-        origin_country: originCountry,
-        sender_name: shipper.name,
-        sender_phone: shipper.phone,
-        sender_email: shipper.email,
-        recipient_name: consignee.name,
-        recipient_phone: consignee.phone,
-        recipient_email: consignee.email,
-        recipient_bin: consignee.bin || null,
-        recipient_address: consignee.fullAddress || null,
-        recipient_city: consignee.city || null,
-        recipient_state: consignee.state || null,
-        hs_code: shipment.hsCode || null,
-        total_cbm: shipment.totalCbm ? parseFloat(shipment.totalCbm) : null,
-        dimensions: dimensionsStr || null,
-        dim_length: dimLength > 0 ? dimLength : null,
-        dim_width: dimWidth > 0 ? dimWidth : null,
-        dim_height: dimHeight > 0 ? dimHeight : null,
-        packaging_type: packagingType || null,
-        packaging_type_custom: packagingTypeCustom || null,
-        freight_bill_to: freightBillTo,
-        duty_tax_bill_to: dutyTaxBillTo,
-        custom_service: customService,
-        delivery_service: deliveryService,
-        uploaded_documents: uploadedDocuments,
-        currency: 'USD',
-        payment_status: 'Unpaid',
-        payment_terms: paymentTerms,
-        payment_method: paymentMethod,
-        booked_by: session.userId,
-        booked_at: new Date().toISOString(),
-        last_update: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (insertError) return NextResponse.json({ success: false, error: insertError.message });
-
-    await serviceSupabase.from('tracking_history').insert({
-      tracking_number: trackingNumber,
-      status: 'Booked',
-      location: shipper.city || shipper.country || 'Origin',
-      notes: 'Booking received',
-      updated_by: session.userId,
-    });
-
-    const pdfUrl = '/api/pdf/booking/' + trackingNumber;
-
-    try {
-      await generateBookingPDF(newShipment);
-    } catch (pdfErr) {
-      console.error('[Booking PDF] Exception:', pdfErr.message);
-    }
-
-    try {
-      const emailResult = await sendBookingConfirmation(newShipment);
-      console.log('[Email] Customer confirmation:', emailResult.success ? 'sent' : 'failed', emailResult.error || '');
-    } catch (emailErr) {
-      console.error('[Email] Customer confirmation failed:', emailErr.message);
-    }
-
-    try {
-      const adminResult = await sendAdminNewBookingAlert(newShipment);
-      console.log('[Email] Admin alert:', adminResult.success ? 'sent' : 'failed', adminResult.error || '');
-    } catch (emailErr) {
-      console.error('[Email] Admin alert failed:', emailErr.message);
-    }
-
-    return NextResponse.json({
-      success: true,
-      trackingNumber,
-      shipmentId: newShipment.id,
-      pdfUrl,
-    });
-
-  } catch (err) {
-    console.error('[Booking] Exception:', err.message);
-    return NextResponse.json({ success: false, error: err.message });
   }
+  if (cur) lines.push(cur);
+  return lines.length > 0 ? lines : [''];
+}
+
+function buildShipmentType(shipment) {
+  const mode = String(shipment.ship_mode || '').toUpperCase();
+  const load = String(shipment.sea_load_type || '').toUpperCase();
+  const pType = String(shipment.parcel_type || '').trim();
+  const pCustom = String(shipment.parcel_type_custom || '').trim();
+  const timeline = sanitizeForPDF(String(shipment.delivery_timeline || '').trim());
+
+  if (mode === 'SEA') {
+    return load ? ('SEA - ' + load) : 'SEA';
+  }
+  if (mode === 'AIR') {
+    let p = pType;
+    if (p === 'Others' && pCustom) p = 'Others: ' + pCustom;
+    let out = p ? ('AIR - ' + p) : 'AIR';
+    if (pType === 'Special Parcel' && timeline) {
+      out += '  |  Timeline: ' + timeline;
+    }
+    return sanitizeForPDF(out);
+  }
+  return mode || '-';
+}
+
+// NEW: Format custom/delivery service value for PDF display
+function serviceLabel(val) {
+  const v = String(val || '').toLowerCase();
+  if (v === 'sxl') return 'Handled by sXL';
+  if (v === 'consignee') return 'Handled by Consignee';
+  return '-';
+}
+
+async function fetchQRCode(text) {
+  const url = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(text);
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const arrayBuffer = await res.arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  } catch (e) {
+    console.error('[QR] Failed:', e.message);
+    return null;
+  }
+}
+
+function drawSectionHeader(page, x, y, w, label, fontBold, color) {
+  page.drawRectangle({ x, y: y - 22, width: w, height: 22, color });
+  page.drawText(label, { x: x + 12, y: y - 15, size: 11, font: fontBold, color: WHITE });
+}
+
+export async function generateBookingPDF(shipment) {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595, 842]);
+  const { width, height } = page.getSize();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const LEFT = 40;
+  const RIGHT_PAD = 40;
+  const CONTENT_W = width - LEFT - RIGHT_PAD;
+
+  let y = height;
+
+  // HEADER
+  page.drawRectangle({ x: 0, y: y - 75, width, height: 75, color: ORANGE });
+  page.drawRectangle({ x: LEFT, y: y - 64, width: 52, height: 52, color: WHITE });
+  page.drawText('sXL', { x: LEFT + 8, y: y - 44, size: 20, font: fontBold, color: ORANGE });
+  page.drawText('SUPER EXPRESS', { x: LEFT + 65, y: y - 30, size: 18, font: fontBold, color: WHITE });
+  page.drawText('LOGISTICS CENTER', { x: LEFT + 65, y: y - 48, size: 10, font, color: WHITE });
+  page.drawText('BOOKING CONFIRMATION', { x: 375, y: y - 43, size: 9, font: fontBold, color: WHITE });
+  y -= 75;
+
+  // TRACKING NUMBER
+  page.drawRectangle({ x: 0, y: y - 85, width, height: 85, color: NAVY });
+  page.drawText('TRACKING NUMBER', { x: LEFT, y: y - 26, size: 9, font, color: rgb(0.7, 0.8, 0.9) });
+  page.drawText(s(shipment.tracking_number), { x: LEFT, y: y - 58, size: 26, font: fontBold, color: WHITE });
+
+  try {
+    const trackUrl = 'https://sxl-logistics.com/track?tn=' + s(shipment.tracking_number);
+    const qrBytes = await fetchQRCode(trackUrl);
+    if (qrBytes) {
+      const qrImage = await pdfDoc.embedPng(qrBytes);
+      page.drawRectangle({ x: width - 105, y: y - 75, width: 75, height: 75, color: WHITE });
+      page.drawImage(qrImage, { x: width - 103, y: y - 73, width: 71, height: 71 });
+    }
+  } catch (e) {
+    console.error('[PDF QR] Failed:', e.message);
+  }
+  y -= 85;
+
+  // STATUS + SERVICE
+  y -= 15;
+  page.drawRectangle({ x: LEFT, y: y - 32, width: CONTENT_W, height: 32, color: ORANGE_SOFT });
+  const statusText = s(shipment.status || 'Booked').toUpperCase();
+  page.drawText('STATUS', { x: LEFT + 12, y: y - 12, size: 9, font: fontBold, color: GRAY });
+  page.drawText(statusText, { x: LEFT + 12, y: y - 26, size: 12, font: fontBold, color: ORANGE });
+  page.drawText('SERVICE', { x: 200, y: y - 12, size: 9, font: fontBold, color: GRAY });
+  page.drawText(s(shipment.service_type || '-'), { x: 200, y: y - 26, size: 11, font, color: BLACK });
+  page.drawText('DATE', { x: 400, y: y - 12, size: 9, font: fontBold, color: GRAY });
+  page.drawText(fmtDate(shipment.booked_at), { x: 400, y: y - 26, size: 10, font, color: BLACK });
+  y -= 32;
+
+  // SHIPPER + CONSIGNEE
+  y -= 14;
+  const colGap = 12;
+  const colW = (CONTENT_W - colGap) / 2;
+  const leftX = LEFT;
+  const rightX = LEFT + colW + colGap;
+
+  drawSectionHeader(page, leftX, y, colW, 'SHIPPER (FROM)', fontBold, NAVY);
+  drawSectionHeader(page, rightX, y, colW, 'CONSIGNEE (TO)', fontBold, NAVY);
+  y -= 22;
+
+  const shipperAddrLines = [
+    s(shipment.pickup_address),
+    [s(shipment.pickup_city), s(shipment.pickup_state)].filter(Boolean).join(', '),
+    countryName(shipment.origin),
+  ].filter(Boolean);
+
+  const consigneeAddrLines = [
+    s(shipment.recipient_address),
+    [s(shipment.recipient_city), s(shipment.recipient_state)].filter(Boolean).join(', '),
+    countryName(shipment.destination),
+  ].filter(Boolean);
+
+  const shipperAddrFull = sanitizeForPDF(expandCountryCodes(shipperAddrLines.join(', ')));
+  const consigneeAddrFull = sanitizeForPDF(expandCountryCodes(consigneeAddrLines.join(', ')));
+
+  const shipperRows = [
+    ['Name', s(shipment.sender_name)],
+    ['Address', shipperAddrFull],
+    ['Phone', s(shipment.sender_phone)],
+    ['Email', s(shipment.sender_email)],
+  ];
+
+  const consigneeRows = [
+    ['Name', s(shipment.recipient_name)],
+    ['Address', consigneeAddrFull],
+    ['Phone', s(shipment.recipient_phone)],
+    ['Email', s(shipment.recipient_email)],
+    ['BIN', s(shipment.recipient_bin) || '-'],
+  ];
+
+  const WRAP_CHARS = 28;
+  const labelColW = 58;
+  const lineH = 12;
+
+  function renderSide(rows) {
+    let curY = y;
+    const rendered = [];
+    for (const [label, value] of rows) {
+      const lines = wrapText(value, WRAP_CHARS);
+      rendered.push({ label, lines });
+      curY -= lines.length * lineH + 3;
+    }
+    return { rendered, totalH: y - curY };
+  }
+
+  const shipperRender = renderSide(shipperRows);
+  const consigneeRender = renderSide(consigneeRows);
+  const blockH = Math.max(shipperRender.totalH, consigneeRender.totalH);
+
+  page.drawRectangle({ x: leftX, y: y - blockH, width: colW, height: blockH, color: LIGHT });
+  page.drawRectangle({ x: rightX, y: y - blockH, width: colW, height: blockH, color: LIGHT });
+
+  function drawSide(rows, xStart) {
+    let curY = y;
+    for (const row of rows) {
+      page.drawText(row.label + ':', { x: xStart + 8, y: curY - 9, size: 9, font: fontBold, color: GRAY });
+      row.lines.forEach((line, li) => {
+        page.drawText(line, { x: xStart + labelColW, y: curY - 9 - li * lineH, size: 9, font, color: BLACK });
+      });
+      curY -= row.lines.length * lineH + 3;
+    }
+  }
+  drawSide(shipperRender.rendered, leftX);
+  drawSide(consigneeRender.rendered, rightX);
+
+  y -= blockH + 14;
+
+  // SHIPMENT DETAILS
+  drawSectionHeader(page, LEFT, y, CONTENT_W, 'SHIPMENT DETAILS', fontBold, NAVY);
+  y -= 22;
+
+  const shipmentTypeText = buildShipmentType(shipment);
+
+  const detailsRows = [
+    ['Shipment Type', shipmentTypeText],
+    ['Description', s(shipment.description)],
+    ['Packaging Type', s(shipment.packaging_type) === 'Others' && shipment.packaging_type_custom ? 'Others: ' + s(shipment.packaging_type_custom) : s(shipment.packaging_type)],
+  ];
+  if (shipment.hs_code) detailsRows.push(['HS Code', s(shipment.hs_code)]);
+  if (shipment.origin_country) detailsRows.push(['Country of Origin', countryName(shipment.origin_country)]);
+  if (s(shipment.ship_mode).toUpperCase() === 'SEA' && shipment.total_cbm) {
+    detailsRows.push(['Total CBM', s(shipment.total_cbm) + ' m3']);
+  }
+  if (shipment.dimensions) detailsRows.push(['Dimensions', s(shipment.dimensions) + ' cm']);
+  detailsRows.push(['Shipper Ref', s(shipment.shipper_ref) || '-']);
+  detailsRows.push(['Special Instructions', s(shipment.special_instruction) || '-']);
+
+  const keyFigures = [
+    ['Packages', s(shipment.packages)],
+    ['Weight (kg)', s(shipment.total_weight)],
+    ['Total Value', s(shipment.total_value) + ' ' + s(shipment.value_currency || 'USD')],
+  ];
+
+  const detLeftW = CONTENT_W * 0.62;
+  const detRightW = CONTENT_W - detLeftW - 10;
+  const detRightX = LEFT + detLeftW + 10;
+
+  const detLineH = 12;
+  let detHeight = 0;
+  const detRendered = detailsRows.map(([label, value]) => {
+    const lines = wrapText(value, Math.floor((detLeftW - 125) / 4.6));
+    detHeight += Math.max(lines.length * detLineH, 15) + 4;
+    return { label, lines };
+  });
+
+  const keyFigureRowH = 40;
+  const keyFiguresH = keyFigures.length * keyFigureRowH + 10;
+  const detailsBlockH = Math.max(detHeight + 8, keyFiguresH);
+
+  page.drawRectangle({ x: LEFT, y: y - detailsBlockH, width: detLeftW, height: detailsBlockH, color: LIGHT });
+  page.drawRectangle({ x: detRightX, y: y - detailsBlockH, width: detRightW, height: detailsBlockH, color: ORANGE_LIGHT });
+
+  let curY = y - 5;
+  for (const row of detRendered) {
+    page.drawText(row.label + ':', { x: LEFT + 8, y: curY - 11, size: 9, font: fontBold, color: GRAY });
+    row.lines.forEach((line, li) => {
+      page.drawText(line, { x: LEFT + 125, y: curY - 11 - li * detLineH, size: 9, font, color: BLACK });
+    });
+    curY -= Math.max(row.lines.length * detLineH, 15) + 4;
+  }
+
+  let kfY = y - 8;
+  for (const [label, value] of keyFigures) {
+    page.drawText(label.toUpperCase(), { x: detRightX + 12, y: kfY - 10, size: 8, font: fontBold, color: GRAY });
+    page.drawText(value, { x: detRightX + 12, y: kfY - 27, size: 14, font: fontBold, color: NAVY });
+    kfY -= keyFigureRowH;
+  }
+
+  y -= detailsBlockH + 14;
+
+  // PICKUP
+  let pickupRows = [];
+  const pickupService = shipment.pickup_service !== false;
+
+  if (!pickupService) {
+    pickupRows = [
+      ['Service', 'Self-Delivery to Warehouse'],
+      ['Note', 'Warehouse details emailed separately'],
+      ['Ready Date', fmtDate(shipment.parcel_ready_date)],
+      ['Ready Time', fmtTime(shipment.parcel_ready_time)],
+    ];
+  } else {
+    pickupRows = [
+      ['Pickup By', 'sXL Courier'],
+      ['Address', shipperAddrFull],
+      ['Country', countryName(shipment.pickup_country)],
+      ['Ready Date', fmtDate(shipment.parcel_ready_date)],
+      ['Ready Time', fmtTime(shipment.parcel_ready_time)],
+    ];
+  }
+
+  // ===== NEW: PAYMENT + SERVICE (3 rows now: Payment + Customs + Delivery) =====
+  const paymentRows = [
+    ['Payment', s(shipment.payment_terms) || '-'],
+    ['Method', s(shipment.payment_method) || '-'],
+    ['Currency', s(shipment.currency) || 'USD'],
+  ];
+  if (shipment.freight_bill_to) paymentRows.push(['Freight Bill', s(shipment.freight_bill_to)]);
+  if (shipment.duty_tax_bill_to) paymentRows.push(['Duty/Tax Bill', s(shipment.duty_tax_bill_to)]);
+  // NEW rows
+  paymentRows.push(['Customs', serviceLabel(shipment.custom_service)]);
+  paymentRows.push(['Delivery', serviceLabel(shipment.delivery_service)]);
+
+  drawSectionHeader(page, leftX, y, colW, 'PICKUP DETAILS', fontBold, NAVY);
+  drawSectionHeader(page, rightX, y, colW, 'PAYMENT & SERVICE', fontBold, NAVY);
+  y -= 22;
+
+  const PICKUP_WRAP = 24;
+  const smallLineH = 12;
+
+  function renderSmallSide(rows) {
+    let curY = y;
+    const rendered = [];
+    for (const [label, value] of rows) {
+      const lines = wrapText(value, PICKUP_WRAP);
+      rendered.push({ label, lines });
+      curY -= lines.length * smallLineH + 4;
+    }
+    return { rendered, totalH: y - curY };
+  }
+
+  const pickupRender = renderSmallSide(pickupRows);
+  const paymentRender = renderSmallSide(paymentRows);
+  const block2H = Math.max(pickupRender.totalH, paymentRender.totalH);
+
+  page.drawRectangle({ x: leftX, y: y - block2H, width: colW, height: block2H, color: LIGHT });
+  page.drawRectangle({ x: rightX, y: y - block2H, width: colW, height: block2H, color: LIGHT });
+
+  function drawSmallSide(rows, xStart, valueOffset) {
+    let curY = y;
+    for (const row of rows) {
+      page.drawText(row.label + ':', { x: xStart + 8, y: curY - 9, size: 9, font: fontBold, color: GRAY });
+      row.lines.forEach((line, li) => {
+        page.drawText(line, { x: xStart + valueOffset, y: curY - 9 - li * smallLineH, size: 9, font, color: BLACK });
+      });
+      curY -= row.lines.length * smallLineH + 4;
+    }
+  }
+  drawSmallSide(pickupRender.rendered, leftX, 78);
+  drawSmallSide(paymentRender.rendered, rightX, 105);
+
+  y -= block2H + 14;
+
+  // SIGNATURES
+  const footerH = 50;
+  const sigBlockH = 58;
+  const minYForSig = footerH + sigBlockH;
+
+  let sigY = y - 18;
+  if (sigY < minYForSig) sigY = minYForSig;
+
+  page.drawText('SHIPPER SIGNATURE', { x: leftX + 8, y: sigY, size: 9, font: fontBold, color: GRAY });
+  page.drawLine({ start: { x: leftX + 8, y: sigY - 38 }, end: { x: leftX + colW - 8, y: sigY - 38 }, thickness: 0.5, color: GRAY_LIGHT });
+
+  page.drawText('CONSIGNEE SIGNATURE', { x: rightX + 8, y: sigY, size: 9, font: fontBold, color: GRAY });
+  page.drawLine({ start: { x: rightX + 8, y: sigY - 38 }, end: { x: rightX + colW - 8, y: sigY - 38 }, thickness: 0.5, color: GRAY_LIGHT });
+
+  // FOOTER
+  page.drawRectangle({ x: 0, y: 0, width, height: footerH, color: NAVY });
+  page.drawText('This is a computer-generated document. No signature required.', {
+    x: LEFT, y: 31, size: 8, font, color: rgb(0.7, 0.8, 0.9),
+  });
+  page.drawText('Generated on ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' GMT | (c) sXL - Super Express Logistics Center | ' + s(shipment.tracking_number), {
+    x: LEFT, y: 17, size: 7, font, color: rgb(0.6, 0.7, 0.8),
+  });
+
+  return await pdfDoc.save();
+}
+
+export async function generateInvoicePDF(invoice, shipments) {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595, 842]);
+  const { width, height } = page.getSize();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  let y = height;
+
+  page.drawRectangle({ x: 0, y: y - 80, width, height: 80, color: ORANGE });
+  page.drawRectangle({ x: 40, y: y - 68, width: 56, height: 56, color: WHITE });
+  page.drawText('sXL', { x: 50, y: y - 46, size: 20, font: fontBold, color: ORANGE });
+  page.drawText('SUPER EXPRESS', { x: 110, y: y - 32, size: 18, font: fontBold, color: WHITE });
+  page.drawText('LOGISTICS CENTER', { x: 110, y: y - 50, size: 10, font, color: WHITE });
+  page.drawText(invoice.type === 'monthly-summary' ? 'MONTHLY SUMMARY INVOICE' : 'INVOICE', {
+    x: 380, y: y - 45, size: 10, font: fontBold, color: WHITE,
+  });
+
+  y -= 80;
+  y -= 30;
+
+  const info = [
+    ['Invoice Number', s(invoice.invoice_number)],
+    ['Issue Date', fmtDate(invoice.issue_date)],
+    ['Due Date', fmtDate(invoice.due_date)],
+    ['Status', s(invoice.status)],
+    ['Shipper', s(invoice.shipper_name)],
+  ];
+  if (invoice.month) info.push(['Month', s(invoice.month)]);
+
+  info.forEach(([label, value]) => {
+    page.drawText(label + ':', { x: 40, y, size: 10, font: fontBold, color: NAVY });
+    page.drawText(String(value || '-'), { x: 160, y, size: 10, font, color: BLACK });
+    y -= 18;
+  });
+
+  y -= 20;
+
+  page.drawRectangle({ x: 40, y: y - 20, width: width - 80, height: 24, color: NAVY });
+  page.drawText('Tracking #', { x: 45, y: y - 13, size: 9, font: fontBold, color: WHITE });
+  page.drawText('Route', { x: 180, y: y - 13, size: 9, font: fontBold, color: WHITE });
+  page.drawText('Weight', { x: 360, y: y - 13, size: 9, font: fontBold, color: WHITE });
+  page.drawText('Amount', { x: 470, y: y - 13, size: 9, font: fontBold, color: WHITE });
+  y -= 24;
+
+  let grandTotal = 0;
+  (shipments || []).forEach((sh, idx) => {
+    if (y < 100) return;
+    const bg = idx % 2 === 0 ? WHITE : LIGHT;
+    page.drawRectangle({ x: 40, y: y - 18, width: width - 80, height: 20, color: bg });
+
+    const route = countryName(sh.origin) + ' -> ' + countryName(sh.destination);
+    page.drawText(s(sh.tracking_number), { x: 45, y: y - 12, size: 8, font, color: BLACK });
+    page.drawText(truncate(route, 30), { x: 180, y: y - 12, size: 8, font, color: BLACK });
+    page.drawText(s(sh.total_weight) + ' kg', { x: 360, y: y - 12, size: 8, font, color: BLACK });
+
+    const amt = parseFloat(sh.shipping_cost) || 0;
+    grandTotal += amt;
+    page.drawText(amt.toFixed(2), { x: 470, y: y - 12, size: 8, font, color: BLACK });
+
+    y -= 20;
+  });
+
+  y -= 15;
+
+  const total = invoice.amount || grandTotal;
+  page.drawRectangle({ x: 40, y: y - 45, width: width - 80, height: 45, color: ORANGE_LIGHT });
+  page.drawText('TOTAL AMOUNT DUE', { x: 55, y: y - 20, size: 12, font: fontBold, color: NAVY });
+  page.drawText(
+    s(invoice.currency || 'USD') + ' ' + Number(total).toFixed(2),
+    { x: 350, y: y - 30, size: 18, font: fontBold, color: ORANGE }
+  );
+
+  y -= 60;
+
+  if (invoice.local_currency && invoice.local_amount) {
+    page.drawText('Local currency: ' + s(invoice.local_currency) + ' ' + Number(invoice.local_amount).toFixed(2), {
+      x: 40, y, size: 10, font, color: GRAY,
+    });
+  }
+
+  page.drawRectangle({ x: 0, y: 0, width, height: 60, color: NAVY });
+  page.drawText('This is a computer-generated document.', { x: 40, y: 40, size: 8, font, color: rgb(0.7, 0.8, 0.9) });
+  page.drawText('Generated on ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' GMT', { x: 40, y: 26, size: 8, font, color: rgb(0.6, 0.7, 0.8) });
+  page.drawText('(c) sXL - Super Express Logistics Center', { x: 40, y: 12, size: 8, font, color: rgb(0.5, 0.6, 0.7) });
+
+  return await pdfDoc.save();
 }
