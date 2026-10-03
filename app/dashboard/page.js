@@ -7,23 +7,43 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 
 // Frozen column widths (first 4 columns)
-const COL_W_TRACKING = 155;
-const COL_W_MODE = 110;
-const COL_W_ROUTE = 170;
-const COL_W_SHIPPER = 150;
+const COL_W_TRACKING = 160;
+const COL_W_MODE = 105;
+const COL_W_ROUTE = 160;
+const COL_W_SHIPPER = 140;
 const FROZEN_LEFT_TRACKING = 0;
 const FROZEN_LEFT_MODE = COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE = COL_W_TRACKING + COL_W_MODE;
 const FROZEN_LEFT_SHIPPER = COL_W_TRACKING + COL_W_MODE + COL_W_ROUTE;
 
-// Two-line clamp style for body cells
-const CLAMP_2 = {
-  display: '-webkit-box',
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: 'vertical',
-  overflow: 'hidden',
-  lineHeight: '1.3'
+// Common cell styles
+const TH_STYLE = {
+  padding: '14px 12px',
+  textAlign: 'left',
+  fontWeight: 700,
+  color: '#003366',
+  fontSize: '0.72rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  background: '#E9ECEF',
+  borderBottom: '2px solid #D0D6DB',
+  position: 'sticky',
+  top: 0,
+  zIndex: 10,
+  whiteSpace: 'nowrap'
 };
+
+const TD_STYLE = {
+  padding: '10px 12px',
+  borderBottom: '1px solid #F1F3F5',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  height: '48px',
+  verticalAlign: 'middle'
+};
+
+const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -327,48 +347,28 @@ export default function DashboardPage() {
               overflow: 'auto',
               maxHeight: '70vh'
             }}>
-              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1500px' }}>
+              <table style={{
+                borderCollapse: 'separate',
+                borderSpacing: 0,
+                fontSize: '0.85rem',
+                minWidth: '1650px',
+                tableLayout: 'fixed'
+              }}>
                 <thead>
                   <tr>
-                    {/* === FROZEN COLUMNS 1-4 — sticky top + left === */}
-                    <th style={{
-                      padding: '14px 12px', textAlign: 'left', fontWeight: 700,
-                      color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
-                      background: '#E9ECEF', borderBottom: '2px solid #D0D6DB',
-                      position: 'sticky', top: 0, left: FROZEN_LEFT_TRACKING, zIndex: 12,
-                      minWidth: COL_W_TRACKING, width: COL_W_TRACKING, whiteSpace: 'nowrap'
-                    }}>Tracking #</th>
-                    <th style={{
-                      padding: '14px 12px', textAlign: 'left', fontWeight: 700,
-                      color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
-                      background: '#E9ECEF', borderBottom: '2px solid #D0D6DB',
-                      position: 'sticky', top: 0, left: FROZEN_LEFT_MODE, zIndex: 12,
-                      minWidth: COL_W_MODE, width: COL_W_MODE, whiteSpace: 'nowrap'
-                    }}>Mode</th>
-                    <th style={{
-                      padding: '14px 12px', textAlign: 'left', fontWeight: 700,
-                      color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
-                      background: '#E9ECEF', borderBottom: '2px solid #D0D6DB',
-                      position: 'sticky', top: 0, left: FROZEN_LEFT_ROUTE, zIndex: 12,
-                      minWidth: COL_W_ROUTE, width: COL_W_ROUTE, whiteSpace: 'nowrap'
-                    }}>Route</th>
-                    <th style={{
-                      padding: '14px 12px', textAlign: 'left', fontWeight: 700,
-                      color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px',
-                      background: '#E9ECEF', borderBottom: '2px solid #D0D6DB',
-                      position: 'sticky', top: 0, left: FROZEN_LEFT_SHIPPER, zIndex: 12,
-                      minWidth: COL_W_SHIPPER, width: COL_W_SHIPPER, whiteSpace: 'nowrap'
-                    }}>Shipper</th>
-                    {/* === SCROLLABLE === */}
-                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 160, whiteSpace: 'nowrap' }}>Recipient</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 120, whiteSpace: 'nowrap' }}>Status</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 110, whiteSpace: 'nowrap' }}>Booking Wt</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 110, whiteSpace: 'nowrap' }}>Actual Wt</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 120, whiteSpace: 'nowrap' }}>Cost</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 110, whiteSpace: 'nowrap' }}>Payment</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 120, whiteSpace: 'nowrap' }}>Booked</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 130, whiteSpace: 'nowrap' }}>ETA</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#003366', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#E9ECEF', borderBottom: '2px solid #D0D6DB', position: 'sticky', top: 0, zIndex: 10, minWidth: 220, whiteSpace: 'nowrap' }}>Actions</th>
+                    <th style={{ ...TH_STYLE, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, left: FROZEN_LEFT_TRACKING, zIndex: 12, boxShadow: 'none' }}>Tracking #</th>
+                    <th style={{ ...TH_STYLE, width: COL_W_MODE, minWidth: COL_W_MODE, left: FROZEN_LEFT_MODE, zIndex: 12 }}>Mode</th>
+                    <th style={{ ...TH_STYLE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, left: FROZEN_LEFT_ROUTE, zIndex: 12 }}>Route</th>
+                    <th style={{ ...TH_STYLE, width: COL_W_SHIPPER, minWidth: COL_W_SHIPPER, left: FROZEN_LEFT_SHIPPER, zIndex: 12, boxShadow: FROZEN_SHADOW }}>Shipper</th>
+                    <th style={{ ...TH_STYLE, width: 150, minWidth: 150 }}>Recipient</th>
+                    <th style={{ ...TH_STYLE, width: 130, minWidth: 130 }}>Status</th>
+                    <th style={{ ...TH_STYLE, width: 110, minWidth: 110 }}>Booking Wt</th>
+                    <th style={{ ...TH_STYLE, width: 105, minWidth: 105 }}>Actual Wt</th>
+                    <th style={{ ...TH_STYLE, width: 115, minWidth: 115 }}>Cost</th>
+                    <th style={{ ...TH_STYLE, width: 110, minWidth: 110 }}>Payment</th>
+                    <th style={{ ...TH_STYLE, width: 120, minWidth: 120 }}>Booked</th>
+                    <th style={{ ...TH_STYLE, width: 125, minWidth: 125 }}>ETA</th>
+                    <th style={{ ...TH_STYLE, width: 230, minWidth: 230 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -383,46 +383,44 @@ export default function DashboardPage() {
                     const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
 
                     const frozenTd = {
-                      padding: '10px 12px',
-                      borderBottom: '1px solid #F1F3F5',
+                      ...TD_STYLE,
                       background: rowBg,
                       position: 'sticky',
-                      zIndex: 3,
-                      ...CLAMP_2
+                      zIndex: 3
                     };
 
                     return (
-                      <tr key={i}>
-                        <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, minWidth: COL_W_TRACKING, width: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                        <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, minWidth: COL_W_MODE, width: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
-                        <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, minWidth: COL_W_ROUTE, width: COL_W_ROUTE }}>{s.origin || '-'} → {s.destination || '-'}</td>
-                        <td style={{ ...frozenTd, left: FROZEN_LEFT_SHIPPER, minWidth: COL_W_SHIPPER, width: COL_W_SHIPPER }}>{s.senderName || '-'}</td>
+                      <tr key={i} style={{ background: rowBg }}>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE }}>{s.origin || '-'} → {s.destination || '-'}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_SHIPPER, width: COL_W_SHIPPER, minWidth: COL_W_SHIPPER, boxShadow: FROZEN_SHADOW }}>{s.senderName || '-'}</td>
 
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', ...CLAMP_2 }}>{s.recipientName || '-'}</td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>
+                        <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 130 }}>
                           <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                             {s.status}
                           </span>
                         </td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>
+                        <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 105 }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
+                        <td style={{ ...TD_STYLE, width: 115 }}>
                           {hasCost
                             ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
                             : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                         </td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5' }}>
+                        <td style={{ ...TD_STYLE, width: 110 }}>
                           <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
                             {s.paymentStatus || 'Unpaid'}
                           </span>
                         </td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>{formatDate(s.bookedAt)}</td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>
+                        <td style={{ ...TD_STYLE, width: 120 }}>{formatDate(s.bookedAt)}</td>
+                        <td style={{ ...TD_STYLE, width: 125 }}>
                           <span style={{ color: '#FF6B00', fontWeight: 800 }}>
                             {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                           </span>
                         </td>
-                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>
+                        <td style={{ ...TD_STYLE, width: 230 }}>
                           {tab === 'active' && (
                             <>
                               <Link href={'/track?tn=' + s.trackingNumber} style={{
@@ -444,24 +442,18 @@ export default function DashboardPage() {
                                   border: '2px solid #DC3545', borderRadius: '6px',
                                   fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
                                 }}>
-                                  Request Cancel
+                                  Cancel
                                 </button>
                               )}
                               {isCancellationPending && (
-                                <span style={{
-                                  padding: '5px 10px', background: '#FFE5B4', color: '#8B4500',
-                                  borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic'
-                                }}>
+                                <span style={{ padding: '5px 10px', background: '#FFE5B4', color: '#8B4500', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic' }}>
                                   Pending
                                 </span>
                               )}
                             </>
                           )}
                           {tab === 'cancelled' && isCancelled && (
-                            <span style={{
-                              padding: '5px 10px', background: '#E9ECEF', color: '#495057',
-                              borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic'
-                            }}>
+                            <span style={{ padding: '5px 10px', background: '#E9ECEF', color: '#495057', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic' }}>
                               Cancelled
                             </span>
                           )}
