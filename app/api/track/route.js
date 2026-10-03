@@ -10,7 +10,6 @@ const serviceSupabase = createClient(
 
 const STATUS_FLOW = ['Booked', 'Picked Up', 'In Transit', 'Out for Delivery', 'Delivered'];
 
-// Country code to full name lookup
 const COUNTRY_NAMES = {
   AF: 'Afghanistan', AL: 'Albania', DZ: 'Algeria', AD: 'Andorra', AO: 'Angola',
   AR: 'Argentina', AM: 'Armenia', AU: 'Australia', AT: 'Austria', AZ: 'Azerbaijan',
@@ -70,6 +69,24 @@ function getStatusIndex(status) {
   return -1;
 }
 
+// Build a display label: "SEA - LCL", "AIR - Document", "AIR - Special Parcel | Timeline: ..."
+function buildShipmentType(shipment) {
+  const mode = String(shipment.ship_mode || '').toUpperCase();
+  const load = String(shipment.sea_load_type || '').toUpperCase();
+  const pType = String(shipment.parcel_type || '').trim();
+  const pCustom = String(shipment.parcel_type_custom || '').trim();
+
+  if (mode === 'SEA') {
+    return load ? ('SEA - ' + load) : 'SEA';
+  }
+  if (mode === 'AIR') {
+    let p = pType;
+    if (p === 'Others' && pCustom) p = 'Others: ' + pCustom;
+    return p ? ('AIR - ' + p) : 'AIR';
+  }
+  return mode || '—';
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -79,7 +96,6 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Tracking number required.' });
     }
 
-    // Fetch shipment
     const { data: shipment, error: shipErr } = await serviceSupabase
       .from('shipments')
       .select('*')
@@ -93,14 +109,12 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Tracking number not found.' });
     }
 
-    // Fetch history
     const { data: history } = await serviceSupabase
       .from('tracking_history')
       .select('*')
       .eq('tracking_number', tn)
       .order('timestamp', { ascending: false });
 
-    // Build stepper
     const currentStatusIndex = getStatusIndex(shipment.status);
     const isException = currentStatusIndex === -2;
 
@@ -115,12 +129,13 @@ export async function GET(request) {
       return { label: status, state, index: idx };
     });
 
-    // Parcel type display (handle custom)
-    let parcelType = shipment.parcel_type || '';
-    if (parcelType === 'Others' && shipment.parcel_type_custom) {
-      parcelType = 'Others: ' + shipment.parcel_type_custom;
-    }
-    if (!parcelType) parcelType = shipment.ship_mode === 'SEA' ? 'Freight' : 'Document';
+    // Shipment type (new)
+    const shipmentType = buildShipmentType(shipment);
+
+    // Delivery timeline (Special Parcel only)
+    const deliveryTimeline = (shipment.parcel_type === 'Special Parcel' && shipment.delivery_timeline)
+      ? String(shipment.delivery_timeline).trim()
+      : null;
 
     return NextResponse.json({
       success: true,
@@ -128,10 +143,13 @@ export async function GET(request) {
         trackingNumber: shipment.tracking_number,
         serviceType: shipment.service_type,
         shipMode: shipment.ship_mode,
-        parcelType: parcelType,
+        seaLoadType: shipment.sea_load_type || null,
+        shipmentType: shipmentType,
+        parcelType: shipment.parcel_type || '',
+        deliveryTimeline: deliveryTimeline,
         status: shipment.status,
-        origin: getCountryName(shipment.origin),        // ← full country name
-        destination: getCountryName(shipment.destination), // ← full country name
+        origin: getCountryName(shipment.origin),
+        destination: getCountryName(shipment.destination),
         shipperName: shipment.sender_name,
         shipperPhone: shipment.sender_phone,
         shipperEmail: shipment.sender_email,
