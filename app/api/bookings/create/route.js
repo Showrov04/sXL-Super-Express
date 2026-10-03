@@ -56,6 +56,8 @@ export async function POST(request) {
     const shipment = body.shipment || {};
     const paymentTerms = body.paymentTerms || '';
     const paymentMethod = body.paymentMethod || '';
+    const freightBillTo = body.freightBillTo ? String(body.freightBillTo).trim() : null;
+    const dutyTaxBillTo = body.dutyTaxBillTo ? String(body.dutyTaxBillTo).trim() : null;
 
     if (!['AIR', 'SEA'].includes(shipMode)) return NextResponse.json({ success: false, error: 'Ship mode is required.' });
     if (shipMode === 'SEA' && !['LCL', 'FCL'].includes(seaLoadType)) {
@@ -77,13 +79,25 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Payment required.' });
     }
 
-    // AIR-specific required fields
+    // Parcel type + Delivery Timeline
+    // Delivery Timeline is only required for Special Parcel (AIR).
     if (shipMode === 'AIR') {
       if (!body.parcelType) {
         return NextResponse.json({ success: false, error: 'Parcel Type is required for AIR shipments.' });
       }
-      if (!shipment.deliveryTimeline || !String(shipment.deliveryTimeline).trim()) {
-        return NextResponse.json({ success: false, error: 'Delivery Timeline is required for AIR shipments.' });
+      if (body.parcelType === 'Special Parcel' && (!shipment.deliveryTimeline || !String(shipment.deliveryTimeline).trim())) {
+        return NextResponse.json({ success: false, error: 'Delivery Timeline is required for Special Parcel shipments.' });
+      }
+    }
+
+    // Billing Party — required except for AIR + Special Parcel
+    const requiresBilling = !(shipMode === 'AIR' && body.parcelType === 'Special Parcel');
+    if (requiresBilling) {
+      if (!freightBillTo) {
+        return NextResponse.json({ success: false, error: 'Please select who pays the freight cost.' });
+      }
+      if (!dutyTaxBillTo) {
+        return NextResponse.json({ success: false, error: 'Please select who pays the duty & taxes.' });
       }
     }
 
@@ -139,10 +153,12 @@ export async function POST(request) {
     const packagingType = String(shipment.packagingType || '').trim();
     const packagingTypeCustom = String(shipment.packagingTypeCustom || '').trim();
 
-    // Delivery Timeline (AIR only)
-    const deliveryTimeline = shipment.deliveryTimeline ? String(shipment.deliveryTimeline).trim() : null;
+    // Delivery Timeline (only set for Special Parcel)
+    const deliveryTimeline = (shipMode === 'AIR' && body.parcelType === 'Special Parcel' && shipment.deliveryTimeline)
+      ? String(shipment.deliveryTimeline).trim()
+      : null;
 
-    // Country of origin (product's origin country)
+    // Country of origin
     const originCountry = shipment.originCountry ? String(shipment.originCountry).trim() : null;
 
     // Tracking number
@@ -235,6 +251,8 @@ export async function POST(request) {
         dim_height: dimHeight > 0 ? dimHeight : null,
         packaging_type: packagingType || null,
         packaging_type_custom: packagingTypeCustom || null,
+        freight_bill_to: freightBillTo,
+        duty_tax_bill_to: dutyTaxBillTo,
         currency: 'USD',
         payment_status: 'Unpaid',
         payment_terms: paymentTerms,
