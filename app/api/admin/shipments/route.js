@@ -106,37 +106,46 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: error.message });
     }
 
-    // Counts
-    const counts = { active: 0, awaiting: 0, paid: 0, total: all.length };
+    // ===== Counts =====
+    // A shipment is "cancelled" if status = 'Cancelled' OR status contains 'cancellation'
+    const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: all.length };
     all.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
+      const isCancelled = status === 'cancelled' || status.includes('cancellation');
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
+
+      if (isCancelled) { counts.cancelled++; return; }
       if (!isDelivered) counts.active++;
       else if (!isPaid) counts.awaiting++;
       else counts.paid++;
     });
 
-    // Filter by tab
+    // ===== Filter by tab =====
     let filtered = all.filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
+      const isCancelled = status === 'cancelled' || status.includes('cancellation');
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
+
+      if (tab === 'cancelled') return isCancelled;
+      if (isCancelled) return false; // exclude cancelled from other tabs
+
       if (tab === 'active') return !isDelivered;
       if (tab === 'awaiting') return isDelivered && !isPaid;
       if (tab === 'paid') return isDelivered && isPaid;
       return true;
     });
 
-    // Apply shipper filter
+    // Shipper filter
     if (shipperFilter) {
       const sf = shipperFilter.toLowerCase();
       filtered = filtered.filter((s) => String(s.sender_name || '').toLowerCase() === sf);
     }
 
-    // Apply search
+    // Search
     if (search) {
       filtered = filtered.filter((s) => {
         return (
@@ -148,7 +157,7 @@ export async function GET(request) {
       });
     }
 
-    // Map shipments
+    // ===== Map =====
     const shipments = filtered.map((s) => {
       const cost = parseFloat(s.shipping_cost) || 0;
       return {
@@ -165,7 +174,7 @@ export async function GET(request) {
         recipientName: s.recipient_name,
         bookingWeight: s.total_weight,
         actualWeight: s.actual_weight,
-        weight: s.total_weight, // backward compat
+        weight: s.total_weight,
         shippingCost: cost > 0 ? cost : null,
         currency: s.currency || 'USD',
         paymentStatus: s.payment_status,
@@ -174,6 +183,7 @@ export async function GET(request) {
         estimatedDelivery: s.estimated_delivery,
         bookedAt: s.booked_at,
         lastUpdate: s.last_update,
+        pickupService: s.pickup_service,
         // new fields
         originCountry: s.origin_country || null,
         freightBillTo: s.freight_bill_to || null,
@@ -182,13 +192,11 @@ export async function GET(request) {
       };
     });
 
-    // ===== Summary computation (respects filters) =====
-    // Billed amount = sum of shipping_cost across filtered shipments
+    // Summary (respects filters)
     const billedTotal = filtered.reduce((sum, s) => {
       return sum + (parseFloat(s.shipping_cost) || 0);
     }, 0);
 
-    // Get unique shipper names from filtered set
     const uniqueShippers = [...new Set(filtered.map((s) => s.sender_name).filter(Boolean))].sort();
 
     const summary = {
