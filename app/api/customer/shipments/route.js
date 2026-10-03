@@ -58,6 +58,14 @@ function countryName(code) {
   return COUNTRY_NAMES[upper] || code;
 }
 
+function buildShipmentType(shipment) {
+  const mode = String(shipment.ship_mode || '').toUpperCase();
+  const load = String(shipment.sea_load_type || '').toUpperCase();
+  if (mode === 'SEA') return load ? ('SEA - ' + load) : 'SEA';
+  if (mode === 'AIR') return 'AIR';
+  return mode || '—';
+}
+
 async function getSessionUser(request) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.replace('Bearer ', '').trim();
@@ -89,7 +97,6 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const tab = searchParams.get('tab') || 'active';
 
-    // Read directly from Supabase — no cache
     const { data: all, error } = await serviceSupabase
       .from('shipments')
       .select('*')
@@ -139,24 +146,73 @@ export async function GET(request) {
       return true;
     });
 
-    const list = filtered.map((s) => ({
-      trackingNumber: s.tracking_number,
-      serviceType: s.service_type,
-      shipMode: s.ship_mode,
-      status: s.status,
-      origin: countryName(s.origin),
-      destination: countryName(s.destination),
-      recipientName: s.recipient_name,
-      weight: s.total_weight,
-      cost: s.shipping_cost,
-      currency: s.currency || 'USD',
-      paymentStatus: s.payment_status,
-      bookedAt: s.booked_at,
-      estimatedDelivery: s.estimated_delivery,
-      lastUpdate: s.last_update,
-      pdfUrl: s.pdf_url,
-    }));
+    const list = filtered.map((s) => {
+      const cost = parseFloat(s.shipping_cost) || 0;
+      return {
+        trackingNumber: s.tracking_number,
+        shipMode: s.ship_mode,
+        seaLoadType: s.sea_load_type || null,
+        shipmentType: buildShipmentType(s),
+        serviceType: s.service_type,
+        status: s.status,
+        origin: countryName(s.origin),
+        destination: countryName(s.destination),
+        senderName: s.sender_name,
+        recipientName: s.recipient_name,
+        bookingWeight: s.total_weight,
+        actualWeight: s.actual_weight,
+        weight: s.total_weight,
+        shippingCost: cost > 0 ? cost : null,
+        cost: cost > 0 ? cost : null,
+        currency: s.currency || 'USD',
+        paymentStatus: s.payment_status,
+        bookedAt: s.booked_at,
+        estimatedDelivery: s.estimated_delivery,
+        lastUpdate: s.last_update,
+        pdfUrl: s.pdf_url,
+        // new fields
+        originCountry: s.origin_country || null,
+        freightBillTo: s.freight_bill_to || null,
+        dutyTaxBillTo: s.duty_tax_bill_to || null,
+        uploadedDocuments: s.uploaded_documents || null,
+      };
+    });
 
+    // ===== Summary computation =====
+    // For "Active" → active billing
+    // For "Awaiting" → outstanding (existing calculation preserved + total)
+    // For "Paid" → total paid
+    const activeShipments = filtered.filter((s) => {
+      const status = String(s.status || '').toLowerCase();
+      return status !== 'delivered' && status !== 'cancelled';
+    });
+    const activeBillingTotal = activeShipments.reduce((sum, s) => {
+      return sum + (parseFloat(s.shipping_cost) || 0);
+    }, 0);
+
+    const paidShipments = shipments.filter((s) => {
+      const status = String(s.status || '').toLowerCase();
+      const payment = String(s.payment_status || '').toLowerCase();
+      return status === 'delivered' && payment === 'paid';
+    });
+    const totalPaid = paidShipments.reduce((sum, s) => {
+      return sum + (parseFloat(s.shipping_cost) || 0);
+    }, 0);
+
+    const summary = {
+      activeBilling: {
+        total: Math.round(activeBillingTotal * 100) / 100,
+        currency: 'USD',
+        count: activeShipments.length,
+      },
+      totalPaid: {
+        total: Math.round(totalPaid * 100) / 100,
+        currency: 'USD',
+        count: paidShipments.length,
+      },
+    };
+
+    // Existing outstanding calculation for 'awaiting' tab
     let outstanding = null;
     if (tab === 'awaiting') {
       let total = 0;
@@ -183,7 +239,7 @@ export async function GET(request) {
     }
 
     return NextResponse.json(
-      { success: true, shipments: list, counts, outstanding },
+      { success: true, shipments: list, counts, outstanding, summary },
       { headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' } }
     );
 
