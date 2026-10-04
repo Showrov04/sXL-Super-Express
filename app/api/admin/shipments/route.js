@@ -168,6 +168,8 @@ export async function GET(request) {
         recipientName: s.recipient_name,
         bookingWeight: s.total_weight,
         actualWeight: s.actual_weight,
+        actualCbm: parseFloat(s.total_cbm) || null,
+        bookingCbm: parseFloat(s.total_cbm) || null,
         weight: s.total_weight,
         shippingCost: cost > 0 ? cost : null,
         currency: s.currency || 'USD',
@@ -184,8 +186,33 @@ export async function GET(request) {
         customService: s.custom_service || null,
         deliveryService: s.delivery_service || null,
         uploadedDocuments: s.uploaded_documents || null,
-        // NEW: track if warehouse email has been sent
         warehouseSentAt: s.warehouse_sent_at || null,
+        description: s.description || null,
+        packages: s.packages || null,
+        hsCode: s.hs_code || null,
+        dimensions: s.dimensions || null,
+        dimLength: s.dim_length || null,
+        dimWidth: s.dim_width || null,
+        dimHeight: s.dim_height || null,
+        totalValue: s.total_value || null,
+        valueCurrency: s.value_currency || 'USD',
+        specialInstruction: s.special_instruction || null,
+        senderPhone: s.sender_phone || null,
+        recipientPhone: s.recipient_phone || null,
+        recipientEmail: s.recipient_email || null,
+        recipientBin: s.recipient_bin || null,
+        recipientAddress: s.recipient_address || null,
+        recipientCity: s.recipient_city || null,
+        recipientState: s.recipient_state || null,
+        pickupAddress: s.pickup_address || null,
+        pickupCity: s.pickup_city || null,
+        pickupState: s.pickup_state || null,
+        pickupCountry: s.pickup_country || null,
+        originCountryCode: s.origin_country || null,
+        parcelType: s.parcel_type || null,
+        deliveryTimeline: s.delivery_timeline || null,
+        packagingType: s.packaging_type || null,
+        packagingTypeCustom: s.packaging_type_custom || null,
       };
     });
 
@@ -222,36 +249,140 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { trackingNumber, newStatus, location, notes, eta } = body;
 
-    if (!trackingNumber || !newStatus) {
-      return NextResponse.json({ success: false, error: 'Tracking number and status required.' });
+    // ---- Update Status action (G.12 — now accepts optional actualWeight/actualCbm) ----
+    if (body.action === 'updateStatus' || (!body.action && body.trackingNumber && body.newStatus)) {
+      const { trackingNumber, newStatus, location, notes, eta, actualWeight, actualCbm } = body;
+      if (!trackingNumber || !newStatus) {
+        return NextResponse.json({ success: false, error: 'Tracking number and status required.' });
+      }
+
+      const updateData = {
+        status: newStatus,
+        last_update: new Date().toISOString(),
+      };
+      if (eta) updateData.estimated_delivery = eta;
+
+      // G.12 — optional actual weight / CBM
+      // Only writes if the admin provided a value (blank = preserve existing)
+      if (actualWeight !== undefined && actualWeight !== null && String(actualWeight).trim() !== '') {
+        const aw = parseFloat(actualWeight);
+        if (!isNaN(aw)) updateData.actual_weight = aw;
+      }
+      if (actualCbm !== undefined && actualCbm !== null && String(actualCbm).trim() !== '') {
+        const cbm = parseFloat(actualCbm);
+        if (!isNaN(cbm)) updateData.total_cbm = cbm;
+      }
+
+      const { error: updateErr } = await serviceSupabase
+        .from('shipments')
+        .update(updateData)
+        .eq('tracking_number', trackingNumber);
+
+      if (updateErr) {
+        return NextResponse.json({ success: false, error: updateErr.message });
+      }
+
+      // Build a friendly note if weight/cbm also changed
+      let historyNotes = notes || '';
+      const extraBits = [];
+      if (updateData.actual_weight !== undefined) extraBits.push('Actual Wt: ' + updateData.actual_weight + ' kg');
+      if (updateData.total_cbm !== undefined) extraBits.push('CBM: ' + updateData.total_cbm);
+      if (extraBits.length > 0) {
+        historyNotes = (historyNotes ? historyNotes + ' · ' : '') + extraBits.join(' · ');
+      }
+
+      await serviceSupabase.from('tracking_history').insert({
+        tracking_number: trackingNumber,
+        status: newStatus,
+        location: location || '',
+        notes: historyNotes,
+        updated_by: session.userId,
+      });
+
+      return NextResponse.json({ success: true });
     }
 
-    const updateData = {
-      status: newStatus,
-      last_update: new Date().toISOString(),
-    };
-    if (eta) updateData.estimated_delivery = eta;
+    // ---- Edit Booking action ----
+    if (body.action === 'editBooking') {
+      const { trackingNumber, fields } = body;
+      if (!trackingNumber || !fields || typeof fields !== 'object') {
+        return NextResponse.json({ success: false, error: 'Tracking number and fields required.' });
+      }
 
-    const { error: updateErr } = await serviceSupabase
-      .from('shipments')
-      .update(updateData)
-      .eq('tracking_number', trackingNumber);
+      const editableMap = {
+        description: 'description',
+        packages: 'packages',
+        hsCode: 'hs_code',
+        dimLength: 'dim_length',
+        dimWidth: 'dim_width',
+        dimHeight: 'dim_height',
+        dimensions: 'dimensions',
+        totalWeight: 'total_weight',
+        totalCbm: 'total_cbm',
+        totalValue: 'total_value',
+        valueCurrency: 'value_currency',
+        specialInstruction: 'special_instruction',
+        senderName: 'sender_name',
+        senderPhone: 'sender_phone',
+        senderEmail: 'sender_email',
+        pickupAddress: 'pickup_address',
+        pickupCity: 'pickup_city',
+        pickupState: 'pickup_state',
+        pickupCountry: 'pickup_country',
+        recipientName: 'recipient_name',
+        recipientPhone: 'recipient_phone',
+        recipientEmail: 'recipient_email',
+        recipientBin: 'recipient_bin',
+        recipientAddress: 'recipient_address',
+        recipientCity: 'recipient_city',
+        recipientState: 'recipient_state',
+        packagingType: 'packaging_type',
+        packagingTypeCustom: 'packaging_type_custom',
+      };
 
-    if (updateErr) {
-      return NextResponse.json({ success: false, error: updateErr.message });
+      const updateData = { last_update: new Date().toISOString() };
+      const changed = [];
+
+      Object.entries(editableMap).forEach(([formKey, dbKey]) => {
+        if (Object.prototype.hasOwnProperty.call(fields, formKey)) {
+          let val = fields[formKey];
+          if (typeof val === 'string') val = val.trim();
+          if (['packages'].includes(dbKey) && val !== '' && val !== null) {
+            val = parseInt(val, 10) || null;
+          }
+          if (['dim_length','dim_width','dim_height','total_weight','total_cbm','total_value'].includes(dbKey)) {
+            val = (val === '' || val === null || val === undefined) ? null : parseFloat(val);
+          }
+          if (val === '') val = null;
+          updateData[dbKey] = val;
+          changed.push(formKey);
+        }
+      });
+
+      if (changed.length === 0) {
+        return NextResponse.json({ success: false, error: 'No fields to update.' });
+      }
+
+      const { error: updErr } = await serviceSupabase
+        .from('shipments')
+        .update(updateData)
+        .eq('tracking_number', trackingNumber);
+
+      if (updErr) return NextResponse.json({ success: false, error: updErr.message });
+
+      await serviceSupabase.from('tracking_history').insert({
+        tracking_number: trackingNumber,
+        status: 'Booking Edited',
+        location: '',
+        notes: 'Admin edited booking fields: ' + changed.join(', '),
+        updated_by: session.userId,
+      });
+
+      return NextResponse.json({ success: true, changed });
     }
 
-    await serviceSupabase.from('tracking_history').insert({
-      tracking_number: trackingNumber,
-      status: newStatus,
-      location: location || '',
-      notes: notes || '',
-      updated_by: session.userId,
-    });
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: false, error: 'Unknown action.' });
 
   } catch (err) {
     return NextResponse.json({ success: false, error: err.message });
