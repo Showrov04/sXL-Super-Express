@@ -123,7 +123,7 @@ function ShipmentsPanel() {
   const filterDropdownRef = useRef(null);
 
   // Status update modal
-  const [statusModal, setStatusModal] = useState(null); // { shipment }
+  const [statusModal, setStatusModal] = useState(null);
   const [suTracking, setSuTracking] = useState('');
   const [suCurrentStatus, setSuCurrentStatus] = useState('');
   const [suNewStatus, setSuNewStatus] = useState('');
@@ -178,7 +178,6 @@ function ShipmentsPanel() {
     }
   }, [toast]);
 
-  // Lock body scroll when modal open
   useEffect(() => {
     const modalOpen = statusModal || whModal || filesModal;
     if (modalOpen) {
@@ -309,7 +308,6 @@ function ShipmentsPanel() {
 
   // ===== OPEN STATUS MODAL =====
   async function openStatusModal(s) {
-    // If already updated before, confirm edit
     const hasBeenUpdated = !!s.lastUpdate && String(s.status || '').toLowerCase() !== 'booked';
     if (hasBeenUpdated) {
       const dateStr = formatDate(s.lastUpdate);
@@ -547,7 +545,6 @@ function ShipmentsPanel() {
 
   return (
     <div>
-      {/* Toast */}
       {toast && (
         <div style={{
           position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
@@ -666,8 +663,9 @@ function ShipmentsPanel() {
                   const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
                   const rowHasFiles = hasFiles(s);
                   const whSent = !!s.warehouseSentAt;
-                  // Has been updated: status is not 'Booked' OR lastUpdate > bookedAt
                   const wasUpdated = String(s.status || '').toLowerCase() !== 'booked';
+                  // G.2: only show Update Status button on Active tab
+                  const isActiveTab = tab === 'active';
 
                   return (
                     <tr key={i} style={{ background: rowBg }}>
@@ -698,21 +696,23 @@ function ShipmentsPanel() {
                       <td style={{ ...TD_STYLE, width: 420 }}>
                         {tab !== 'cancelled' && (
                           <>
-                            {/* Status Update button — orange if never updated, grey if updated before */}
-                            <button
-                              onClick={() => openStatusModal(s)}
-                              style={{
-                                padding: '5px 10px',
-                                background: wasUpdated ? '#E9ECEF' : '#FF6B00',
-                                color: wasUpdated ? '#495057' : 'white',
-                                border: 'none', borderRadius: '6px',
-                                fontWeight: 700, fontSize: '0.72rem',
-                                cursor: 'pointer', fontFamily: 'inherit',
-                                marginRight: '4px', whiteSpace: 'nowrap'
-                              }}
-                            >
-                              {wasUpdated ? '✅ Status Updated' : '🔄 Update Status'}
-                            </button>
+                            {/* G.2: Update Status button — ONLY on Active tab */}
+                            {isActiveTab && (
+                              <button
+                                onClick={() => openStatusModal(s)}
+                                style={{
+                                  padding: '5px 10px',
+                                  background: wasUpdated ? '#E9ECEF' : '#FF6B00',
+                                  color: wasUpdated ? '#495057' : 'white',
+                                  border: 'none', borderRadius: '6px',
+                                  fontWeight: 700, fontSize: '0.72rem',
+                                  cursor: 'pointer', fontFamily: 'inherit',
+                                  marginRight: '4px', whiteSpace: 'nowrap'
+                                }}
+                              >
+                                {wasUpdated ? '✅ Status Updated' : '🔄 Update Status'}
+                              </button>
+                            )}
 
                             {rowHasFiles && (
                               <button onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
