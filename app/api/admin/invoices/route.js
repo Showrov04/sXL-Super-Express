@@ -30,9 +30,6 @@ async function requireAdmin(request) {
   return { userId: session.user_id, role: session.role };
 }
 
-/**
- * Get next invoice number using a settings-based counter
- */
 async function getNextInvoiceNumber() {
   const { data: setting } = await serviceSupabase
     .from('settings')
@@ -50,7 +47,6 @@ async function getNextInvoiceNumber() {
   const currentNum = parseInt(setting?.value, 10) || 10001;
   const year = new Date().getFullYear();
 
-  // Increment
   await serviceSupabase
     .from('settings')
     .update({ value: String(currentNum + 1), updated_at: new Date().toISOString() })
@@ -60,7 +56,7 @@ async function getNextInvoiceNumber() {
 }
 
 /**
- * GET — list invoices
+ * GET — list invoices (with optional type filter)
  */
 export async function GET(request) {
   try {
@@ -69,34 +65,70 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Permission denied.' });
     }
 
-    const { data: invoices, error } = await serviceSupabase
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get('type') || ''; // 'individual' | 'monthly-summary' | ''
+
+    let query = serviceSupabase
       .from('invoices')
       .select('*')
       .order('issue_date', { ascending: false })
-      .limit(50);
+      .limit(200);
+
+    if (type) {
+      query = query.eq('type', type);
+    }
+
+    const { data: invoices, error } = await query;
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message });
     }
 
-    const list = (invoices || []).map((inv) => ({
-      invoiceID: inv.invoice_id,
-      invoiceNumber: inv.invoice_number,
-      type: inv.type,
-      trackingNumbers: inv.tracking_numbers,
-      shipperName: inv.shipper_name,
-      month: inv.month,
-      amount: inv.amount,
-      currency: inv.currency,
-      status: inv.status,
-      issueDate: inv.issue_date,
-      dueDate: inv.due_date,
-      paidDate: inv.paid_date,
-      paymentMethod: inv.payment_method,
-      notes: inv.notes,
-      pdfUrl: inv.pdf_url,
-      localCurrency: inv.local_currency,
-      localAmount: inv.local_amount,
+    // Fetch shipments for each invoice (for shipper_ref, tracking, route)
+    const list = await Promise.all((invoices || []).map(async (inv) => {
+      const tns = String(inv.tracking_numbers || '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      let primaryShipment = null;
+      let allShipments = [];
+
+      if (tns.length > 0) {
+        const { data: shipments } = await serviceSupabase
+          .from('shipments')
+          .select('tracking_number, shipper_ref, origin, destination, sender_name, recipient_name, currency')
+          .in('tracking_number', tns);
+        allShipments = shipments || [];
+        primaryShipment = allShipments[0] || null;
+      }
+
+      return {
+        invoiceID: inv.invoice_id,
+        invoiceNumber: inv.invoice_number,
+        type: inv.type,
+        trackingNumbers: inv.tracking_numbers,
+        trackingList: tns,
+        shipperRef: primaryShipment?.shipper_ref || '',
+        shipperName: inv.shipper_name || primaryShipment?.sender_name || '',
+        recipientName: primaryShipment?.recipient_name || '',
+        origin: primaryShipment?.origin || '',
+        destination: primaryShipment?.destination || '',
+        month: inv.month,
+        amount: inv.amount,
+        currency: inv.currency,
+        localCurrency: inv.local_currency,
+        localAmount: inv.local_amount,
+        status: inv.status,
+        issueDate: inv.issue_date,
+        dueDate: inv.due_date,
+        paidDate: inv.paid_date,
+        paymentMethod: inv.payment_method,
+        notes: inv.notes,
+        pdfUrl: inv.pdf_url,
+        sentAt: inv.sent_at || null,
+        shipmentsCount: allShipments.length,
+      };
     }));
 
     return NextResponse.json({ success: true, invoices: list });
@@ -107,7 +139,7 @@ export async function GET(request) {
 }
 
 /**
- * POST — actions: createIndividual, createMonthly
+ * POST — actions: createIndividual, createMonthly, updateStatus
  */
 export async function POST(request) {
   try {
@@ -124,6 +156,15 @@ export async function POST(request) {
     }
     if (action === 'createMonthly') {
       return await createMonthlyInvoice(session, body);
+    }
+    if (action === 'updateStatus') {
+      return await updateInvoiceStatus(session, body);
+    }
+    if (action === 'updateNotes') {
+      return await updateInvoiceNotes(session, body);
+    }
+    if (action === 'updateAmount') {
+      return await updateInvoiceAmount(session, body);
     }
 
     return NextResponse.json({ success: false, error: 'Unknown action.' });
@@ -142,7 +183,6 @@ async function createIndividualInvoice(session, body) {
     return NextResponse.json({ success: false, error: 'Tracking number required.' });
   }
 
-  // Get shipment
   const { data: shipment, error: shipErr } = await serviceSupabase
     .from('shipments')
     .select('*')
@@ -156,7 +196,7 @@ async function createIndividualInvoice(session, body) {
     return NextResponse.json({ success: false, error: 'Save the cost first.' });
   }
 
-  // Check if invoice already exists
+  // Check if individual invoice already exists for this shipment
   const { data: existing } = await serviceSupabase
     .from('invoices')
     .select('invoice_id, invoice_number')
@@ -209,7 +249,7 @@ async function createIndividualInvoice(session, body) {
 }
 
 /**
- * Create monthly summary invoice (1 shipper + 1 month = 1 invoice)
+ * Create monthly summary invoice
  */
 async function createMonthlyInvoice(session, body) {
   const { shipperName, month, localCurrency, localAmount } = body;
@@ -218,7 +258,6 @@ async function createMonthlyInvoice(session, body) {
     return NextResponse.json({ success: false, error: 'Shipper name and month required.' });
   }
 
-  // Find unpaid delivered shipments for this shipper in this month
   const { data: candidates, error: shipErr } = await serviceSupabase
     .from('shipments')
     .select('*')
@@ -286,4 +325,62 @@ async function createMonthlyInvoice(session, body) {
     shipmentCount: matched.length,
     total,
   });
+}
+
+async function updateInvoiceStatus(session, body) {
+  const { invoiceId, status } = body;
+  if (!invoiceId || !status) {
+    return NextResponse.json({ success: false, error: 'Invoice ID and status required.' });
+  }
+
+  const updateData = { status };
+  if (status === 'Paid') {
+    updateData.paid_date = new Date().toISOString();
+  } else {
+    updateData.paid_date = null;
+  }
+
+  const { error } = await serviceSupabase
+    .from('invoices')
+    .update(updateData)
+    .eq('invoice_id', invoiceId);
+
+  if (error) return NextResponse.json({ success: false, error: error.message });
+
+  return NextResponse.json({ success: true });
+}
+
+async function updateInvoiceNotes(session, body) {
+  const { invoiceId, notes } = body;
+  if (!invoiceId) {
+    return NextResponse.json({ success: false, error: 'Invoice ID required.' });
+  }
+
+  const { error } = await serviceSupabase
+    .from('invoices')
+    .update({ notes: String(notes || '') })
+    .eq('invoice_id', invoiceId);
+
+  if (error) return NextResponse.json({ success: false, error: error.message });
+
+  return NextResponse.json({ success: true });
+}
+
+async function updateInvoiceAmount(session, body) {
+  const { invoiceId, amount, dueDate } = body;
+  if (!invoiceId || amount === undefined) {
+    return NextResponse.json({ success: false, error: 'Invoice ID and amount required.' });
+  }
+
+  const updateData = { amount: parseFloat(amount) || 0 };
+  if (dueDate) updateData.due_date = dueDate;
+
+  const { error } = await serviceSupabase
+    .from('invoices')
+    .update(updateData)
+    .eq('invoice_id', invoiceId);
+
+  if (error) return NextResponse.json({ success: false, error: error.message });
+
+  return NextResponse.json({ success: true });
 }
