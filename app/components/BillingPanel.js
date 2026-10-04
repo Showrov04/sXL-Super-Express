@@ -47,6 +47,17 @@ const TD_STYLE = {
   verticalAlign: 'middle',
 };
 
+const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
+
+const COL_W_SHIPPER_REF = 130;
+const COL_W_TRACKING = 170;
+const COL_W_MODE = 105;
+const COL_W_ROUTE = 170;
+const FROZEN_LEFT_REF = 0;
+const FROZEN_LEFT_TRACKING = COL_W_SHIPPER_REF;
+const FROZEN_LEFT_MODE = COL_W_SHIPPER_REF + COL_W_TRACKING;
+const FROZEN_LEFT_ROUTE = COL_W_SHIPPER_REF + COL_W_TRACKING + COL_W_MODE;
+
 /* ============================================================
  *  MAIN COMPONENT
  * ============================================================ */
@@ -61,8 +72,17 @@ export default function BillingPanel() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
 
-  // Cost modal state
-  const [costModal, setCostModal] = useState(null); // { shipment }
+  // ===== Column filters =====
+  const [colFilters, setColFilters] = useState({
+    shipperRef: [], tracking: [], mode: [], route: [], shipper: [], recipient: [],
+    status: [], payment: [], invNumber: [],
+  });
+  const [openFilter, setOpenFilter] = useState(null);
+  const [filterSearch, setFilterSearch] = useState('');
+  const filterDropdownRef = useRef(null);
+
+  // ===== Cost modal state =====
+  const [costModal, setCostModal] = useState(null);
   const [costTn, setCostTn] = useState('');
   const [costActualWeight, setCostActualWeight] = useState('');
   const [costActualCbm, setCostActualCbm] = useState('');
@@ -70,7 +90,7 @@ export default function BillingPanel() {
   const [costCurrency, setCostCurrency] = useState('USD');
   const [costLines, setCostLines] = useState([{ label: '', amount: '' }]);
   const [costLocalCurrency, setCostLocalCurrency] = useState('');
-  const [costLocalAmount, setCostLocalAmount] = useState('');
+  const [costExchangeRate, setCostExchangeRate] = useState('');
   const [costMsg, setCostMsg] = useState('');
   const [costLoading, setCostLoading] = useState(false);
   const [pickupCharge, setPickupCharge] = useState('');
@@ -79,26 +99,33 @@ export default function BillingPanel() {
   const [selectedShipment, setSelectedShipment] = useState(null);
   const [costSaved, setCostSaved] = useState(false);
 
-  // Invoice section
-  const [invTab, setInvTab] = useState('individual');
-  const [invoices, setInvoices] = useState([]);
-  const [invLoading, setInvLoading] = useState(true);
-  const [invColFilters, setInvColFilters] = useState({
-    shipperRef: [], tracking: [], invoiceNumber: [], type: [], shipper: [], status: [], issued: [],
-  });
-  const [openInvFilter, setOpenInvFilter] = useState(null);
-  const [invFilterSearch, setInvFilterSearch] = useState('');
-  const invFilterRef = useRef(null);
+  // ===== Edit Invoice modal state =====
+  const [editInvModal, setEditInvModal] = useState(null);
+  const [editInvIssueDate, setEditInvIssueDate] = useState('');
+  const [editInvDueDate, setEditInvDueDate] = useState('');
+  const [editInvSaving, setEditInvSaving] = useState(false);
+  const [editInvError, setEditInvError] = useState('');
 
-  // Lock body scroll while modal is open
+  // ===== Monthly summary section =====
+  const [monthlyShipper, setMonthlyShipper] = useState('');
+  const [monthlyMonth, setMonthlyMonth] = useState('');
+  const [monthlyLocalCurrency, setMonthlyLocalCurrency] = useState('');
+  const [monthlyLocalAmount, setMonthlyLocalAmount] = useState('');
+  const [monthlyGenerating, setMonthlyGenerating] = useState(false);
+  const [monthlyMsg, setMonthlyMsg] = useState('');
+  const [monthlyInvoices, setMonthlyInvoices] = useState([]);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
+
+  // Body scroll lock
   useEffect(() => {
-    if (costModal) {
+    const modalOpen = costModal || editInvModal;
+    if (modalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
     return () => { document.body.style.overflow = ''; };
-  }, [costModal]);
+  }, [costModal, editInvModal]);
 
   useEffect(() => {
     loadShipments();
@@ -106,9 +133,9 @@ export default function BillingPanel() {
   }, [tab]);
 
   useEffect(() => {
-    if (tab === 'due') loadInvoices();
+    if (tab === 'due') loadMonthlyInvoices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, invTab]);
+  }, [tab]);
 
   useEffect(() => {
     if (toast) {
@@ -119,9 +146,9 @@ export default function BillingPanel() {
 
   useEffect(() => {
     function handleClickOutside(e) {
-      if (invFilterRef.current && !invFilterRef.current.contains(e.target)) {
-        setOpenInvFilter(null);
-        setInvFilterSearch('');
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target)) {
+        setOpenFilter(null);
+        setFilterSearch('');
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -168,20 +195,18 @@ export default function BillingPanel() {
     }
   }
 
-  async function loadInvoices() {
-    setInvLoading(true);
+  async function loadMonthlyInvoices() {
+    setMonthlyLoading(true);
     const token = localStorage.getItem('sxl_token');
-    if (!token) { setInvLoading(false); return; }
-
+    if (!token) { setMonthlyLoading(false); return; }
     try {
-      const params = new URLSearchParams({ type: invTab });
-      const res = await fetch('/api/admin/invoices?' + params.toString(), {
+      const res = await fetch('/api/admin/invoices?type=monthly', {
         headers: { Authorization: 'Bearer ' + token },
       });
       const data = await res.json();
-      if (data.success) setInvoices(data.invoices || []);
+      if (data.success) setMonthlyInvoices(data.invoices || []);
     } catch (e) { /* silent */ }
-    setInvLoading(false);
+    setMonthlyLoading(false);
   }
 
   function applyFilters(e) {
@@ -189,12 +214,78 @@ export default function BillingPanel() {
     loadShipments();
   }
 
-  function clearFilters() {
+  function clearShipperFilter() {
     setShipperFilter('');
     setTimeout(loadShipments, 50);
   }
 
-  // ===== Determine freight base based on mode =====
+  /* ---------- Column filter helpers ---------- */
+  function getColumnValue(s, col) {
+    if (col === 'shipperRef') return s.shipperRef || '';
+    if (col === 'tracking') return s.trackingNumber || '';
+    if (col === 'mode') return s.shipmentType || s.shipMode || '';
+    if (col === 'route') return (s.origin || '') + ' → ' + (s.destination || '');
+    if (col === 'shipper') return s.shipperName || '';
+    if (col === 'recipient') return s.recipientName || '';
+    if (col === 'status') return s.status || '';
+    if (col === 'payment') return s.paymentStatus || '';
+    if (col === 'invNumber') return s.latestInvoice ? (s.latestInvoice.invoiceNumber || '') : '';
+    return '';
+  }
+
+  function getUniqueValues(col) {
+    const set = new Set();
+    shipments.forEach((s) => {
+      const v = getColumnValue(s, col);
+      if (v) set.add(v);
+    });
+    return Array.from(set).sort();
+  }
+
+  function toggleFilterValue(col, value) {
+    setColFilters((prev) => {
+      const current = prev[col] || [];
+      const next = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      return { ...prev, [col]: next };
+    });
+  }
+
+  function clearColumn(col) {
+    setColFilters((prev) => ({ ...prev, [col]: [] }));
+  }
+
+  function clearAllFilters() {
+    setColFilters({
+      shipperRef: [], tracking: [], mode: [], route: [], shipper: [], recipient: [],
+      status: [], payment: [], invNumber: [],
+    });
+  }
+
+  const hasAnyFilter = Object.values(colFilters).some((arr) => arr.length > 0);
+
+  const filtered = useMemo(() => {
+    let list = shipments;
+    Object.entries(colFilters).forEach(([col, values]) => {
+      if (values.length > 0) {
+        list = list.filter((s) => values.includes(getColumnValue(s, col)));
+      }
+    });
+    return list;
+  }, [shipments, colFilters]);
+
+  // AR card — grand total reacts to active filters
+  const filteredTotal = useMemo(() => {
+    if (tab === 'due') {
+      let total = 0;
+      filtered.forEach((s) => { total += parseFloat(s.shippingCost) || 0; });
+      return Math.round(total * 100) / 100;
+    }
+    return outstanding.grandTotal || 0;
+  }, [filtered, tab, outstanding]);
+
+  // ===== Cost modal =====
   function isSea(shipment) {
     if (!shipment) return false;
     return String(shipment.shipMode || '').toUpperCase() === 'SEA';
@@ -216,9 +307,14 @@ export default function BillingPanel() {
     return (freightBase * rate + pc + cc + dc + addl).toFixed(2);
   })();
 
-  // ===== OPEN COST MODAL =====
+  const localTotal = (() => {
+    const fx = parseFloat(costExchangeRate) || 0;
+    const total = parseFloat(calculatedTotal) || 0;
+    if (fx > 0) return (total * fx).toFixed(2);
+    return null;
+  })();
+
   function openCostModal(s) {
-    // If cost already saved, confirm re-edit
     if (s.costSavedAt) {
       const dateStr = formatDate(s.costSavedAt);
       const proceed = window.confirm('Cost was last saved on ' + dateStr + '. Edit it?');
@@ -237,6 +333,8 @@ export default function BillingPanel() {
     setDeliveryCharge(s.deliveryCharge ? String(s.deliveryCharge) : '');
 
     let addl = [];
+    let localCur = '';
+    let fx = '';
     try {
       const bd = s.costBreakdown;
       if (bd) {
@@ -244,12 +342,14 @@ export default function BillingPanel() {
         if (Array.isArray(parsed.additionalLines) && parsed.additionalLines.length > 0) {
           addl = parsed.additionalLines.map((l) => ({ label: l.label || '', amount: String(l.amount || '') }));
         }
-        setCostLocalCurrency(parsed.localCurrency || '');
-        setCostLocalAmount(parsed.localAmount ? String(parsed.localAmount) : '');
+        localCur = parsed.localCurrency || '';
+        fx = parsed.exchangeRate ? String(parsed.exchangeRate) : '';
       }
     } catch (e) { /* silent */ }
     if (addl.length === 0) addl = [{ label: '', amount: '' }];
     setCostLines(addl);
+    setCostLocalCurrency(localCur);
+    setCostExchangeRate(fx);
 
     setCostSaved(!!s.costSavedAt);
     setCostMsg('');
@@ -265,7 +365,7 @@ export default function BillingPanel() {
     setCostCurrency('USD');
     setCostLines([{ label: '', amount: '' }]);
     setCostLocalCurrency('');
-    setCostLocalAmount('');
+    setCostExchangeRate('');
     setPickupCharge('');
     setCustomsCharge('');
     setDeliveryCharge('');
@@ -305,7 +405,7 @@ export default function BillingPanel() {
           additionalLines,
           currency: costCurrency,
           localCurrency: costLocalCurrency,
-          localAmount: parseFloat(costLocalAmount) || 0,
+          exchangeRate: parseFloat(costExchangeRate) || 0,
           pickupCharge: parseFloat(pickupCharge) || 0,
           customsCharge: parseFloat(customsCharge) || 0,
           deliveryCharge: parseFloat(deliveryCharge) || 0,
@@ -331,6 +431,7 @@ export default function BillingPanel() {
     }
   }
 
+  // ===== Other actions =====
   async function handleMarkPaid(trackingNumber) {
     if (!window.confirm('Mark ' + trackingNumber + ' as paid?')) return;
     const token = localStorage.getItem('sxl_token');
@@ -367,20 +468,28 @@ export default function BillingPanel() {
     }
   }
 
-  async function handleIssueInvoice(trackingNumber) {
-    if (!window.confirm('Issue individual invoice for ' + trackingNumber + '?')) return;
+  async function handleIssueInvoice(s) {
+    const tn = s.trackingNumber;
+    if (s.latestInvoice) {
+      const proceed = window.confirm(
+        'Invoice ' + s.latestInvoice.invoiceNumber + ' already exists for ' + tn + '. Issue a new one?'
+      );
+      if (!proceed) return;
+    } else {
+      if (!window.confirm('Issue individual invoice for ' + tn + '?')) return;
+    }
+
     const token = localStorage.getItem('sxl_token');
     try {
       const res = await fetch('/api/admin/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ action: 'createIndividual', trackingNumber }),
+        body: JSON.stringify({ action: 'createIndividual', trackingNumber: tn }),
       });
       const data = await res.json();
       if (!data.success) { window.alert('Error: ' + (data.error || 'Failed')); return; }
       setToast('🧾 Invoice ' + data.invoiceNumber + ' issued');
       loadShipments();
-      loadInvoices();
     } catch (err) {
       window.alert('Error: ' + err.message);
     }
@@ -404,159 +513,100 @@ export default function BillingPanel() {
     }
   }
 
-  async function handleInvoiceStatus(invoiceId, status) {
+  function openEditInvModal(s) {
+    if (!s.latestInvoice) return;
+    setEditInvModal({ shipment: s });
+    setEditInvIssueDate(s.latestInvoice.issueDate ? String(s.latestInvoice.issueDate).slice(0, 10) : '');
+    setEditInvDueDate(s.latestInvoice.dueDate ? String(s.latestInvoice.dueDate).slice(0, 10) : '');
+    setEditInvError('');
+  }
+
+  function closeEditInvModal() {
+    setEditInvModal(null);
+    setEditInvIssueDate('');
+    setEditInvDueDate('');
+    setEditInvError('');
+    setEditInvSaving(false);
+  }
+
+  async function handleSaveEditInv() {
+    setEditInvError('');
+    if (!editInvIssueDate && !editInvDueDate) {
+      setEditInvError('Enter at least one date.');
+      return;
+    }
+    setEditInvSaving(true);
+    const token = localStorage.getItem('sxl_token');
+    try {
+      const res = await fetch('/api/admin/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          action: 'updateInvoiceDates',
+          invoiceId: editInvModal.shipment.latestInvoice.invoiceId,
+          issueDate: editInvIssueDate || null,
+          dueDate: editInvDueDate || null,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setEditInvError(data.error || 'Failed to save.');
+        setEditInvSaving(false);
+        return;
+      }
+      setEditInvSaving(false);
+      const invNum = editInvModal.shipment.latestInvoice.invoiceNumber;
+      closeEditInvModal();
+      setToast('✅ Invoice ' + invNum + ' dates updated');
+      setTimeout(loadShipments, 400);
+    } catch (err) {
+      setEditInvError('Connection error: ' + err.message);
+      setEditInvSaving(false);
+    }
+  }
+
+  // ===== Monthly summary =====
+  async function handleGenerateMonthly(e) {
+    e.preventDefault();
+    setMonthlyMsg('');
+    if (!monthlyShipper || !monthlyMonth) {
+      setMonthlyMsg('❌ Please select shipper and month.');
+      return;
+    }
+
+    setMonthlyGenerating(true);
     const token = localStorage.getItem('sxl_token');
     try {
       const res = await fetch('/api/admin/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ action: 'updateStatus', invoiceId, status }),
+        body: JSON.stringify({
+          action: 'createMonthly',
+          shipperName: monthlyShipper,
+          month: monthlyMonth,
+          localCurrency: monthlyLocalCurrency,
+          localAmount: parseFloat(monthlyLocalAmount) || 0,
+        }),
       });
       const data = await res.json();
-      if (!data.success) { window.alert('Error: ' + (data.error || 'Failed')); return; }
-      setToast('✅ Invoice updated');
-      loadInvoices();
-    } catch (err) {
-      window.alert('Error: ' + err.message);
-    }
-  }
-
-  // ===== Invoice filter helpers =====
-  function getInvoiceColumnValue(inv, col) {
-    if (col === 'shipperRef') return inv.shipperRef || '';
-    if (col === 'tracking') return inv.trackingNumbers || '';
-    if (col === 'invoiceNumber') return inv.invoiceNumber || '';
-    if (col === 'type') return inv.type === 'monthly-summary' ? 'Monthly' : 'Individual';
-    if (col === 'shipper') return inv.shipperName || '';
-    if (col === 'status') return inv.status || '';
-    if (col === 'issued') {
-      const d = new Date(inv.issueDate || 0);
-      if (isNaN(d.getTime())) return '';
-      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-    }
-    return '';
-  }
-
-  function getInvoiceUniqueValues(col) {
-    const set = new Set();
-    invoices.forEach((inv) => {
-      const v = getInvoiceColumnValue(inv, col);
-      if (v) set.add(v);
-    });
-    return Array.from(set).sort();
-  }
-
-  function toggleInvoiceFilter(col, value) {
-    setInvColFilters((prev) => {
-      const current = prev[col] || [];
-      const next = current.includes(value)
-        ? current.filter((v) => v !== value)
-        : [...current, value];
-      return { ...prev, [col]: next };
-    });
-  }
-
-  function clearInvoiceColumn(col) {
-    setInvColFilters((prev) => ({ ...prev, [col]: [] }));
-  }
-
-  const filteredInvoices = useMemo(() => {
-    let list = invoices;
-    Object.entries(invColFilters).forEach(([col, values]) => {
-      if (values.length > 0) {
-        list = list.filter((inv) => values.includes(getInvoiceColumnValue(inv, col)));
+      if (!data.success) {
+        setMonthlyMsg('❌ ' + (data.error || 'Failed.'));
+        setMonthlyGenerating(false);
+        return;
       }
-    });
-    return list;
-  }, [invoices, invColFilters]);
-
-  function InvoiceHeaderCell({ col, label }) {
-    const isFilterable = ['shipperRef', 'tracking', 'invoiceNumber', 'type', 'shipper', 'status', 'issued'].includes(col);
-    const activeCount = (invColFilters[col] || []).length;
-    const isOpen = openInvFilter === col;
-
-    return (
-      <th style={{ ...TH_STYLE, background: isOpen ? '#DDE3E9' : '#E9ECEF' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 12px' }}>
-          <span>
-            {label}
-            {activeCount > 0 && <span style={{ marginLeft: '6px', color: '#FF6B00' }}>({activeCount})</span>}
-          </span>
-          {isFilterable && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setOpenInvFilter(isOpen ? null : col); setInvFilterSearch(''); }}
-              style={{
-                padding: '2px 6px',
-                background: activeCount > 0 ? '#FF6B00' : 'transparent',
-                border: 'none', borderRadius: '4px', cursor: 'pointer',
-                color: activeCount > 0 ? 'white' : '#003366',
-                fontSize: '0.7rem', fontWeight: 700, fontFamily: 'inherit', lineHeight: 1,
-              }}
-            >
-              ▼
-            </button>
-          )}
-        </div>
-
-        {isOpen && (
-          <div
-            ref={invFilterRef}
-            style={{
-              position: 'absolute', top: '100%', right: 0,
-              minWidth: '200px', background: 'white',
-              border: '1px solid #D0D6DB', borderRadius: '8px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 200,
-              padding: '8px', marginTop: '4px',
-              textTransform: 'none', letterSpacing: 'normal',
-              fontSize: '0.85rem', color: '#343A40', fontWeight: 500,
-            }}
-          >
-            <input
-              type="text"
-              placeholder="Search values..."
-              value={invFilterSearch}
-              onChange={(e) => setInvFilterSearch(e.target.value)}
-              style={{
-                width: '100%', padding: '6px 10px',
-                border: '1px solid #E9ECEF', borderRadius: '6px',
-                fontSize: '0.8rem', fontFamily: 'inherit',
-                outline: 'none', boxSizing: 'border-box',
-                marginBottom: '8px',
-              }}
-            />
-            <div style={{ maxHeight: '220px', overflowY: 'auto', marginBottom: '8px' }}>
-              {getInvoiceUniqueValues(col)
-                .filter((v) => !invFilterSearch || v.toLowerCase().includes(invFilterSearch.toLowerCase()))
-                .map((v) => {
-                  const checked = (invColFilters[col] || []).includes(v);
-                  return (
-                    <label key={v} style={{
-                      display: 'flex', alignItems: 'center', gap: '8px',
-                      padding: '6px 8px', cursor: 'pointer', borderRadius: '4px',
-                      background: checked ? '#FFF5EB' : 'transparent',
-                    }}>
-                      <input type="checkbox" checked={checked} onChange={() => toggleInvoiceFilter(col, v)} style={{ width: '14px', height: '14px', accentColor: '#FF6B00', cursor: 'pointer' }} />
-                      <span style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
-                    </label>
-                  );
-                })}
-            </div>
-            <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #F1F3F5', paddingTop: '8px' }}>
-              <button onClick={() => clearInvoiceColumn(col)} style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
-              <button onClick={() => { setOpenInvFilter(null); setInvFilterSearch(''); }} style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
-            </div>
-          </div>
-        )}
-      </th>
-    );
+      setMonthlyMsg('✅ Monthly invoice ' + data.invoiceNumber + ' generated (' + data.shipmentCount + ' shipments, USD ' + Number(data.total).toFixed(2) + ')');
+      setMonthlyGenerating(false);
+      setTimeout(loadMonthlyInvoices, 500);
+    } catch (err) {
+      setMonthlyMsg('❌ Connection error.');
+      setMonthlyGenerating(false);
+    }
   }
 
-  // Helper to render the actual weight/cbm cell
+  /* ---------- Render helpers ---------- */
   function renderActualCell(s) {
     const mode = String(s.shipMode || '').toUpperCase();
-    const isSeaRow = mode === 'SEA';
-
-    if (isSeaRow) {
+    if (mode === 'SEA') {
       const weight = s.actualWeight;
       const cbm = s.actualCbm;
       const hasWeight = weight !== null && weight !== undefined && parseFloat(weight) > 0;
@@ -580,6 +630,85 @@ export default function BillingPanel() {
     return <span style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(weight).toFixed(2)} kg</span>;
   }
 
+  function HeaderCell({ col, label, width, frozenLeft, hasShadow }) {
+    const isFilterable = ['shipperRef', 'tracking', 'mode', 'route', 'shipper', 'recipient', 'status', 'payment', 'invNumber'].includes(col);
+    const activeCount = (colFilters[col] || []).length;
+    const isOpen = openFilter === col;
+
+    return (
+      <th style={{
+        ...TH_STYLE,
+        background: isOpen ? '#DDE3E9' : '#E9ECEF',
+        width, minWidth: width,
+        zIndex: frozenLeft !== undefined ? 22 : 20,
+        ...(frozenLeft !== undefined ? { left: frozenLeft } : {}),
+        ...(hasShadow ? { boxShadow: FROZEN_SHADOW } : {}),
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 12px' }}>
+          <span>{label}{activeCount > 0 && <span style={{ marginLeft: '6px', color: '#FF6B00' }}>({activeCount})</span>}</span>
+          {isFilterable && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setOpenFilter(isOpen ? null : col); setFilterSearch(''); }}
+              style={{
+                padding: '2px 6px',
+                background: activeCount > 0 ? '#FF6B00' : 'transparent',
+                border: 'none', borderRadius: '4px', cursor: 'pointer',
+                color: activeCount > 0 ? 'white' : '#003366',
+                fontSize: '0.7rem', fontWeight: 700, fontFamily: 'inherit', lineHeight: 1,
+              }}
+            >
+              ▼
+            </button>
+          )}
+        </div>
+
+        {isOpen && (
+          <div
+            ref={filterDropdownRef}
+            style={{
+              position: 'absolute', top: '100%',
+              left: frozenLeft !== undefined ? frozenLeft : 'auto',
+              right: frozenLeft !== undefined ? 'auto' : 0,
+              minWidth: '200px', background: 'white',
+              border: '1px solid #D0D6DB', borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 200,
+              padding: '8px', marginTop: '4px',
+              textTransform: 'none', letterSpacing: 'normal',
+              fontSize: '0.85rem', color: '#343A40', fontWeight: 500,
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Search values..."
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              style={{ width: '100%', padding: '6px 10px', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: '8px' }}
+            />
+            <div style={{ maxHeight: '220px', overflowY: 'auto', marginBottom: '8px' }}>
+              {getUniqueValues(col)
+                .filter((v) => !filterSearch || v.toLowerCase().includes(filterSearch.toLowerCase()))
+                .map((v) => {
+                  const checked = (colFilters[col] || []).includes(v);
+                  return (
+                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', cursor: 'pointer', borderRadius: '4px', background: checked ? '#FFF5EB' : 'transparent' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleFilterValue(col, v)} style={{ width: '14px', height: '14px', accentColor: '#FF6B00', cursor: 'pointer' }} />
+                      <span style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
+                    </label>
+                  );
+                })}
+            </div>
+            <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #F1F3F5', paddingTop: '8px' }}>
+              <button onClick={() => clearColumn(col)} style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+              <button onClick={() => { setOpenFilter(null); setFilterSearch(''); }} style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
+            </div>
+          </div>
+        )}
+      </th>
+    );
+  }
+
+  const showInvoiceColumns = tab === 'due';
+
   return (
     <div>
       {toast && (
@@ -593,7 +722,6 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {/* ============ SHIPMENTS SECTION ============ */}
       <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginBottom: '20px' }}>📦 Shipments</h2>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
@@ -602,26 +730,19 @@ export default function BillingPanel() {
         <StatCard num={counts.paid} label="Paid" color="#D4EDDA" />
       </div>
 
-      {outstanding.shippers.length > 0 && (
-        <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '20px', marginBottom: '20px', borderLeft: '5px solid #FF6B00' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-              <div style={{ fontWeight: 800, color: '#003366', fontSize: '1.1rem' }}>💵 Accounts Receivable</div>
-              <div style={{ color: '#6C757D', fontSize: '0.85rem' }}>
-                {outstanding.totalShipments} shipment(s) pending payment across {outstanding.shippers.length} shipper(s)
-              </div>
-            </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FF6B00' }}>
-              USD {Number(outstanding.grandTotal).toFixed(2)}
+      {/* Simplified AR card — reacts to filters */}
+      {tab === 'due' && !loading && !error && (
+        <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '20px 25px', marginBottom: '20px', borderLeft: '5px solid #FF6B00', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+          <div>
+            <div style={{ fontWeight: 800, color: '#003366', fontSize: '1.1rem' }}>💵 Accounts Receivable</div>
+            <div style={{ color: '#6C757D', fontSize: '0.85rem' }}>
+              {filtered.length} shipment{filtered.length !== 1 ? 's' : ''} shown
+              {hasAnyFilter ? ' (filtered)' : ''}
+              {shipperFilter ? ' · ' + shipperFilter : ''}
             </div>
           </div>
-          <div style={{ marginTop: '15px' }}>
-            {outstanding.shippers.map((sh, i) => (
-              <div key={i} style={{ padding: '10px 14px', background: '#F8F9FA', borderRadius: '8px', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                <div><b>{sh.shipperName}</b> <span style={{ color: '#6C757D', fontSize: '0.85rem' }}>({sh.count} shipments)</span></div>
-                <div style={{ fontWeight: 800, color: '#FF6B00' }}>USD {Number(sh.total).toFixed(2)}</div>
-              </div>
-            ))}
+          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FF6B00' }}>
+            USD {Number(filteredTotal).toFixed(2)}
           </div>
         </div>
       )}
@@ -633,7 +754,13 @@ export default function BillingPanel() {
           {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
         <button type="submit" style={{ padding: '10px 16px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Apply</button>
-        <button type="button" onClick={clearFilters} style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+        <button type="button" onClick={clearShipperFilter} style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+
+        {hasAnyFilter && (
+          <button type="button" onClick={clearAllFilters} style={{ padding: '10px 16px', background: '#FFF5EB', color: '#FF6B00', border: '2px solid #FF6B00', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+            ✕ Clear Column Filters ({Object.values(colFilters).reduce((n, arr) => n + arr.length, 0)})
+          </button>
+        )}
       </form>
 
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
@@ -651,65 +778,94 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {!loading && !error && shipments.length === 0 && (
+      {!loading && !error && filtered.length === 0 && (
         <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
-          No shipments in this view.
+          {shipments.length === 0 ? 'No shipments in this view.' : 'No shipments match your filters.'}
         </div>
       )}
 
-      {!loading && !error && shipments.length > 0 && (
+      {!loading && !error && filtered.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1500px' }}>
-            <thead>
+          <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: showInvoiceColumns ? '2100px' : '1700px', tableLayout: 'fixed', width: '100%' }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
               <tr>
-                {['Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status', 'Booking Wt', 'Actual Wt', 'Freight', 'Payment', 'Booked', 'ETA', 'Actions'].map((h) => (
-                  <th key={h} style={{ ...TH_STYLE, padding: '14px 12px' }}>{h}</th>
-                ))}
+                <HeaderCell col="shipperRef" label="Shipper Ref" width={COL_W_SHIPPER_REF} frozenLeft={FROZEN_LEFT_REF} />
+                <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
+                <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
+                <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={FROZEN_LEFT_ROUTE} hasShadow={true} />
+                <HeaderCell col="shipper" label="Shipper" width={150} />
+                <HeaderCell col="recipient" label="Recipient" width={150} />
+                <HeaderCell col="status" label="Status" width={120} />
+                <HeaderCell col="none" label="Booking Wt" width={100} />
+                <HeaderCell col="none" label="Actual Wt" width={130} />
+                <HeaderCell col="none" label="Freight" width={110} />
+                <HeaderCell col="payment" label="Payment" width={110} />
+                <HeaderCell col="none" label="Booked" width={115} />
+                <HeaderCell col="none" label="ETA" width={115} />
+                {showInvoiceColumns && <HeaderCell col="none" label="Inv Date" width={115} />}
+                {showInvoiceColumns && <HeaderCell col="invNumber" label="Inv #" width={130} />}
+                {showInvoiceColumns && <HeaderCell col="none" label="Due" width={115} />}
+                <HeaderCell col="none" label="Actions" width={showInvoiceColumns ? 560 : 320} />
               </tr>
             </thead>
             <tbody>
-              {shipments.map((s, i) => {
+              {filtered.map((s, i) => {
                 const sc = statusClass(s.status);
                 const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+                const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
                 const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
-                const invState = !s.latestInvoice ? 'none'
-                  : s.invoiceSentAt ? 'sent'
-                  : s.hasMonthlyInvoice ? 'monthly'
-                  : 'individual';
                 const wasCostSaved = !!s.costSavedAt;
+                const hasInvoice = !!s.latestInvoice;
+                const invSent = !!s.invoiceSentAt || (s.latestInvoice && !!s.latestInvoice.sentAt);
 
                 return (
                   <tr key={i} style={{ background: rowBg }}>
-                    <td style={{ ...TD_STYLE, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                    <td style={TD_STYLE}>{s.seaLoadType ? ('SEA - ' + s.seaLoadType) : (s.shipMode || '—')}</td>
-                    <td style={TD_STYLE}>{s.origin || '—'} → {s.destination || '—'}</td>
-                    <td style={TD_STYLE}>{s.shipperName || '—'}</td>
-                    <td style={TD_STYLE}>{s.recipientName || '—'}</td>
-                    <td style={TD_STYLE}>
+                    <td style={{ ...frozenTd, left: FROZEN_LEFT_REF, width: COL_W_SHIPPER_REF, minWidth: COL_W_SHIPPER_REF }}>{s.shipperRef || '—'}</td>
+                    <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
+                    <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '—'}</td>
+                    <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '—'} → {s.destination || '—'}</td>
+                    <td style={{ ...TD_STYLE, width: 150 }}>{s.shipperName || '—'}</td>
+                    <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '—'}</td>
+                    <td style={{ ...TD_STYLE, width: 120 }}>
                       <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
                     </td>
-                    <td style={TD_STYLE}>{s.bookingWeight ? s.bookingWeight + ' kg' : '—'}</td>
-                    <td style={TD_STYLE}>{renderActualCell(s)}</td>
-                    <td style={TD_STYLE}>
+                    <td style={{ ...TD_STYLE, width: 100 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '—'}</td>
+                    <td style={{ ...TD_STYLE, width: 130 }}>{renderActualCell(s)}</td>
+                    <td style={{ ...TD_STYLE, width: 110 }}>
                       {hasCost
                         ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
                         : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                     </td>
-                    <td style={TD_STYLE}>
-                      <span style={{ background: s.paymentStatus === 'Paid' ? '#D4EDDA' : '#FFF3CD', color: s.paymentStatus === 'Paid' ? '#155724' : '#856404', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem' }}>{s.paymentStatus}</span>
+                    <td style={{ ...TD_STYLE, width: 110 }}>
+                      <span style={{ background: s.paymentStatus === 'Paid' ? '#D4EDDA' : '#FFF3CD', color: s.paymentStatus === 'Paid' ? '#155724' : '#856404', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
                     </td>
-                    <td style={TD_STYLE}>{formatDate(s.bookedAt)}</td>
-                    <td style={TD_STYLE}>
+                    <td style={{ ...TD_STYLE, width: 115 }}>{formatDate(s.bookedAt)}</td>
+                    <td style={{ ...TD_STYLE, width: 115 }}>
                       <span style={{ color: '#FF6B00', fontWeight: 800 }}>
                         {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                       </span>
                     </td>
-                    <td style={{ ...TD_STYLE, whiteSpace: 'nowrap' }}>
-                      {tab === 'all' && <span style={{ color: '#ADB5BD' }}>—</span>}
 
+                    {showInvoiceColumns && (
+                      <td style={{ ...TD_STYLE, width: 115 }}>
+                        {hasInvoice && s.latestInvoice.issueDate ? formatDate(s.latestInvoice.issueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
+                      </td>
+                    )}
+                    {showInvoiceColumns && (
+                      <td style={{ ...TD_STYLE, width: 130, fontWeight: 700, color: '#003366' }}>
+                        {hasInvoice ? s.latestInvoice.invoiceNumber : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>}
+                      </td>
+                    )}
+                    {showInvoiceColumns && (
+                      <td style={{ ...TD_STYLE, width: 115 }}>
+                        {hasInvoice && s.latestInvoice.dueDate ? formatDate(s.latestInvoice.dueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
+                      </td>
+                    )}
+
+                    <td style={{ ...TD_STYLE, width: showInvoiceColumns ? 560 : 320, whiteSpace: 'nowrap' }}>
+                      {/* ===== DUE TAB ===== */}
                       {tab === 'due' && (
                         <>
-                          {/* G.2: Use → Update Shipment Cost modal trigger */}
                           <button
                             onClick={() => openCostModal(s)}
                             style={{
@@ -725,29 +881,61 @@ export default function BillingPanel() {
                             {wasCostSaved ? '✅ Cost Updated' : '🔄 Update Shipment Cost'}
                           </button>
 
-                          <button onClick={() => handleMarkPaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>💵 Mark Paid</button>
+                          {/* Invoice issued? */}
+                          {!hasInvoice ? (
+                            <button onClick={() => handleIssueInvoice(s)} style={{ padding: '5px 10px', background: '#0D6EFD', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap' }}>📄 Issue Invoice</button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleIssueInvoice(s)}
+                                style={{
+                                  padding: '5px 10px',
+                                  background: '#E9ECEF',
+                                  color: '#155724',
+                                  border: 'none', borderRadius: '6px',
+                                  fontWeight: 700, fontSize: '0.72rem',
+                                  cursor: 'pointer', fontFamily: 'inherit',
+                                  marginRight: '4px', whiteSpace: 'nowrap'
+                                }}
+                              >
+                                ✅ Invoice Issued
+                              </button>
+                              <button onClick={() => openEditInvModal(s)} style={{ padding: '5px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap' }}>✏️ Edit Invoice</button>
+                              <a href={'/api/pdf/invoice/' + s.latestInvoice.invoiceId} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px', whiteSpace: 'nowrap', display: 'inline-block' }}>📄 PDF</a>
+                              {!invSent ? (
+                                <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap' }}>📤 Send Customer</button>
+                              ) : (
+                                <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#E9ECEF', color: '#155724', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap' }}>✅ Sent</button>
+                              )}
+                            </>
+                          )}
 
-                          {invState === 'none' && (
-                            <button onClick={() => handleIssueInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#0D6EFD', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📄 Issue Invoice</button>
-                          )}
-                          {invState === 'individual' && (
-                            <>
-                              <span style={{ padding: '5px 10px', background: '#E9ECEF', color: '#495057', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, marginRight: '4px', whiteSpace: 'nowrap' }}>🧾 Invoice Issued</span>
-                              <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>📤 Send to Customer</button>
-                            </>
-                          )}
-                          {invState === 'monthly' && (
-                            <>
-                              <span style={{ padding: '5px 10px', background: '#E9ECEF', color: '#495057', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, marginRight: '4px', whiteSpace: 'nowrap' }}>🧾 Monthly Issued</span>
-                              <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>📤 Send to Customer</button>
-                            </>
-                          )}
-                          {invState === 'sent' && (
-                            <span style={{ padding: '5px 10px', background: '#D4EDDA', color: '#155724', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap' }}>✅ Sent to Customer</span>
-                          )}
+                          <button onClick={() => handleMarkPaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>💵 Mark Paid</button>
                         </>
                       )}
 
+                      {/* ===== ALL TAB ===== */}
+                      {tab === 'all' && (
+                        <>
+                          <button
+                            onClick={() => openCostModal(s)}
+                            style={{
+                              padding: '5px 10px',
+                              background: wasCostSaved ? '#E9ECEF' : '#FF6B00',
+                              color: wasCostSaved ? '#495057' : 'white',
+                              border: 'none', borderRadius: '6px',
+                              fontWeight: 700, fontSize: '0.72rem',
+                              cursor: 'pointer', fontFamily: 'inherit',
+                              marginRight: '4px', whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {wasCostSaved ? '✅ Cost Updated' : '🔄 Update Shipment Cost'}
+                          </button>
+                          <button onClick={() => handleMarkPaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>💵 Mark Paid</button>
+                        </>
+                      )}
+
+                      {/* ===== PAID TAB ===== */}
                       {tab === 'paid' && (
                         <button onClick={() => handleMarkUnpaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#FFC107', color: '#333', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit' }}>↩ Undo</button>
                       )}
@@ -760,76 +948,81 @@ export default function BillingPanel() {
         </div>
       )}
 
+      {/* ============ MONTHLY SUMMARY SECTION (Due tab only) ============ */}
       {tab === 'due' && (
         <>
-          <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginTop: '50px', marginBottom: '20px' }}>🧾 Invoices</h2>
+          <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginTop: '50px', marginBottom: '20px' }}>📅 Monthly Summary</h2>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
-            <TabButton active={invTab === 'individual'} onClick={() => setInvTab('individual')} label="📄 Individual Invoices" count={invTab === 'individual' ? invoices.length : 0} />
-            <TabButton active={invTab === 'monthly'} onClick={() => setInvTab('monthly')} label="📅 Monthly Summary" count={invTab === 'monthly' ? invoices.length : 0} />
-            <button onClick={loadInvoices} style={{ padding: '12px 22px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '10px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>🔄 Refresh</button>
-          </div>
+          <form onSubmit={handleGenerateMonthly} style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px', borderLeft: '5px solid #003366' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '15px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Shipper *</label>
+                <select value={monthlyShipper} onChange={(e) => setMonthlyShipper(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                  <option value="">-- Select Shipper --</option>
+                  {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Month *</label>
+                <input type="month" value={monthlyMonth} onChange={(e) => setMonthlyMonth(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Local Currency (optional)</label>
+                <input type="text" value={monthlyLocalCurrency} onChange={(e) => setMonthlyLocalCurrency(e.target.value)} placeholder="e.g., BDT"
+                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Local Amount (optional)</label>
+                <input type="number" step="0.01" value={monthlyLocalAmount} onChange={(e) => setMonthlyLocalAmount(e.target.value)} placeholder="e.g., 10000"
+                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+            </div>
 
-          {invLoading ? (
-            <div style={{ textAlign: 'center', padding: '40px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button type="submit" disabled={monthlyGenerating} style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: monthlyGenerating ? 'not-allowed' : 'pointer', opacity: monthlyGenerating ? 0.6 : 1, fontFamily: 'inherit' }}>
+                {monthlyGenerating ? 'Generating...' : '🧾 Generate Monthly Invoice'}
+              </button>
+              <button type="button" onClick={loadMonthlyInvoices} style={{ padding: '12px 20px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 Refresh List</button>
+            </div>
+
+            {monthlyMsg && (
+              <div style={{ marginTop: '15px', padding: '12px 16px', borderRadius: '8px', fontSize: '0.9rem', background: monthlyMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: monthlyMsg.startsWith('✅') ? '#155724' : '#721C24' }}>
+                {monthlyMsg}
+              </div>
+            )}
+          </form>
+
+          {monthlyLoading ? (
+            <div style={{ textAlign: 'center', padding: '30px' }}>
               <div style={{ width: '40px', height: '40px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
             </div>
-          ) : filteredInvoices.length === 0 ? (
+          ) : monthlyInvoices.length === 0 ? (
             <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
-              {invoices.length === 0
-                ? (invTab === 'individual' ? 'No individual invoices yet. Click "📄 Issue Invoice" on a Due Payment row above.' : 'No monthly summary invoices yet.')
-                : 'No invoices match your filters.'}
+              No monthly summary invoices yet. Generate one above.
             </div>
           ) : (
-            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1400px' }}>
+            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '50vh', position: 'relative' }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1000px' }}>
                 <thead>
                   <tr>
-                    <InvoiceHeaderCell col="shipperRef" label="Shipper Ref" />
-                    <InvoiceHeaderCell col="tracking" label="Tracking #" />
-                    <InvoiceHeaderCell col="issued" label="Inv Date" />
-                    <InvoiceHeaderCell col="invoiceNumber" label="Inv #" />
-                    <InvoiceHeaderCell col="type" label="Type" />
-                    <InvoiceHeaderCell col="shipper" label="Shipper" />
-                    <th style={{ ...TH_STYLE, padding: '14px 12px' }}>Recipient</th>
-                    <th style={{ ...TH_STYLE, padding: '14px 12px' }}>Amount</th>
-                    <InvoiceHeaderCell col="status" label="Status" />
-                    <th style={{ ...TH_STYLE, padding: '14px 12px' }}>Issued</th>
-                    <th style={{ ...TH_STYLE, padding: '14px 12px' }}>Due</th>
-                    <th style={{ ...TH_STYLE, padding: '14px 12px' }}>PDF</th>
+                    {['Inv #', 'Month', 'Shipper', 'Amount', 'Status', 'Issued', 'Due', 'PDF'].map((h) => (
+                      <th key={h} style={{ ...TH_STYLE, padding: '14px 12px' }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredInvoices.map((inv, i) => {
+                  {monthlyInvoices.map((inv, i) => {
                     const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
                     return (
                       <tr key={inv.invoiceID || i} style={{ background: rowBg }}>
-                        <td style={TD_STYLE}>{inv.shipperRef || '—'}</td>
-                        <td style={{ ...TD_STYLE, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>
-                          {inv.trackingList && inv.trackingList.length > 1
-                            ? inv.trackingList[0] + ' +' + (inv.trackingList.length - 1) + ' more'
-                            : (inv.trackingNumbers || '—')}
-                        </td>
-                        <td style={TD_STYLE}>{formatDate(inv.issueDate)}</td>
                         <td style={{ ...TD_STYLE, fontWeight: 700 }}>{inv.invoiceNumber}</td>
-                        <td style={TD_STYLE}>
-                          <span style={{ background: inv.type === 'monthly-summary' ? '#CCE5FF' : '#FFF5EB', color: inv.type === 'monthly-summary' ? '#004085' : '#8B4500', padding: '3px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase' }}>
-                            {inv.type === 'monthly-summary' ? 'Monthly' : 'Individual'}
-                          </span>
-                        </td>
+                        <td style={TD_STYLE}>{inv.month || '—'}</td>
                         <td style={TD_STYLE}>{inv.shipperName || '—'}</td>
-                        <td style={TD_STYLE}>{inv.recipientName || '—'}</td>
                         <td style={{ ...TD_STYLE, fontWeight: 700 }}>{inv.currency} {Number(inv.amount).toFixed(2)}</td>
                         <td style={TD_STYLE}>
-                          <select
-                            value={inv.status}
-                            onChange={(e) => handleInvoiceStatus(inv.invoiceID, e.target.value)}
-                            style={{ padding: '4px 8px', borderRadius: '6px', border: '2px solid ' + (String(inv.status).toLowerCase() === 'paid' ? '#28A745' : '#FFE5B4'), background: String(inv.status).toLowerCase() === 'paid' ? '#D4EDDA' : '#FFF3CD', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit' }}
-                          >
-                            <option value="Issued">Issued</option>
-                            <option value="Paid">Paid</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
+                          <span style={{ padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem', background: String(inv.status).toLowerCase() === 'paid' ? '#D4EDDA' : '#FFF3CD', color: String(inv.status).toLowerCase() === 'paid' ? '#155724' : '#856404' }}>{inv.status}</span>
                         </td>
                         <td style={TD_STYLE}>{formatDate(inv.issueDate)}</td>
                         <td style={TD_STYLE}>{formatDate(inv.dueDate)}</td>
@@ -866,6 +1059,9 @@ export default function BillingPanel() {
                 </h2>
                 <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
                   {costModal.shipment.trackingNumber} · {costModal.shipment.shipperName}
+                </div>
+                <div style={{ color: '#003366', fontSize: '0.85rem', marginTop: '2px', fontWeight: 700 }}>
+                  Route: {costModal.shipment.origin || '—'} → {costModal.shipment.destination || '—'} · Mode: {costModal.shipment.shipmentType || costModal.shipment.shipMode || '—'}
                 </div>
               </div>
               <button onClick={closeCostModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
@@ -988,16 +1184,27 @@ export default function BillingPanel() {
             <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
               <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Local Currency (optional)</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '6px' }}>
-                <input type="text" value={costLocalCurrency} onChange={(e) => setCostLocalCurrency(e.target.value)} placeholder="e.g., HKD"
+                <input type="text" value={costLocalCurrency} onChange={(e) => setCostLocalCurrency(e.target.value)} placeholder="e.g., BDT"
                   style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                <input type="number" step="0.01" value={costLocalAmount} onChange={(e) => setCostLocalAmount(e.target.value)} placeholder="e.g., 1000.00"
+                <input type="number" step="0.0001" value={costExchangeRate} onChange={(e) => setCostExchangeRate(e.target.value)} placeholder="Exchange rate (1 USD = ?)"
                   style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#6C757D', marginTop: '4px', fontStyle: 'italic' }}>
+                Enter the exchange rate to also compute the local-currency total.
               </div>
             </div>
 
-            <div style={{ background: '#FFF5EB', padding: '18px', borderRadius: '10px', borderLeft: '4px solid #FF6B00', marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-              <span style={{ fontWeight: 700, color: '#003366' }}>TOTAL COST:</span>
-              <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FF6B00' }}>{costCurrency} {calculatedTotal}</span>
+            <div style={{ background: '#FFF5EB', padding: '18px', borderRadius: '10px', borderLeft: '4px solid #FF6B00', marginTop: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <span style={{ fontWeight: 700, color: '#003366' }}>TOTAL COST:</span>
+                <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FF6B00' }}>{costCurrency} {calculatedTotal}</span>
+              </div>
+              {localTotal && costLocalCurrency && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #FF6B00' }}>
+                  <span style={{ fontWeight: 700, color: '#003366' }}>LOCAL TOTAL:</span>
+                  <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#003366' }}>{costLocalCurrency} {localTotal}</span>
+                </div>
+              )}
             </div>
 
             <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
@@ -1008,6 +1215,62 @@ export default function BillingPanel() {
               <button type="button" onClick={handleSaveCost} disabled={costLoading}
                 style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: costLoading ? 'not-allowed' : 'pointer', opacity: costLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
                 {costLoading ? 'Saving...' : '💾 Save Cost'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ EDIT INVOICE MODAL ============ */}
+      {editInvModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          padding: '20px', overflowY: 'auto'
+        }}>
+          <div style={{
+            background: 'white', maxWidth: '520px', width: '100%',
+            borderRadius: '16px', padding: '30px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            marginTop: '60px', marginBottom: '40px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>✏️ Edit Invoice</h2>
+                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
+                  {editInvModal.shipment.latestInvoice.invoiceNumber} · {editInvModal.shipment.trackingNumber}
+                </div>
+              </div>
+              <button onClick={closeEditInvModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+            </div>
+
+            {editInvError && (
+              <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem' }}>
+                {editInvError}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>Issue Date</label>
+                <input type="date" value={editInvIssueDate} onChange={(e) => setEditInvIssueDate(e.target.value)}
+                  style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>Due Date</label>
+                <input type="date" value={editInvDueDate} onChange={(e) => setEditInvDueDate(e.target.value)}
+                  style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px', flexWrap: 'wrap' }}>
+              <button onClick={closeEditInvModal} disabled={editInvSaving}
+                style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={handleSaveEditInv} disabled={editInvSaving}
+                style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: editInvSaving ? 'not-allowed' : 'pointer', opacity: editInvSaving ? 0.6 : 1, fontFamily: 'inherit' }}>
+                {editInvSaving ? 'Saving...' : '💾 Save Changes'}
               </button>
             </div>
           </div>
