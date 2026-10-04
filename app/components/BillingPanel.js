@@ -23,7 +23,7 @@ function statusClass(s) {
 }
 
 const TH_STYLE = {
-  padding: '14px 12px',
+  padding: 0,
   textAlign: 'left',
   fontWeight: 700,
   color: '#003366',
@@ -73,11 +73,9 @@ export default function BillingPanel() {
   const [costLocalAmount, setCostLocalAmount] = useState('');
   const [costMsg, setCostMsg] = useState('');
   const [costLoading, setCostLoading] = useState(false);
-  // Service charges
   const [pickupCharge, setPickupCharge] = useState('');
   const [customsCharge, setCustomsCharge] = useState('');
   const [deliveryCharge, setDeliveryCharge] = useState('');
-  // Selected shipment context for service display
   const [selectedShipment, setSelectedShipment] = useState(null);
   const [costSaved, setCostSaved] = useState(false);
   const costFormRef = useRef(null);
@@ -86,10 +84,12 @@ export default function BillingPanel() {
   const [invTab, setInvTab] = useState('individual'); // individual | monthly
   const [invoices, setInvoices] = useState([]);
   const [invLoading, setInvLoading] = useState(true);
-  const [invFilters, setInvFilters] = useState({
-    shipperRef: '', tracking: '', month: '', invoiceNumber: '', shipper: '',
+  const [invColFilters, setInvColFilters] = useState({
+    shipperRef: [], tracking: [], invoiceNumber: [], type: [], shipper: [], status: [], issued: [],
   });
-  const [invMsg, setInvMsg] = useState('');
+  const [openInvFilter, setOpenInvFilter] = useState(null);
+  const [invFilterSearch, setInvFilterSearch] = useState('');
+  const invFilterRef = useRef(null);
 
   // ===== Loading initial =====
   useEffect(() => {
@@ -98,17 +98,28 @@ export default function BillingPanel() {
   }, [tab]);
 
   useEffect(() => {
-    loadInvoices();
+    if (tab === 'due') loadInvoices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invTab]);
+  }, [tab, invTab]);
 
-  // Toast auto-clear
   useEffect(() => {
     if (toast) {
       const t = setTimeout(() => setToast(''), 4000);
       return () => clearTimeout(t);
     }
   }, [toast]);
+
+  // Close filter dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (invFilterRef.current && !invFilterRef.current.contains(e.target)) {
+        setOpenInvFilter(null);
+        setInvFilterSearch('');
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   async function loadShipments() {
     setLoading(true);
@@ -176,7 +187,6 @@ export default function BillingPanel() {
     setTimeout(loadShipments, 50);
   }
 
-  // ===== Cost calculations =====
   const calculatedTotal = (() => {
     const aw = parseFloat(costActualWeight) || 0;
     const rate = parseFloat(costRate) || 0;
@@ -188,7 +198,6 @@ export default function BillingPanel() {
     return (aw * rate + pc + cc + dc + addl).toFixed(2);
   })();
 
-  // ===== Handle Use button (prefill cost form) =====
   function handleUse(s) {
     setCostTn(s.trackingNumber);
     setCostActualWeight(s.actualWeight || '');
@@ -199,7 +208,6 @@ export default function BillingPanel() {
     setCustomsCharge(s.customsCharge ? String(s.customsCharge) : '');
     setDeliveryCharge(s.deliveryCharge ? String(s.deliveryCharge) : '');
 
-    // Prefill additional lines from breakdown if exists
     let addl = [];
     try {
       const bd = s.costBreakdown;
@@ -278,7 +286,6 @@ export default function BillingPanel() {
     }
   }
 
-  // ===== Mark Paid =====
   async function handleMarkPaid(trackingNumber) {
     if (!window.confirm('Mark ' + trackingNumber + ' as paid?')) return;
     const token = localStorage.getItem('sxl_token');
@@ -315,7 +322,6 @@ export default function BillingPanel() {
     }
   }
 
-  // ===== Issue individual invoice =====
   async function handleIssueInvoice(trackingNumber) {
     if (!window.confirm('Issue individual invoice for ' + trackingNumber + '?')) return;
     const token = localStorage.getItem('sxl_token');
@@ -335,7 +341,6 @@ export default function BillingPanel() {
     }
   }
 
-  // ===== Send invoice to customer =====
   async function handleSendInvoice(trackingNumber) {
     if (!window.confirm('Send invoice email to customer for ' + trackingNumber + '?')) return;
     const token = localStorage.getItem('sxl_token');
@@ -354,7 +359,6 @@ export default function BillingPanel() {
     }
   }
 
-  // ===== Invoice actions =====
   async function handleInvoiceStatus(invoiceId, status) {
     const token = localStorage.getItem('sxl_token');
     try {
@@ -372,41 +376,137 @@ export default function BillingPanel() {
     }
   }
 
-  // ===== Invoice filter application =====
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
-      if (invFilters.shipperRef && !String(inv.shipperRef || '').toLowerCase().includes(invFilters.shipperRef.toLowerCase())) return false;
-      if (invFilters.tracking && !String(inv.trackingNumbers || '').toLowerCase().includes(invFilters.tracking.toLowerCase())) return false;
-      if (invFilters.invoiceNumber && !String(inv.invoiceNumber || '').toLowerCase().includes(invFilters.invoiceNumber.toLowerCase())) return false;
-      if (invFilters.shipper && String(inv.shipperName || '') !== invFilters.shipper) return false;
-      if (invFilters.month) {
-        const d = new Date(inv.issueDate || inv.issue_date || 0);
-        if (isNaN(d.getTime())) return false;
-        const m = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-        if (m !== invFilters.month) return false;
-      }
-      return true;
-    });
-  }, [invoices, invFilters]);
+  // ===== Invoice filter helpers =====
+  function getInvoiceColumnValue(inv, col) {
+    if (col === 'shipperRef') return inv.shipperRef || '';
+    if (col === 'tracking') return inv.trackingNumbers || '';
+    if (col === 'invoiceNumber') return inv.invoiceNumber || '';
+    if (col === 'type') return inv.type === 'monthly-summary' ? 'Monthly' : 'Individual';
+    if (col === 'shipper') return inv.shipperName || '';
+    if (col === 'status') return inv.status || '';
+    if (col === 'issued') {
+      const d = new Date(inv.issueDate || 0);
+      if (isNaN(d.getTime())) return '';
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    }
+    return '';
+  }
 
-  const invoiceMonthOptions = useMemo(() => {
+  function getInvoiceUniqueValues(col) {
     const set = new Set();
     invoices.forEach((inv) => {
-      const d = new Date(inv.issueDate || 0);
-      if (!isNaN(d.getTime())) {
-        set.add(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+      const v = getInvoiceColumnValue(inv, col);
+      if (v) set.add(v);
+    });
+    return Array.from(set).sort();
+  }
+
+  function toggleInvoiceFilter(col, value) {
+    setInvColFilters((prev) => {
+      const current = prev[col] || [];
+      const next = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      return { ...prev, [col]: next };
+    });
+  }
+
+  function clearInvoiceColumn(col) {
+    setInvColFilters((prev) => ({ ...prev, [col]: [] }));
+  }
+
+  const filteredInvoices = useMemo(() => {
+    let list = invoices;
+    Object.entries(invColFilters).forEach(([col, values]) => {
+      if (values.length > 0) {
+        list = list.filter((inv) => values.includes(getInvoiceColumnValue(inv, col)));
       }
     });
-    return Array.from(set).sort().reverse();
-  }, [invoices]);
+    return list;
+  }, [invoices, invColFilters]);
 
-  const invoiceShipperOptions = useMemo(() => {
-    const set = new Set();
-    invoices.forEach((inv) => { if (inv.shipperName) set.add(inv.shipperName); });
-    return Array.from(set).sort();
-  }, [invoices]);
+  // ===== Invoice Header cell with filter =====
+  function InvoiceHeaderCell({ col, label }) {
+    const isFilterable = ['shipperRef', 'tracking', 'invoiceNumber', 'type', 'shipper', 'status', 'issued'].includes(col);
+    const activeCount = (invColFilters[col] || []).length;
+    const isOpen = openInvFilter === col;
 
-  // ===== Render =====
+    return (
+      <th style={{ ...TH_STYLE, background: isOpen ? '#DDE3E9' : '#E9ECEF' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 12px' }}>
+          <span>
+            {label}
+            {activeCount > 0 && <span style={{ marginLeft: '6px', color: '#FF6B00' }}>({activeCount})</span>}
+          </span>
+          {isFilterable && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setOpenInvFilter(isOpen ? null : col); setInvFilterSearch(''); }}
+              style={{
+                padding: '2px 6px',
+                background: activeCount > 0 ? '#FF6B00' : 'transparent',
+                border: 'none', borderRadius: '4px', cursor: 'pointer',
+                color: activeCount > 0 ? 'white' : '#003366',
+                fontSize: '0.7rem', fontWeight: 700, fontFamily: 'inherit', lineHeight: 1,
+              }}
+            >
+              ▼
+            </button>
+          )}
+        </div>
+
+        {isOpen && (
+          <div
+            ref={invFilterRef}
+            style={{
+              position: 'absolute', top: '100%', right: 0,
+              minWidth: '200px', background: 'white',
+              border: '1px solid #D0D6DB', borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 200,
+              padding: '8px', marginTop: '4px',
+              textTransform: 'none', letterSpacing: 'normal',
+              fontSize: '0.85rem', color: '#343A40', fontWeight: 500,
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Search values..."
+              value={invFilterSearch}
+              onChange={(e) => setInvFilterSearch(e.target.value)}
+              style={{
+                width: '100%', padding: '6px 10px',
+                border: '1px solid #E9ECEF', borderRadius: '6px',
+                fontSize: '0.8rem', fontFamily: 'inherit',
+                outline: 'none', boxSizing: 'border-box',
+                marginBottom: '8px',
+              }}
+            />
+            <div style={{ maxHeight: '220px', overflowY: 'auto', marginBottom: '8px' }}>
+              {getInvoiceUniqueValues(col)
+                .filter((v) => !invFilterSearch || v.toLowerCase().includes(invFilterSearch.toLowerCase()))
+                .map((v) => {
+                  const checked = (invColFilters[col] || []).includes(v);
+                  return (
+                    <label key={v} style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      padding: '6px 8px', cursor: 'pointer', borderRadius: '4px',
+                      background: checked ? '#FFF5EB' : 'transparent',
+                    }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleInvoiceFilter(col, v)} style={{ width: '14px', height: '14px', accentColor: '#FF6B00', cursor: 'pointer' }} />
+                      <span style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
+                    </label>
+                  );
+                })}
+            </div>
+            <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #F1F3F5', paddingTop: '8px' }}>
+              <button onClick={() => clearInvoiceColumn(col)} style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+              <button onClick={() => { setOpenInvFilter(null); setInvFilterSearch(''); }} style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
+            </div>
+          </div>
+        )}
+      </th>
+    );
+  }
+
   return (
     <div>
       {/* Toast */}
@@ -415,7 +515,7 @@ export default function BillingPanel() {
           position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
           background: '#003366', color: 'white', borderRadius: '10px',
           padding: '14px 24px', fontWeight: 700, boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-          zIndex: 99999, maxWidth: '90%', textAlign: 'center'
+          zIndex: 99999, maxWidth: '90%', textAlign: 'center',
         }}>
           {toast}
         </div>
@@ -424,14 +524,12 @@ export default function BillingPanel() {
       {/* ============ SHIPMENTS SECTION ============ */}
       <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginBottom: '20px' }}>📦 Shipments</h2>
 
-      {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '25px' }}>
         <StatCard num={counts.total} label="Total Shipments" color="#FF6B00" />
         <StatCard num={counts.due} label="Due Payment" color="#FFE5B4" />
         <StatCard num={counts.paid} label="Paid" color="#D4EDDA" />
       </div>
 
-      {/* Outstanding Summary */}
       {outstanding.shippers.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '20px', marginBottom: '20px', borderLeft: '5px solid #FF6B00' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
@@ -456,7 +554,6 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {/* Filter Bar */}
       <form onSubmit={applyFilters} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
         <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#6C757D' }}>Shipper:</label>
         <select value={shipperFilter} onChange={(e) => setShipperFilter(e.target.value)} style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '180px' }}>
@@ -467,14 +564,12 @@ export default function BillingPanel() {
         <button type="button" onClick={clearFilters} style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
       </form>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <TabButton active={tab === 'all'} onClick={() => setTab('all')} label="📋 All Shipments" count={counts.total} />
         <TabButton active={tab === 'due'} onClick={() => setTab('due')} label="💳 Due Payment" count={counts.due} />
         <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="✅ Paid" count={counts.paid} />
       </div>
 
-      {/* Cost Form (Due tab only) */}
       {tab === 'due' && (
         <div id="cost-form-anchor" ref={costFormRef}>
           <form onSubmit={handleSaveCost} style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px', borderLeft: '5px solid #FF6B00' }}>
@@ -486,7 +581,6 @@ export default function BillingPanel() {
               Click "📋 Use" next to a shipment below to auto-fill its details.
             </p>
 
-            {/* Tracking + Weight */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Tracking Number *</label>
@@ -520,7 +614,6 @@ export default function BillingPanel() {
               </div>
             </div>
 
-            {/* Service Charges — hidden for Special Parcel */}
             {selectedShipment && !selectedShipment.isSpecialParcel && (
               <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
                 <h4 style={{ fontSize: '0.95rem', color: '#003366', marginBottom: '12px' }}>🛠️ Service Charges</h4>
@@ -571,7 +664,6 @@ export default function BillingPanel() {
               </div>
             )}
 
-            {/* Additional Lines */}
             <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
               <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Additional Cost Lines</label>
               {costLines.map((l, idx) => (
@@ -586,7 +678,6 @@ export default function BillingPanel() {
               <button type="button" onClick={addCostLine} style={{ marginTop: '8px', padding: '8px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>+ Add Cost Line</button>
             </div>
 
-            {/* Local Currency */}
             <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
               <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Local Currency (optional)</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '6px' }}>
@@ -597,7 +688,6 @@ export default function BillingPanel() {
               </div>
             </div>
 
-            {/* Total */}
             <div style={{ background: '#FFF5EB', padding: '18px', borderRadius: '10px', borderLeft: '4px solid #FF6B00', marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 700, color: '#003366' }}>TOTAL COST:</span>
               <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FF6B00' }}>{costCurrency} {calculatedTotal}</span>
@@ -622,7 +712,6 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {/* Error / Loading / Empty */}
       {error && <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>❌ {error}</div>}
 
       {loading && (
@@ -644,7 +733,7 @@ export default function BillingPanel() {
             <thead>
               <tr>
                 {['Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status', 'Booking Wt', 'Actual Wt', 'Freight', 'Payment', 'Booked', 'ETA', 'Actions'].map((h) => (
-                  <th key={h} style={TH_STYLE}>{h}</th>
+                  <th key={h} style={{ ...TH_STYLE, padding: '14px 12px' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -653,7 +742,6 @@ export default function BillingPanel() {
                 const sc = statusClass(s.status);
                 const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
                 const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
-                const freight = (parseFloat(s.actualWeight) || 0) * (parseFloat(s.ratePerKg) || 0);
                 const invState = !s.latestInvoice ? 'none'
                   : s.invoiceSentAt ? 'sent'
                   : s.hasMonthlyInvoice ? 'monthly'
@@ -686,10 +774,8 @@ export default function BillingPanel() {
                       </span>
                     </td>
                     <td style={{ ...TD_STYLE, whiteSpace: 'nowrap' }}>
-                      {/* ALL tab — actions blank */}
                       {tab === 'all' && <span style={{ color: '#ADB5BD' }}>—</span>}
 
-                      {/* DUE tab — Use / Mark Paid / Invoice / Send */}
                       {tab === 'due' && (
                         <>
                           <button onClick={() => handleUse(s)} style={{ padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📋 Use</button>
@@ -716,7 +802,6 @@ export default function BillingPanel() {
                         </>
                       )}
 
-                      {/* PAID tab — Undo only */}
                       {tab === 'paid' && (
                         <button onClick={() => handleMarkUnpaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#FFC107', color: '#333', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit' }}>↩ Undo</button>
                       )}
@@ -729,108 +814,91 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {/* ============ INVOICE SECTION ============ */}
-      <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginTop: '50px', marginBottom: '20px' }}>🧾 Invoices</h2>
+      {/* ============ INVOICE SECTION — DUE TAB ONLY ============ */}
+      {tab === 'due' && (
+        <>
+          <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginTop: '50px', marginBottom: '20px' }}>🧾 Invoices</h2>
 
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
-        <TabButton active={invTab === 'individual'} onClick={() => setInvTab('individual')} label="📄 Individual Invoices" count={invTab === 'individual' ? invoices.length : 0} />
-        <TabButton active={invTab === 'monthly'} onClick={() => setInvTab('monthly')} label="📅 Monthly Summary" count={invTab === 'monthly' ? invoices.length : 0} />
-        <button onClick={loadInvoices} style={{ padding: '12px 22px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '10px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>🔄 Refresh</button>
-      </div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
+            <TabButton active={invTab === 'individual'} onClick={() => setInvTab('individual')} label="📄 Individual Invoices" count={invTab === 'individual' ? invoices.length : 0} />
+            <TabButton active={invTab === 'monthly'} onClick={() => setInvTab('monthly')} label="📅 Monthly Summary" count={invTab === 'monthly' ? invoices.length : 0} />
+            <button onClick={loadInvoices} style={{ padding: '12px 22px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '10px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>🔄 Refresh</button>
+          </div>
 
-      {/* Invoice Filters */}
-      <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '15px', marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <input type="text" placeholder="🔍 Shipper Ref" value={invFilters.shipperRef} onChange={(e) => setInvFilters({ ...invFilters, shipperRef: e.target.value })}
-          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '140px', flex: 1 }} />
-        <input type="text" placeholder="🔍 Tracking #" value={invFilters.tracking} onChange={(e) => setInvFilters({ ...invFilters, tracking: e.target.value })}
-          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '140px', flex: 1 }} />
-        <input type="text" placeholder="🔍 Inv #" value={invFilters.invoiceNumber} onChange={(e) => setInvFilters({ ...invFilters, invoiceNumber: e.target.value })}
-          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '120px', flex: 1 }} />
-        <select value={invFilters.month} onChange={(e) => setInvFilters({ ...invFilters, month: e.target.value })}
-          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '140px' }}>
-          <option value="">All Months</option>
-          {invoiceMonthOptions.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
-        <select value={invFilters.shipper} onChange={(e) => setInvFilters({ ...invFilters, shipper: e.target.value })}
-          style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '150px' }}>
-          <option value="">All Shippers</option>
-          {invoiceShipperOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
-        <button type="button" onClick={() => setInvFilters({ shipperRef: '', tracking: '', month: '', invoiceNumber: '', shipper: '' })}
-          style={{ padding: '10px 16px', background: '#E9ECEF', color: '#003366', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>
-          ✕ Clear
-        </button>
-      </div>
-
-      {invMsg && (
-        <div style={{ marginBottom: '15px', padding: '12px 18px', borderRadius: '8px', fontSize: '0.9rem', background: invMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: invMsg.startsWith('✅') ? '#155724' : '#721C24' }}>
-          {invMsg}
-        </div>
-      )}
-
-      {invLoading ? (
-        <div style={{ textAlign: 'center', padding: '40px' }}>
-          <div style={{ width: '40px', height: '40px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
-        </div>
-      ) : filteredInvoices.length === 0 ? (
-        <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
-          {invoices.length === 0
-            ? (invTab === 'individual' ? 'No individual invoices yet. Click "📄 Issue Invoice" on a Due Payment row.' : 'No monthly summary invoices yet.')
-            : 'No invoices match your filters.'}
-        </div>
-      ) : (
-        <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1400px' }}>
-            <thead>
-              <tr>
-                {['Shipper Ref', 'Tracking #', 'Inv Date', 'Inv #', 'Type', 'Shipper', 'Recipient', 'Amount', 'Status', 'Issued', 'Due', 'PDF'].map((h) => (
-                  <th key={h} style={TH_STYLE}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredInvoices.map((inv, i) => {
-                const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
-                return (
-                  <tr key={inv.invoiceID || i} style={{ background: rowBg }}>
-                    <td style={TD_STYLE}>{inv.shipperRef || '—'}</td>
-                    <td style={{ ...TD_STYLE, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>
-                      {inv.trackingList && inv.trackingList.length > 1
-                        ? inv.trackingList[0] + ' +' + (inv.trackingList.length - 1) + ' more'
-                        : (inv.trackingNumbers || '—')}
-                    </td>
-                    <td style={TD_STYLE}>{formatDate(inv.issueDate)}</td>
-                    <td style={{ ...TD_STYLE, fontWeight: 700 }}>{inv.invoiceNumber}</td>
-                    <td style={TD_STYLE}>
-                      <span style={{ background: inv.type === 'monthly-summary' ? '#CCE5FF' : '#FFF5EB', color: inv.type === 'monthly-summary' ? '#004085' : '#8B4500', padding: '3px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase' }}>
-                        {inv.type === 'monthly-summary' ? 'Monthly' : 'Individual'}
-                      </span>
-                    </td>
-                    <td style={TD_STYLE}>{inv.shipperName || '—'}</td>
-                    <td style={TD_STYLE}>{inv.recipientName || '—'}</td>
-                    <td style={{ ...TD_STYLE, fontWeight: 700 }}>{inv.currency} {Number(inv.amount).toFixed(2)}</td>
-                    <td style={TD_STYLE}>
-                      <select
-                        value={inv.status}
-                        onChange={(e) => handleInvoiceStatus(inv.invoiceID, e.target.value)}
-                        style={{ padding: '4px 8px', borderRadius: '6px', border: '2px solid ' + (String(inv.status).toLowerCase() === 'paid' ? '#28A745' : '#FFE5B4'), background: String(inv.status).toLowerCase() === 'paid' ? '#D4EDDA' : '#FFF3CD', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit' }}
-                      >
-                        <option value="Issued">Issued</option>
-                        <option value="Paid">Paid</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
-                    </td>
-                    <td style={TD_STYLE}>{formatDate(inv.issueDate)}</td>
-                    <td style={TD_STYLE}>{formatDate(inv.dueDate)}</td>
-                    <td style={TD_STYLE}>
-                      <a href={'/api/pdf/invoice/' + inv.invoiceID} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>📄 PDF</a>
-                    </td>
+          {invLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px' }}>
+              <div style={{ width: '40px', height: '40px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
+            </div>
+          ) : filteredInvoices.length === 0 ? (
+            <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
+              {invoices.length === 0
+                ? (invTab === 'individual' ? 'No individual invoices yet. Click "📄 Issue Invoice" on a Due Payment row above.' : 'No monthly summary invoices yet.')
+                : 'No invoices match your filters.'}
+            </div>
+          ) : (
+            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1400px' }}>
+                <thead>
+                  <tr>
+                    <InvoiceHeaderCell col="shipperRef" label="Shipper Ref" />
+                    <InvoiceHeaderCell col="tracking" label="Tracking #" />
+                    <InvoiceHeaderCell col="issued" label="Inv Date" />
+                    <InvoiceHeaderCell col="invoiceNumber" label="Inv #" />
+                    <InvoiceHeaderCell col="type" label="Type" />
+                    <InvoiceHeaderCell col="shipper" label="Shipper" />
+                    <th style={{ ...TH_STYLE, padding: '14px 12px' }}>Recipient</th>
+                    <th style={{ ...TH_STYLE, padding: '14px 12px' }}>Amount</th>
+                    <InvoiceHeaderCell col="status" label="Status" />
+                    <th style={{ ...TH_STYLE, padding: '14px 12px' }}>Issued</th>
+                    <th style={{ ...TH_STYLE, padding: '14px 12px' }}>Due</th>
+                    <th style={{ ...TH_STYLE, padding: '14px 12px' }}>PDF</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {filteredInvoices.map((inv, i) => {
+                    const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+                    return (
+                      <tr key={inv.invoiceID || i} style={{ background: rowBg }}>
+                        <td style={TD_STYLE}>{inv.shipperRef || '—'}</td>
+                        <td style={{ ...TD_STYLE, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>
+                          {inv.trackingList && inv.trackingList.length > 1
+                            ? inv.trackingList[0] + ' +' + (inv.trackingList.length - 1) + ' more'
+                            : (inv.trackingNumbers || '—')}
+                        </td>
+                        <td style={TD_STYLE}>{formatDate(inv.issueDate)}</td>
+                        <td style={{ ...TD_STYLE, fontWeight: 700 }}>{inv.invoiceNumber}</td>
+                        <td style={TD_STYLE}>
+                          <span style={{ background: inv.type === 'monthly-summary' ? '#CCE5FF' : '#FFF5EB', color: inv.type === 'monthly-summary' ? '#004085' : '#8B4500', padding: '3px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                            {inv.type === 'monthly-summary' ? 'Monthly' : 'Individual'}
+                          </span>
+                        </td>
+                        <td style={TD_STYLE}>{inv.shipperName || '—'}</td>
+                        <td style={TD_STYLE}>{inv.recipientName || '—'}</td>
+                        <td style={{ ...TD_STYLE, fontWeight: 700 }}>{inv.currency} {Number(inv.amount).toFixed(2)}</td>
+                        <td style={TD_STYLE}>
+                          <select
+                            value={inv.status}
+                            onChange={(e) => handleInvoiceStatus(inv.invoiceID, e.target.value)}
+                            style={{ padding: '4px 8px', borderRadius: '6px', border: '2px solid ' + (String(inv.status).toLowerCase() === 'paid' ? '#28A745' : '#FFE5B4'), background: String(inv.status).toLowerCase() === 'paid' ? '#D4EDDA' : '#FFF3CD', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit' }}
+                          >
+                            <option value="Issued">Issued</option>
+                            <option value="Paid">Paid</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        </td>
+                        <td style={TD_STYLE}>{formatDate(inv.issueDate)}</td>
+                        <td style={TD_STYLE}>{formatDate(inv.dueDate)}</td>
+                        <td style={TD_STYLE}>
+                          <a href={'/api/pdf/invoice/' + inv.invoiceID} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>📄 PDF</a>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
