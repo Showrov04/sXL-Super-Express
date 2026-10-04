@@ -30,6 +30,22 @@ async function requireAdmin(request) {
 }
 
 /**
+ * Sort helper — G.7 ordering:
+ *   0 = Unpaid + not delivered  (top)
+ *   1 = Unpaid + delivered
+ *   2 = Paid                    (bottom)
+ */
+function orderRank(s) {
+  const status = String(s.status || '').toLowerCase();
+  const pay = String(s.payment_status || '').toLowerCase();
+  const isPaid = pay === 'paid';
+  const isDelivered = status === 'delivered';
+  if (isPaid) return 2;
+  if (isDelivered) return 1;
+  return 0;
+}
+
+/**
  * GET — billing shipments (all | due | paid) + outstanding summary
  */
 export async function GET(request) {
@@ -87,13 +103,24 @@ export async function GET(request) {
       });
     }
 
+    // G.7 — sort: unpaid-not-delivered → unpaid-delivered → paid
+    filtered = filtered.slice().sort((a, b) => {
+      const ra = orderRank(a);
+      const rb = orderRank(b);
+      if (ra !== rb) return ra - rb;
+      // secondary: newest booked first
+      const da = new Date(a.booked_at || 0).getTime() || 0;
+      const db = new Date(b.booked_at || 0).getTime() || 0;
+      return db - da;
+    });
+
     // Fetch invoices for these shipments
     const tns = filtered.map((s) => s.tracking_number).filter(Boolean);
     let invoiceMap = {};
     if (tns.length > 0) {
       const { data: invoices } = await serviceSupabase
         .from('invoices')
-        .select('invoice_id, invoice_number, type, tracking_numbers, status, issued_at, sent_at')
+        .select('invoice_id, invoice_number, type, tracking_numbers, status, issue_date, due_date, sent_at, amount, currency')
         .or(tns.map((tn) => `tracking_numbers.ilike.%${tn}%`).join(','));
 
       (invoices || []).forEach((inv) => {
@@ -117,8 +144,8 @@ export async function GET(request) {
       const hasIndividual = tnsList.some((inv) => inv.type === 'individual');
       const hasMonthly = tnsList.some((inv) => inv.type === 'monthly-summary');
       const latestInvoice = tnsList.sort((a, b) => {
-        const da = new Date(a.issued_at || 0).getTime();
-        const db = new Date(b.issued_at || 0).getTime();
+        const da = new Date(a.issue_date || 0).getTime();
+        const db = new Date(b.issue_date || 0).getTime();
         return db - da;
       })[0] || null;
 
@@ -130,6 +157,9 @@ export async function GET(request) {
         status: s.status,
         shipMode: s.ship_mode,
         seaLoadType: s.sea_load_type || '',
+        shipmentType: (String(s.ship_mode || '').toUpperCase() === 'SEA' && s.sea_load_type)
+          ? ('SEA - ' + s.sea_load_type)
+          : (s.ship_mode || ''),
         origin: s.origin,
         destination: s.destination,
         weight: s.total_weight,
@@ -162,8 +192,12 @@ export async function GET(request) {
           invoiceNumber: latestInvoice.invoice_number,
           type: latestInvoice.type,
           status: latestInvoice.status,
-          issuedAt: latestInvoice.issued_at,
+          issueDate: latestInvoice.issue_date || null,
+          dueDate: latestInvoice.due_date || null,
+          issuedAt: latestInvoice.issue_date,
           sentAt: latestInvoice.sent_at,
+          amount: parseFloat(latestInvoice.amount) || 0,
+          currency: latestInvoice.currency || 'USD',
         } : null,
         invoiceSentAt: s.invoice_sent_at || null,
       };
@@ -208,7 +242,7 @@ export async function GET(request) {
 }
 
 /**
- * POST — actions: saveCost | markPaid | markUnpaid | markInvoiceSent
+ * POST — actions: saveCost | markPaid | markUnpaid | markInvoiceSent | updateInvoiceDates
  */
 export async function POST(request) {
   try {
@@ -235,6 +269,9 @@ export async function POST(request) {
     if (action === 'markInvoiceSent') {
       return await handleMarkInvoiceSent(session, body);
     }
+    if (action === 'updateInvoiceDates') {
+      return await handleUpdateInvoiceDates(session, body);
+    }
     return NextResponse.json({ success: false, error: 'Unknown action.' });
 
   } catch (err) {
@@ -246,13 +283,14 @@ async function handleSaveCost(session, body) {
   const {
     trackingNumber,
     actualWeight,
-    actualCbm,          // NEW: SEA only
-    shipMode,           // NEW: 'SEA' | 'AIR' — to decide calc
+    actualCbm,
+    shipMode,
     ratePerKg,
     additionalLines,
     currency,
     localCurrency,
     localAmount,
+    exchangeRate,           // G.8 — USD -> local rate (optional)
     pickupCharge,
     customsCharge,
     deliveryCharge,
@@ -268,17 +306,19 @@ async function handleSaveCost(session, body) {
   const pc = parseFloat(pickupCharge) || 0;
   const cc = parseFloat(customsCharge) || 0;
   const dc = parseFloat(deliveryCharge) || 0;
+  const fx = parseFloat(exchangeRate) || 0;
   const lines = Array.isArray(additionalLines) ? additionalLines : [];
   let addlTotal = 0;
   lines.forEach((l) => { addlTotal += parseFloat(l.amount) || 0; });
 
-  // Decide freight base:
-  // AIR → weight × rate  |  SEA → CBM × rate
   const mode = String(shipMode || '').toUpperCase();
   const freightBase = (mode === 'SEA') ? cbm : aw;
   const freightTotal = Math.round((freightBase * rate) * 100) / 100;
   const servicesTotal = Math.round((pc + cc + dc) * 100) / 100;
   const total = Math.round((freightTotal + servicesTotal + addlTotal) * 100) / 100;
+
+  // G.8 — if exchange rate provided, compute local total from USD total
+  const localTotalComputed = fx > 0 ? Math.round(total * fx * 100) / 100 : 0;
 
   const breakdown = {
     shipMode: mode,
@@ -296,7 +336,8 @@ async function handleSaveCost(session, body) {
     total,
     currency: currency || 'USD',
     localCurrency: localCurrency || '',
-    localAmount: parseFloat(localAmount) || 0,
+    exchangeRate: fx,
+    localAmount: localTotalComputed || (parseFloat(localAmount) || 0),
     savedAt: new Date().toISOString(),
     savedBy: session.userId,
   };
@@ -315,7 +356,6 @@ async function handleSaveCost(session, body) {
     last_update: new Date().toISOString(),
   };
 
-  // Save CBM only for SEA (or if provided)
   if (mode === 'SEA' && cbm > 0) {
     updateData.total_cbm = cbm;
   }
@@ -329,7 +369,14 @@ async function handleSaveCost(session, body) {
     return NextResponse.json({ success: false, error: error.message });
   }
 
-  return NextResponse.json({ success: true, total, currency: currency || 'USD' });
+  return NextResponse.json({
+    success: true,
+    total,
+    currency: currency || 'USD',
+    exchangeRate: fx,
+    localCurrency: localCurrency || '',
+    localAmount: breakdown.localAmount,
+  });
 }
 
 async function handleMarkPaid(session, body) {
@@ -408,4 +455,33 @@ async function handleMarkInvoiceSent(session, body) {
   }
 
   return NextResponse.json({ success: true, sentAt: now });
+}
+
+/**
+ * G.9 — update invoice issue_date / due_date from the Edit Invoice modal
+ */
+async function handleUpdateInvoiceDates(session, body) {
+  const { invoiceId, issueDate, dueDate } = body;
+  if (!invoiceId) {
+    return NextResponse.json({ success: false, error: 'Invoice ID required.' });
+  }
+
+  const updateData = {};
+  if (issueDate) updateData.issue_date = issueDate;
+  if (dueDate) updateData.due_date = dueDate;
+
+  if (Object.keys(updateData).length === 0) {
+    return NextResponse.json({ success: false, error: 'Nothing to update.' });
+  }
+
+  const { error } = await serviceSupabase
+    .from('invoices')
+    .update(updateData)
+    .eq('invoice_id', invoiceId);
+
+  if (error) {
+    return NextResponse.json({ success: false, error: error.message });
+  }
+
+  return NextResponse.json({ success: true });
 }
