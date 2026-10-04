@@ -61,7 +61,8 @@ export default function BillingPanel() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
 
-  // Cost form
+  // Cost modal state
+  const [costModal, setCostModal] = useState(null); // { shipment }
   const [costTn, setCostTn] = useState('');
   const [costActualWeight, setCostActualWeight] = useState('');
   const [costActualCbm, setCostActualCbm] = useState('');
@@ -77,7 +78,6 @@ export default function BillingPanel() {
   const [deliveryCharge, setDeliveryCharge] = useState('');
   const [selectedShipment, setSelectedShipment] = useState(null);
   const [costSaved, setCostSaved] = useState(false);
-  const costFormRef = useRef(null);
 
   // Invoice section
   const [invTab, setInvTab] = useState('individual');
@@ -89,6 +89,16 @@ export default function BillingPanel() {
   const [openInvFilter, setOpenInvFilter] = useState(null);
   const [invFilterSearch, setInvFilterSearch] = useState('');
   const invFilterRef = useRef(null);
+
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    if (costModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [costModal]);
 
   useEffect(() => {
     loadShipments();
@@ -202,12 +212,21 @@ export default function BillingPanel() {
     let addl = 0;
     costLines.forEach((l) => { addl += parseFloat(l.amount) || 0; });
 
-    // SEA → CBM × rate ; AIR → weight × rate
     const freightBase = selectedIsSea ? cbm : aw;
     return (freightBase * rate + pc + cc + dc + addl).toFixed(2);
   })();
 
-  function handleUse(s) {
+  // ===== OPEN COST MODAL =====
+  function openCostModal(s) {
+    // If cost already saved, confirm re-edit
+    if (s.costSavedAt) {
+      const dateStr = formatDate(s.costSavedAt);
+      const proceed = window.confirm('Cost was last saved on ' + dateStr + '. Edit it?');
+      if (!proceed) return;
+    }
+
+    setCostModal({ shipment: s });
+    setSelectedShipment(s);
     setCostTn(s.trackingNumber);
     setCostActualWeight(s.actualWeight ? String(s.actualWeight) : '');
     setCostActualCbm(s.actualCbm ? String(s.actualCbm) : '');
@@ -232,14 +251,26 @@ export default function BillingPanel() {
     if (addl.length === 0) addl = [{ label: '', amount: '' }];
     setCostLines(addl);
 
-    setSelectedShipment(s);
     setCostSaved(!!s.costSavedAt);
     setCostMsg('');
+  }
 
-    setTimeout(() => {
-      const el = document.getElementById('cost-form-anchor');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
+  function closeCostModal() {
+    setCostModal(null);
+    setSelectedShipment(null);
+    setCostTn('');
+    setCostActualWeight('');
+    setCostActualCbm('');
+    setCostRate('');
+    setCostCurrency('USD');
+    setCostLines([{ label: '', amount: '' }]);
+    setCostLocalCurrency('');
+    setCostLocalAmount('');
+    setPickupCharge('');
+    setCustomsCharge('');
+    setDeliveryCharge('');
+    setCostMsg('');
+    setCostSaved(false);
   }
 
   function updateCostLine(idx, field, value) {
@@ -249,9 +280,9 @@ export default function BillingPanel() {
   function removeCostLine(idx) { setCostLines((prev) => prev.filter((_, i) => i !== idx)); }
 
   async function handleSaveCost(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setCostMsg('');
-    if (!costTn.trim()) { setCostMsg('Please enter a tracking number.'); return; }
+    if (!costTn.trim()) { setCostMsg('❌ Please enter a tracking number.'); return; }
 
     setCostLoading(true);
     const token = localStorage.getItem('sxl_token');
@@ -290,7 +321,10 @@ export default function BillingPanel() {
       setCostSaved(true);
       setCostLoading(false);
       setToast('💰 Cost saved for ' + costTn.trim());
-      setTimeout(loadShipments, 500);
+      setTimeout(() => {
+        closeCostModal();
+        loadShipments();
+      }, 800);
     } catch (err) {
       setCostMsg('❌ Connection error.');
       setCostLoading(false);
@@ -538,7 +572,6 @@ export default function BillingPanel() {
       );
     }
 
-    // AIR
     const weight = s.actualWeight;
     const hasWeight = weight !== null && weight !== undefined && parseFloat(weight) > 0;
     if (!hasWeight) {
@@ -609,155 +642,6 @@ export default function BillingPanel() {
         <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="✅ Paid" count={counts.paid} />
       </div>
 
-      {tab === 'due' && (
-        <div id="cost-form-anchor" ref={costFormRef}>
-          <form onSubmit={handleSaveCost} style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px', borderLeft: '5px solid #FF6B00' }}>
-            <h3 style={{ color: '#003366', fontSize: '1.1rem', marginBottom: '12px' }}>
-              💰 {costSaved ? 'Update' : 'Add'} Shipment Cost
-              {selectedShipment && <span style={{ fontSize: '0.8rem', color: '#6C757D', fontWeight: 500, marginLeft: '10px' }}>for {selectedShipment.trackingNumber} · {selectedShipment.shipperName}</span>}
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: '#6C757D', marginBottom: '12px' }}>
-              Click "📋 Use" next to a shipment below to auto-fill its details.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Tracking Number *</label>
-                <input type="text" value={costTn} onChange={(e) => setCostTn(e.target.value)} placeholder="e.g., TSH2510202601"
-                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Actual Weight (kg)</label>
-                <input type="number" step="0.01" value={costActualWeight} onChange={(e) => setCostActualWeight(e.target.value)} placeholder="e.g., 5.5"
-                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-              </div>
-
-              {/* CBM field — only for SEA */}
-              {selectedIsSea && (
-                <div>
-                  <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Actual Volume (CBM)</label>
-                  <input type="number" step="0.01" value={costActualCbm} onChange={(e) => setCostActualCbm(e.target.value)} placeholder="e.g., 1.2"
-                    style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-                </div>
-              )}
-
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                  Freight Rate {selectedIsSea ? '(per CBM)' : '(per kg)'}
-                </label>
-                <input type="number" step="0.01" value={costRate} onChange={(e) => setCostRate(e.target.value)} placeholder={selectedIsSea ? 'e.g., 120.00' : 'e.g., 12.50'}
-                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Currency</label>
-                <select value={costCurrency} onChange={(e) => setCostCurrency(e.target.value)}
-                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}>
-                  <option>USD</option>
-                  <option>HKD</option>
-                  <option>CNY</option>
-                  <option>BDT</option>
-                </select>
-              </div>
-            </div>
-
-            {selectedShipment && !selectedShipment.isSpecialParcel && (
-              <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
-                <h4 style={{ fontSize: '0.95rem', color: '#003366', marginBottom: '12px' }}>🛠️ Service Charges</h4>
-
-                <div style={{ display: 'grid', gap: '12px' }}>
-                  {selectedShipment.pickupService && (
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                        🚚 Pickup Charge — <span style={{ color: '#155724' }}>Pickup by sXL</span>
-                      </label>
-                      <input type="number" step="0.01" value={pickupCharge} onChange={(e) => setPickupCharge(e.target.value)} placeholder="Amount"
-                        style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-                    </div>
-                  )}
-
-                  {selectedShipment.customService === 'sxl' && (
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                        🛃 Customs Clearance Charge — <span style={{ color: '#155724' }}>Handled by sXL</span>
-                      </label>
-                      <input type="number" step="0.01" value={customsCharge} onChange={(e) => setCustomsCharge(e.target.value)} placeholder="Amount"
-                        style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-                    </div>
-                  )}
-
-                  {selectedShipment.deliveryService === 'sxl' && (
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                        📦 Delivery Charge — <span style={{ color: '#155724' }}>Handled by sXL</span>
-                      </label>
-                      <input type="number" step="0.01" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} placeholder="Amount"
-                        style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-                    </div>
-                  )}
-
-                  {!selectedShipment.pickupService && selectedShipment.customService !== 'sxl' && selectedShipment.deliveryService !== 'sxl' && (
-                    <div style={{ fontSize: '0.85rem', color: '#6C757D', fontStyle: 'italic' }}>
-                      No extra services selected by customer (self-delivery + consignee handles customs & delivery).
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {selectedShipment && selectedShipment.isSpecialParcel && (
-              <div style={{ marginTop: '20px', padding: '12px 16px', background: '#FFF5EB', borderRadius: '8px', borderLeft: '4px solid #FF6B00', fontSize: '0.85rem', color: '#8B4500' }}>
-                ℹ️ Special Parcel shipments — no service charges apply.
-              </div>
-            )}
-
-            <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Additional Cost Lines</label>
-              {costLines.map((l, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center' }}>
-                  <input type="text" value={l.label} onChange={(e) => updateCostLine(idx, 'label', e.target.value)} placeholder="Description"
-                    style={{ flex: 2, padding: '8px', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.85rem', fontFamily: 'inherit' }} />
-                  <input type="number" step="0.01" value={l.amount} onChange={(e) => updateCostLine(idx, 'amount', e.target.value)} placeholder="Amount"
-                    style={{ flex: 1, padding: '8px', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.85rem', fontFamily: 'inherit' }} />
-                  <button type="button" onClick={() => removeCostLine(idx)} style={{ padding: '8px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>✕</button>
-                </div>
-              ))}
-              <button type="button" onClick={addCostLine} style={{ marginTop: '8px', padding: '8px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>+ Add Cost Line</button>
-            </div>
-
-            <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Local Currency (optional)</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '6px' }}>
-                <input type="text" value={costLocalCurrency} onChange={(e) => setCostLocalCurrency(e.target.value)} placeholder="e.g., HKD"
-                  style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-                <input type="number" step="0.01" value={costLocalAmount} onChange={(e) => setCostLocalAmount(e.target.value)} placeholder="e.g., 1000.00"
-                  style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-              </div>
-            </div>
-
-            <div style={{ background: '#FFF5EB', padding: '18px', borderRadius: '10px', borderLeft: '4px solid #FF6B00', marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 700, color: '#003366' }}>TOTAL COST:</span>
-              <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FF6B00' }}>{costCurrency} {calculatedTotal}</span>
-            </div>
-
-            <div style={{ marginTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button type="submit" disabled={costLoading} style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: costLoading ? 'not-allowed' : 'pointer', opacity: costLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
-                {costLoading ? 'Saving...' : '💾 Save Cost'}
-              </button>
-              {costSaved && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '12px 16px', background: '#E8F7EF', color: '#155724', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem' }}>
-                  ✅ Cost already saved — editing will overwrite
-                </span>
-              )}
-            </div>
-            {costMsg && (
-              <div style={{ marginTop: '10px', padding: '10px 15px', borderRadius: '8px', fontSize: '0.9rem', background: costMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: costMsg.startsWith('✅') ? '#155724' : '#721C24' }}>
-                {costMsg}
-              </div>
-            )}
-          </form>
-        </div>
-      )}
-
       {error && <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>❌ {error}</div>}
 
       {loading && (
@@ -792,6 +676,7 @@ export default function BillingPanel() {
                   : s.invoiceSentAt ? 'sent'
                   : s.hasMonthlyInvoice ? 'monthly'
                   : 'individual';
+                const wasCostSaved = !!s.costSavedAt;
 
                 return (
                   <tr key={i} style={{ background: rowBg }}>
@@ -824,7 +709,22 @@ export default function BillingPanel() {
 
                       {tab === 'due' && (
                         <>
-                          <button onClick={() => handleUse(s)} style={{ padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📋 Use</button>
+                          {/* G.2: Use → Update Shipment Cost modal trigger */}
+                          <button
+                            onClick={() => openCostModal(s)}
+                            style={{
+                              padding: '5px 10px',
+                              background: wasCostSaved ? '#E9ECEF' : '#FF6B00',
+                              color: wasCostSaved ? '#495057' : 'white',
+                              border: 'none', borderRadius: '6px',
+                              fontWeight: 700, fontSize: '0.72rem',
+                              cursor: 'pointer', fontFamily: 'inherit',
+                              marginRight: '4px', whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {wasCostSaved ? '✅ Cost Updated' : '🔄 Update Shipment Cost'}
+                          </button>
+
                           <button onClick={() => handleMarkPaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>💵 Mark Paid</button>
 
                           {invState === 'none' && (
@@ -944,6 +844,174 @@ export default function BillingPanel() {
             </div>
           )}
         </>
+      )}
+
+      {/* ============ COST MODAL ============ */}
+      {costModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          padding: '20px', overflowY: 'auto'
+        }}>
+          <div style={{
+            background: 'white', maxWidth: '900px', width: '100%',
+            borderRadius: '16px', padding: '30px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            marginTop: '30px', marginBottom: '40px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>
+                  {costSaved ? '✏️ Update Shipment Cost' : '💰 Add Shipment Cost'}
+                </h2>
+                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
+                  {costModal.shipment.trackingNumber} · {costModal.shipment.shipperName}
+                </div>
+              </div>
+              <button onClick={closeCostModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+            </div>
+
+            {costMsg && (
+              <div style={{
+                background: costMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA',
+                color: costMsg.startsWith('✅') ? '#155724' : '#721C24',
+                borderLeft: '4px solid ' + (costMsg.startsWith('✅') ? '#28A745' : '#DC3545'),
+                borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem'
+              }}>
+                {costMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Tracking Number *</label>
+                <input type="text" value={costTn} readOnly
+                  style={{ width: '100%', padding: '10px', border: '2px solid #F1F3F5', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', background: '#F8F9FA', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Actual Weight (kg)</label>
+                <input type="number" step="0.01" value={costActualWeight} onChange={(e) => setCostActualWeight(e.target.value)} placeholder="e.g., 5.5"
+                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+
+              {selectedIsSea && (
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Actual Volume (CBM)</label>
+                  <input type="number" step="0.01" value={costActualCbm} onChange={(e) => setCostActualCbm(e.target.value)} placeholder="e.g., 1.2"
+                    style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+              )}
+
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                  Freight Rate {selectedIsSea ? '(per CBM)' : '(per kg)'}
+                </label>
+                <input type="number" step="0.01" value={costRate} onChange={(e) => setCostRate(e.target.value)} placeholder={selectedIsSea ? 'e.g., 120.00' : 'e.g., 12.50'}
+                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Currency</label>
+                <select value={costCurrency} onChange={(e) => setCostCurrency(e.target.value)}
+                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                  <option>USD</option>
+                  <option>HKD</option>
+                  <option>CNY</option>
+                  <option>BDT</option>
+                </select>
+              </div>
+            </div>
+
+            {selectedShipment && !selectedShipment.isSpecialParcel && (
+              <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
+                <h4 style={{ fontSize: '0.95rem', color: '#003366', marginBottom: '12px' }}>🛠️ Service Charges</h4>
+
+                <div style={{ display: 'grid', gap: '12px' }}>
+                  {selectedShipment.pickupService && (
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                        🚚 Pickup Charge — <span style={{ color: '#155724' }}>Pickup by sXL</span>
+                      </label>
+                      <input type="number" step="0.01" value={pickupCharge} onChange={(e) => setPickupCharge(e.target.value)} placeholder="Amount"
+                        style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    </div>
+                  )}
+
+                  {selectedShipment.customService === 'sxl' && (
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                        🛃 Customs Clearance Charge — <span style={{ color: '#155724' }}>Handled by sXL</span>
+                      </label>
+                      <input type="number" step="0.01" value={customsCharge} onChange={(e) => setCustomsCharge(e.target.value)} placeholder="Amount"
+                        style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    </div>
+                  )}
+
+                  {selectedShipment.deliveryService === 'sxl' && (
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                        📦 Delivery Charge — <span style={{ color: '#155724' }}>Handled by sXL</span>
+                      </label>
+                      <input type="number" step="0.01" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} placeholder="Amount"
+                        style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    </div>
+                  )}
+
+                  {!selectedShipment.pickupService && selectedShipment.customService !== 'sxl' && selectedShipment.deliveryService !== 'sxl' && (
+                    <div style={{ fontSize: '0.85rem', color: '#6C757D', fontStyle: 'italic' }}>
+                      No extra services selected by customer (self-delivery + consignee handles customs & delivery).
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {selectedShipment && selectedShipment.isSpecialParcel && (
+              <div style={{ marginTop: '20px', padding: '12px 16px', background: '#FFF5EB', borderRadius: '8px', borderLeft: '4px solid #FF6B00', fontSize: '0.85rem', color: '#8B4500' }}>
+                ℹ️ Special Parcel shipments — no service charges apply.
+              </div>
+            )}
+
+            <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Additional Cost Lines</label>
+              {costLines.map((l, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center' }}>
+                  <input type="text" value={l.label} onChange={(e) => updateCostLine(idx, 'label', e.target.value)} placeholder="Description"
+                    style={{ flex: 2, padding: '8px', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.85rem', fontFamily: 'inherit' }} />
+                  <input type="number" step="0.01" value={l.amount} onChange={(e) => updateCostLine(idx, 'amount', e.target.value)} placeholder="Amount"
+                    style={{ flex: 1, padding: '8px', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.85rem', fontFamily: 'inherit' }} />
+                  <button type="button" onClick={() => removeCostLine(idx)} style={{ padding: '8px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>✕</button>
+                </div>
+              ))}
+              <button type="button" onClick={addCostLine} style={{ marginTop: '8px', padding: '8px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>+ Add Cost Line</button>
+            </div>
+
+            <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Local Currency (optional)</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '6px' }}>
+                <input type="text" value={costLocalCurrency} onChange={(e) => setCostLocalCurrency(e.target.value)} placeholder="e.g., HKD"
+                  style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <input type="number" step="0.01" value={costLocalAmount} onChange={(e) => setCostLocalAmount(e.target.value)} placeholder="e.g., 1000.00"
+                  style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+
+            <div style={{ background: '#FFF5EB', padding: '18px', borderRadius: '10px', borderLeft: '4px solid #FF6B00', marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <span style={{ fontWeight: 700, color: '#003366' }}>TOTAL COST:</span>
+              <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FF6B00' }}>{costCurrency} {calculatedTotal}</span>
+            </div>
+
+            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+              <button type="button" onClick={closeCostModal} disabled={costLoading}
+                style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button type="button" onClick={handleSaveCost} disabled={costLoading}
+                style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: costLoading ? 'not-allowed' : 'pointer', opacity: costLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
+                {costLoading ? 'Saving...' : '💾 Save Cost'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
