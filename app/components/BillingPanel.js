@@ -58,10 +58,13 @@ const FROZEN_LEFT_TRACKING = COL_W_SHIPPER_REF;
 const FROZEN_LEFT_MODE = COL_W_SHIPPER_REF + COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE = COL_W_SHIPPER_REF + COL_W_TRACKING + COL_W_MODE;
 
-// For the All tab (no shipper ref column) — frozen offsets shift left
 const FROZEN_LEFT_TRACKING_ALL = 0;
 const FROZEN_LEFT_MODE_ALL = COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE_ALL = COL_W_TRACKING + COL_W_MODE;
+
+// G.11 — Actions column now wide enough for 6 buttons
+const COL_W_ACTIONS_DUE = 800;
+const COL_W_ACTIONS_OTHER = 340;
 
 /* ============================================================
  *  MAIN COMPONENT
@@ -77,7 +80,6 @@ export default function BillingPanel() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
 
-  // ===== Column filters =====
   const [colFilters, setColFilters] = useState({
     shipperRef: [], tracking: [], mode: [], route: [], shipper: [], recipient: [],
     status: [], payment: [], invNumber: [],
@@ -86,7 +88,6 @@ export default function BillingPanel() {
   const [filterSearch, setFilterSearch] = useState('');
   const filterDropdownRef = useRef(null);
 
-  // ===== Cost modal state =====
   const [costModal, setCostModal] = useState(null);
   const [costTn, setCostTn] = useState('');
   const [costActualWeight, setCostActualWeight] = useState('');
@@ -104,14 +105,12 @@ export default function BillingPanel() {
   const [selectedShipment, setSelectedShipment] = useState(null);
   const [costSaved, setCostSaved] = useState(false);
 
-  // ===== Edit Invoice modal state =====
   const [editInvModal, setEditInvModal] = useState(null);
   const [editInvIssueDate, setEditInvIssueDate] = useState('');
   const [editInvDueDate, setEditInvDueDate] = useState('');
   const [editInvSaving, setEditInvSaving] = useState(false);
   const [editInvError, setEditInvError] = useState('');
 
-  // ===== Monthly summary section =====
   const [monthlyShipper, setMonthlyShipper] = useState('');
   const [monthlyMonth, setMonthlyMonth] = useState('');
   const [monthlyLocalCurrency, setMonthlyLocalCurrency] = useState('');
@@ -121,7 +120,6 @@ export default function BillingPanel() {
   const [monthlyInvoices, setMonthlyInvoices] = useState([]);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
 
-  // Body scroll lock
   useEffect(() => {
     const modalOpen = costModal || editInvModal;
     if (modalOpen) {
@@ -224,7 +222,6 @@ export default function BillingPanel() {
     setTimeout(loadShipments, 50);
   }
 
-  /* ---------- Column filter helpers ---------- */
   function getColumnValue(s, col) {
     if (col === 'shipperRef') return s.shipperRef || '';
     if (col === 'tracking') return s.trackingNumber || '';
@@ -280,7 +277,6 @@ export default function BillingPanel() {
     return list;
   }, [shipments, colFilters]);
 
-  // AR card — grand total reacts to active filters
   const filteredTotal = useMemo(() => {
     if (tab === 'due') {
       let total = 0;
@@ -290,7 +286,6 @@ export default function BillingPanel() {
     return outstanding.grandTotal || 0;
   }, [filtered, tab, outstanding]);
 
-  // ===== Cost modal =====
   function isSea(shipment) {
     if (!shipment) return false;
     return String(shipment.shipMode || '').toUpperCase() === 'SEA';
@@ -436,7 +431,6 @@ export default function BillingPanel() {
     }
   }
 
-  // ===== Other actions =====
   async function handleMarkPaid(trackingNumber) {
     if (!window.confirm('Mark ' + trackingNumber + ' as paid?')) return;
     const token = localStorage.getItem('sxl_token');
@@ -570,7 +564,6 @@ export default function BillingPanel() {
     }
   }
 
-  // ===== Monthly summary =====
   async function handleGenerateMonthly(e) {
     e.preventDefault();
     setMonthlyMsg('');
@@ -608,7 +601,6 @@ export default function BillingPanel() {
     }
   }
 
-  /* ---------- Render helpers ---------- */
   function renderActualCell(s) {
     const mode = String(s.shipMode || '').toUpperCase();
     if (mode === 'SEA') {
@@ -713,8 +705,9 @@ export default function BillingPanel() {
   }
 
   const showInvoiceColumns = tab === 'due';
-  const showShipperRef = tab !== 'all'; // All tab hides Shipper Ref
+  const showShipperRef = tab !== 'all';
   const isAllTab = tab === 'all';
+  const isDueTab = tab === 'due';
 
   return (
     <div>
@@ -792,7 +785,7 @@ export default function BillingPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-          <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: showInvoiceColumns ? '2100px' : '1700px', tableLayout: 'fixed', width: '100%' }}>
+          <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: isDueTab ? '2500px' : '1700px', tableLayout: 'fixed', width: '100%' }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
               <tr>
                 {showShipperRef && (
@@ -829,7 +822,7 @@ export default function BillingPanel() {
                 {showInvoiceColumns && <HeaderCell col="none" label="Inv Date" width={115} />}
                 {showInvoiceColumns && <HeaderCell col="invNumber" label="Inv #" width={130} />}
                 {showInvoiceColumns && <HeaderCell col="none" label="Due" width={115} />}
-                <HeaderCell col="none" label="Actions" width={showInvoiceColumns ? 560 : 320} />
+                <HeaderCell col="none" label="Actions" width={isDueTab ? COL_W_ACTIONS_DUE : COL_W_ACTIONS_OTHER} />
               </tr>
             </thead>
             <tbody>
@@ -902,10 +895,17 @@ export default function BillingPanel() {
                       </td>
                     )}
 
-                    <td style={{ ...TD_STYLE, width: showInvoiceColumns ? 560 : 320, whiteSpace: 'nowrap' }}>
-                      {/* ===== DUE TAB ===== */}
-                      {tab === 'due' && (
-                        <>
+                    {/* G.11 — Actions cell now wraps and has generous width */}
+                    <td style={{
+                      ...TD_STYLE,
+                      whiteSpace: 'normal',
+                      overflow: 'visible',
+                      textOverflow: 'clip',
+                      width: isDueTab ? COL_W_ACTIONS_DUE : COL_W_ACTIONS_OTHER,
+                      padding: '8px 12px'
+                    }}>
+                      {isDueTab && (
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                           <button
                             onClick={() => openCostModal(s)}
                             style={{
@@ -915,14 +915,14 @@ export default function BillingPanel() {
                               border: 'none', borderRadius: '6px',
                               fontWeight: 700, fontSize: '0.72rem',
                               cursor: 'pointer', fontFamily: 'inherit',
-                              marginRight: '4px', whiteSpace: 'nowrap'
+                              whiteSpace: 'nowrap'
                             }}
                           >
                             {wasCostSaved ? '✅ Cost Updated' : '🔄 Update Shipment Cost'}
                           </button>
 
                           {!hasInvoice ? (
-                            <button onClick={() => handleIssueInvoice(s)} style={{ padding: '5px 10px', background: '#0D6EFD', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap' }}>📄 Issue Invoice</button>
+                            <button onClick={() => handleIssueInvoice(s)} style={{ padding: '5px 10px', background: '#0D6EFD', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>📄 Issue Invoice</button>
                           ) : (
                             <>
                               <button
@@ -934,31 +934,29 @@ export default function BillingPanel() {
                                   border: 'none', borderRadius: '6px',
                                   fontWeight: 700, fontSize: '0.72rem',
                                   cursor: 'pointer', fontFamily: 'inherit',
-                                  marginRight: '4px', whiteSpace: 'nowrap'
+                                  whiteSpace: 'nowrap'
                                 }}
                               >
                                 ✅ Invoice Issued
                               </button>
-                              <button onClick={() => openEditInvModal(s)} style={{ padding: '5px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap' }}>✏️ Edit Invoice</button>
-                              <a href={'/api/pdf/invoice/' + s.latestInvoice.invoiceId} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px', whiteSpace: 'nowrap', display: 'inline-block' }}>📄 PDF</a>
+                              <button onClick={() => openEditInvModal(s)} style={{ padding: '5px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✏️ Edit Invoice</button>
+                              <a href={'/api/pdf/invoice/' + s.latestInvoice.invoiceId} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block' }}>📄 PDF</a>
                               {!invSent ? (
-                                <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap' }}>📤 Send Customer</button>
+                                <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>📤 Send Customer</button>
                               ) : (
-                                <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#E9ECEF', color: '#155724', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap' }}>✅ Sent</button>
+                                <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#E9ECEF', color: '#155724', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✅ Sent</button>
                               )}
                             </>
                           )}
 
                           <button onClick={() => handleMarkPaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>💵 Mark Paid</button>
-                        </>
+                        </div>
                       )}
 
-                      {/* ===== ALL TAB — blank Actions cell ===== */}
                       {tab === 'all' && (
                         <span style={{ color: '#ADB5BD' }}>—</span>
                       )}
 
-                      {/* ===== PAID TAB — Undo only ===== */}
                       {tab === 'paid' && (
                         <button onClick={() => handleMarkUnpaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#FFC107', color: '#333', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit' }}>↩ Undo</button>
                       )}
@@ -971,7 +969,6 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {/* ============ MONTHLY SUMMARY SECTION (Due tab only) ============ */}
       {tab === 'due' && (
         <>
           <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginTop: '50px', marginBottom: '20px' }}>📅 Monthly Summary</h2>
@@ -1062,7 +1059,6 @@ export default function BillingPanel() {
         </>
       )}
 
-      {/* ============ COST MODAL ============ */}
       {costModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
@@ -1244,7 +1240,6 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {/* ============ EDIT INVOICE MODAL ============ */}
       {editInvModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
