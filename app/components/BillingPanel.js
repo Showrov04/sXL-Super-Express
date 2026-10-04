@@ -51,8 +51,7 @@ const TD_STYLE = {
  *  MAIN COMPONENT
  * ============================================================ */
 export default function BillingPanel() {
-  // ===== Shipments state =====
-  const [tab, setTab] = useState('all'); // all | due | paid
+  const [tab, setTab] = useState('all');
   const [shipperFilter, setShipperFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
@@ -62,11 +61,11 @@ export default function BillingPanel() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
 
-  // ===== Cost form =====
+  // Cost form
   const [costTn, setCostTn] = useState('');
   const [costActualWeight, setCostActualWeight] = useState('');
+  const [costActualCbm, setCostActualCbm] = useState('');
   const [costRate, setCostRate] = useState('');
-  const [costCbm, setCostCbm] = useState('');
   const [costCurrency, setCostCurrency] = useState('USD');
   const [costLines, setCostLines] = useState([{ label: '', amount: '' }]);
   const [costLocalCurrency, setCostLocalCurrency] = useState('');
@@ -80,8 +79,8 @@ export default function BillingPanel() {
   const [costSaved, setCostSaved] = useState(false);
   const costFormRef = useRef(null);
 
-  // ===== Invoice section =====
-  const [invTab, setInvTab] = useState('individual'); // individual | monthly
+  // Invoice section
+  const [invTab, setInvTab] = useState('individual');
   const [invoices, setInvoices] = useState([]);
   const [invLoading, setInvLoading] = useState(true);
   const [invColFilters, setInvColFilters] = useState({
@@ -91,7 +90,6 @@ export default function BillingPanel() {
   const [invFilterSearch, setInvFilterSearch] = useState('');
   const invFilterRef = useRef(null);
 
-  // ===== Loading initial =====
   useEffect(() => {
     loadShipments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,7 +107,6 @@ export default function BillingPanel() {
     }
   }, [toast]);
 
-  // Close filter dropdown on outside click
   useEffect(() => {
     function handleClickOutside(e) {
       if (invFilterRef.current && !invFilterRef.current.contains(e.target)) {
@@ -187,22 +184,34 @@ export default function BillingPanel() {
     setTimeout(loadShipments, 50);
   }
 
+  // ===== Determine freight base based on mode =====
+  function isSea(shipment) {
+    if (!shipment) return false;
+    return String(shipment.shipMode || '').toUpperCase() === 'SEA';
+  }
+
+  const selectedIsSea = isSea(selectedShipment);
+
   const calculatedTotal = (() => {
     const aw = parseFloat(costActualWeight) || 0;
+    const cbm = parseFloat(costActualCbm) || 0;
     const rate = parseFloat(costRate) || 0;
     const pc = parseFloat(pickupCharge) || 0;
     const cc = parseFloat(customsCharge) || 0;
     const dc = parseFloat(deliveryCharge) || 0;
     let addl = 0;
     costLines.forEach((l) => { addl += parseFloat(l.amount) || 0; });
-    return (aw * rate + pc + cc + dc + addl).toFixed(2);
+
+    // SEA → CBM × rate ; AIR → weight × rate
+    const freightBase = selectedIsSea ? cbm : aw;
+    return (freightBase * rate + pc + cc + dc + addl).toFixed(2);
   })();
 
   function handleUse(s) {
     setCostTn(s.trackingNumber);
-    setCostActualWeight(s.actualWeight || '');
-    setCostRate(s.ratePerKg || '');
-    setCostCbm(s.totalCbm || '');
+    setCostActualWeight(s.actualWeight ? String(s.actualWeight) : '');
+    setCostActualCbm(s.actualCbm ? String(s.actualCbm) : '');
+    setCostRate(s.ratePerKg ? String(s.ratePerKg) : '');
     setCostCurrency(s.currency || 'USD');
     setPickupCharge(s.pickupCharge ? String(s.pickupCharge) : '');
     setCustomsCharge(s.customsCharge ? String(s.customsCharge) : '');
@@ -259,6 +268,8 @@ export default function BillingPanel() {
           action: 'saveCost',
           trackingNumber: costTn.trim(),
           actualWeight: parseFloat(costActualWeight) || 0,
+          actualCbm: parseFloat(costActualCbm) || 0,
+          shipMode: selectedShipment ? selectedShipment.shipMode : null,
           ratePerKg: parseFloat(costRate) || 0,
           additionalLines,
           currency: costCurrency,
@@ -425,7 +436,6 @@ export default function BillingPanel() {
     return list;
   }, [invoices, invColFilters]);
 
-  // ===== Invoice Header cell with filter =====
   function InvoiceHeaderCell({ col, label }) {
     const isFilterable = ['shipperRef', 'tracking', 'invoiceNumber', 'type', 'shipper', 'status', 'issued'].includes(col);
     const activeCount = (invColFilters[col] || []).length;
@@ -507,9 +517,38 @@ export default function BillingPanel() {
     );
   }
 
+  // Helper to render the actual weight/cbm cell
+  function renderActualCell(s) {
+    const mode = String(s.shipMode || '').toUpperCase();
+    const isSeaRow = mode === 'SEA';
+
+    if (isSeaRow) {
+      const weight = s.actualWeight;
+      const cbm = s.actualCbm;
+      const hasWeight = weight !== null && weight !== undefined && parseFloat(weight) > 0;
+      const hasCbm = cbm !== null && cbm !== undefined && parseFloat(cbm) > 0;
+      if (!hasWeight && !hasCbm) {
+        return <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>;
+      }
+      return (
+        <div style={{ lineHeight: 1.4 }}>
+          {hasWeight && <div style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(weight).toFixed(2)} kg</div>}
+          {hasCbm && <div style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(cbm).toFixed(2)} CBM</div>}
+        </div>
+      );
+    }
+
+    // AIR
+    const weight = s.actualWeight;
+    const hasWeight = weight !== null && weight !== undefined && parseFloat(weight) > 0;
+    if (!hasWeight) {
+      return <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>;
+    }
+    return <span style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(weight).toFixed(2)} kg</span>;
+  }
+
   return (
     <div>
-      {/* Toast */}
       {toast && (
         <div style={{
           position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
@@ -592,14 +631,21 @@ export default function BillingPanel() {
                 <input type="number" step="0.01" value={costActualWeight} onChange={(e) => setCostActualWeight(e.target.value)} placeholder="e.g., 5.5"
                   style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
               </div>
+
+              {/* CBM field — only for SEA */}
+              {selectedIsSea && (
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Actual Volume (CBM)</label>
+                  <input type="number" step="0.01" value={costActualCbm} onChange={(e) => setCostActualCbm(e.target.value)} placeholder="e.g., 1.2"
+                    style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+                </div>
+              )}
+
               <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Freight Rate per kg</label>
-                <input type="number" step="0.01" value={costRate} onChange={(e) => setCostRate(e.target.value)} placeholder="e.g., 12.50"
-                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>CBM</label>
-                <input type="number" step="0.01" value={costCbm} onChange={(e) => setCostCbm(e.target.value)} placeholder="e.g., 1.2"
+                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                  Freight Rate {selectedIsSea ? '(per CBM)' : '(per kg)'}
+                </label>
+                <input type="number" step="0.01" value={costRate} onChange={(e) => setCostRate(e.target.value)} placeholder={selectedIsSea ? 'e.g., 120.00' : 'e.g., 12.50'}
                   style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
               </div>
               <div>
@@ -758,7 +804,7 @@ export default function BillingPanel() {
                       <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
                     </td>
                     <td style={TD_STYLE}>{s.bookingWeight ? s.bookingWeight + ' kg' : '—'}</td>
-                    <td style={TD_STYLE}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
+                    <td style={TD_STYLE}>{renderActualCell(s)}</td>
                     <td style={TD_STYLE}>
                       {hasCost
                         ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
@@ -814,7 +860,6 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {/* ============ INVOICE SECTION — DUE TAB ONLY ============ */}
       {tab === 'due' && (
         <>
           <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginTop: '50px', marginBottom: '20px' }}>🧾 Invoices</h2>
@@ -904,9 +949,6 @@ export default function BillingPanel() {
   );
 }
 
-/* ============================================================
- *  SUB-COMPONENTS
- * ============================================================ */
 function StatCard({ num, label, color }) {
   return (
     <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', borderLeft: '4px solid ' + color }}>
