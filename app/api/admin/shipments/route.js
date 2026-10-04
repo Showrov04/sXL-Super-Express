@@ -156,6 +156,7 @@ export async function GET(request) {
       const cost = parseFloat(s.shipping_cost) || 0;
       return {
         trackingNumber: s.tracking_number,
+        shortForm: s.short_form || null,
         shipMode: s.ship_mode,
         seaLoadType: s.sea_load_type || null,
         shipmentType: buildShipmentType(s),
@@ -163,9 +164,18 @@ export async function GET(request) {
         status: s.status,
         origin: countryName(s.origin),
         destination: countryName(s.destination),
+        originCode: s.origin || null,
+        destinationCode: s.destination || null,
         senderName: s.sender_name,
         senderEmail: s.sender_email,
+        senderPhone: s.sender_phone || null,
         recipientName: s.recipient_name,
+        recipientEmail: s.recipient_email || null,
+        recipientPhone: s.recipient_phone || null,
+        recipientBin: s.recipient_bin || null,
+        recipientAddress: s.recipient_address || null,
+        recipientCity: s.recipient_city || null,
+        recipientState: s.recipient_state || null,
         bookingWeight: s.total_weight,
         actualWeight: s.actual_weight,
         actualCbm: parseFloat(s.total_cbm) || null,
@@ -174,19 +184,29 @@ export async function GET(request) {
         shippingCost: cost > 0 ? cost : null,
         currency: s.currency || 'USD',
         paymentStatus: s.payment_status,
-        paymentMethod: s.payment_method,
-        paymentTerms: s.payment_terms,
+        paymentMethod: s.payment_method || null,
+        paymentTerms: s.payment_terms || null,
+        freightBillTo: s.freight_bill_to || null,
+        dutyTaxBillTo: s.duty_tax_bill_to || null,
         estimatedDelivery: s.estimated_delivery,
         bookedAt: s.booked_at,
         lastUpdate: s.last_update,
         pickupService: s.pickup_service,
+        pickupSameAsShipper: s.pickup_same_as_shipper,
+        pickupAddress: s.pickup_address || null,
+        pickupCity: s.pickup_city || null,
+        pickupState: s.pickup_state || null,
+        pickupCountry: s.pickup_country || null,
+        parcelReadyDate: s.parcel_ready_date || null,
+        parcelReadyTime: s.parcel_ready_time || null,
         originCountry: s.origin_country || null,
-        freightBillTo: s.freight_bill_to || null,
-        dutyTaxBillTo: s.duty_tax_bill_to || null,
         customService: s.custom_service || null,
         deliveryService: s.delivery_service || null,
         uploadedDocuments: s.uploaded_documents || null,
         warehouseSentAt: s.warehouse_sent_at || null,
+        // Editable booking detail fields
+        shipperRef: s.shipper_ref || null,
+        shipmentDate: s.shipment_date || null,
         description: s.description || null,
         packages: s.packages || null,
         hsCode: s.hs_code || null,
@@ -197,19 +217,8 @@ export async function GET(request) {
         totalValue: s.total_value || null,
         valueCurrency: s.value_currency || 'USD',
         specialInstruction: s.special_instruction || null,
-        senderPhone: s.sender_phone || null,
-        recipientPhone: s.recipient_phone || null,
-        recipientEmail: s.recipient_email || null,
-        recipientBin: s.recipient_bin || null,
-        recipientAddress: s.recipient_address || null,
-        recipientCity: s.recipient_city || null,
-        recipientState: s.recipient_state || null,
-        pickupAddress: s.pickup_address || null,
-        pickupCity: s.pickup_city || null,
-        pickupState: s.pickup_state || null,
-        pickupCountry: s.pickup_country || null,
-        originCountryCode: s.origin_country || null,
         parcelType: s.parcel_type || null,
+        parcelTypeCustom: s.parcel_type_custom || null,
         deliveryTimeline: s.delivery_timeline || null,
         packagingType: s.packaging_type || null,
         packagingTypeCustom: s.packaging_type_custom || null,
@@ -250,7 +259,7 @@ export async function POST(request) {
 
     const body = await request.json();
 
-    // ---- Update Status action (G.12 — now accepts optional actualWeight/actualCbm) ----
+    // ---- Update Status action ----
     if (body.action === 'updateStatus' || (!body.action && body.trackingNumber && body.newStatus)) {
       const { trackingNumber, newStatus, location, notes, eta, actualWeight, actualCbm } = body;
       if (!trackingNumber || !newStatus) {
@@ -263,8 +272,6 @@ export async function POST(request) {
       };
       if (eta) updateData.estimated_delivery = eta;
 
-      // G.12 — optional actual weight / CBM
-      // Only writes if the admin provided a value (blank = preserve existing)
       if (actualWeight !== undefined && actualWeight !== null && String(actualWeight).trim() !== '') {
         const aw = parseFloat(actualWeight);
         if (!isNaN(aw)) updateData.actual_weight = aw;
@@ -283,7 +290,6 @@ export async function POST(request) {
         return NextResponse.json({ success: false, error: updateErr.message });
       }
 
-      // Build a friendly note if weight/cbm also changed
       let historyNotes = notes || '';
       const extraBits = [];
       if (updateData.actual_weight !== undefined) extraBits.push('Actual Wt: ' + updateData.actual_weight + ' kg');
@@ -303,33 +309,31 @@ export async function POST(request) {
       return NextResponse.json({ success: true });
     }
 
-    // ---- Edit Booking action ----
+    // ---- Edit Booking action (G.14 — expanded whitelist) ----
     if (body.action === 'editBooking') {
       const { trackingNumber, fields } = body;
       if (!trackingNumber || !fields || typeof fields !== 'object') {
         return NextResponse.json({ success: false, error: 'Tracking number and fields required.' });
       }
 
+      // Expanded whitelist — everything admin can edit
+      // NOT editable: tracking_number, id, booked_by, booked_at, status, payment_status,
+      // cost_saved_at, cost_saved_by, shipping_cost, uploaded_documents, warehouse_sent_at
       const editableMap = {
-        description: 'description',
-        packages: 'packages',
-        hsCode: 'hs_code',
-        dimLength: 'dim_length',
-        dimWidth: 'dim_width',
-        dimHeight: 'dim_height',
-        dimensions: 'dimensions',
-        totalWeight: 'total_weight',
-        totalCbm: 'total_cbm',
-        totalValue: 'total_value',
-        valueCurrency: 'value_currency',
-        specialInstruction: 'special_instruction',
+        // Reference & Mode
+        shipperRef: 'shipper_ref',
+        shipmentDate: 'shipment_date',
+        parcelType: 'parcel_type',
+        parcelTypeCustom: 'parcel_type_custom',
+        deliveryTimeline: 'delivery_timeline',
+        originCountry: 'origin_country',
+
+        // Sender
         senderName: 'sender_name',
         senderPhone: 'sender_phone',
         senderEmail: 'sender_email',
-        pickupAddress: 'pickup_address',
-        pickupCity: 'pickup_city',
-        pickupState: 'pickup_state',
-        pickupCountry: 'pickup_country',
+
+        // Recipient
         recipientName: 'recipient_name',
         recipientPhone: 'recipient_phone',
         recipientEmail: 'recipient_email',
@@ -337,9 +341,47 @@ export async function POST(request) {
         recipientAddress: 'recipient_address',
         recipientCity: 'recipient_city',
         recipientState: 'recipient_state',
+
+        // Shipment Details
+        description: 'description',
+        packages: 'packages',
+        totalWeight: 'total_weight',
+        totalCbm: 'total_cbm',
+        hsCode: 'hs_code',
+        dimLength: 'dim_length',
+        dimWidth: 'dim_width',
+        dimHeight: 'dim_height',
+        dimensions: 'dimensions',
         packagingType: 'packaging_type',
         packagingTypeCustom: 'packaging_type_custom',
+        totalValue: 'total_value',
+        valueCurrency: 'value_currency',
+
+        // Pickup
+        pickupAddress: 'pickup_address',
+        pickupCity: 'pickup_city',
+        pickupState: 'pickup_state',
+        pickupCountry: 'pickup_country',
+        parcelReadyDate: 'parcel_ready_date',
+        parcelReadyTime: 'parcel_ready_time',
+
+        // Payment & Billing
+        paymentTerms: 'payment_terms',
+        paymentMethod: 'payment_method',
+        freightBillTo: 'freight_bill_to',
+        dutyTaxBillTo: 'duty_tax_bill_to',
+
+        // Services & Notes
+        customService: 'custom_service',
+        deliveryService: 'delivery_service',
+        specialInstruction: 'special_instruction',
       };
+
+      const numericIntFields = ['packages'];
+      const numericFloatFields = [
+        'dim_length', 'dim_width', 'dim_height',
+        'total_weight', 'total_cbm', 'total_value',
+      ];
 
       const updateData = { last_update: new Date().toISOString() };
       const changed = [];
@@ -347,14 +389,19 @@ export async function POST(request) {
       Object.entries(editableMap).forEach(([formKey, dbKey]) => {
         if (Object.prototype.hasOwnProperty.call(fields, formKey)) {
           let val = fields[formKey];
+
+          // Normalize
           if (typeof val === 'string') val = val.trim();
-          if (['packages'].includes(dbKey) && val !== '' && val !== null) {
-            val = parseInt(val, 10) || null;
+
+          // Numeric conversions
+          if (numericIntFields.includes(dbKey)) {
+            val = (val === '' || val === null || val === undefined) ? null : (parseInt(val, 10) || null);
+          } else if (numericFloatFields.includes(dbKey)) {
+            val = (val === '' || val === null || val === undefined) ? null : (parseFloat(val) || null);
+          } else {
+            if (val === '') val = null;
           }
-          if (['dim_length','dim_width','dim_height','total_weight','total_cbm','total_value'].includes(dbKey)) {
-            val = (val === '' || val === null || val === undefined) ? null : parseFloat(val);
-          }
-          if (val === '') val = null;
+
           updateData[dbKey] = val;
           changed.push(formKey);
         }
@@ -371,11 +418,12 @@ export async function POST(request) {
 
       if (updErr) return NextResponse.json({ success: false, error: updErr.message });
 
+      // Log to tracking history (visible on customer's tracking page)
       await serviceSupabase.from('tracking_history').insert({
         tracking_number: trackingNumber,
         status: 'Booking Edited',
         location: '',
-        notes: 'Admin edited booking fields: ' + changed.join(', '),
+        notes: 'Booking details updated by admin: ' + changed.join(', '),
         updated_by: session.userId,
       });
 
