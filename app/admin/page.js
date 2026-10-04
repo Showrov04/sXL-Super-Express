@@ -110,6 +110,7 @@ function ShipmentsPanel() {
   const [counts, setCounts] = useState({ active: 0, awaiting: 0, paid: 0, cancelled: 0, total: 0 });
   const [shipperList, setShipperList] = useState([]);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState('');
 
   const [colFilters, setColFilters] = useState({
     tracking: [], mode: [], shipper: [], route: [], status: [], payment: [],
@@ -121,25 +122,26 @@ function ShipmentsPanel() {
   const downloadMenuRef = useRef(null);
   const filterDropdownRef = useRef(null);
 
-  const [quTn, setQuTn] = useState('');
-  const [quCurrentStatus, setQuCurrentStatus] = useState('');
-  const [quStatus, setQuStatus] = useState('');
-  const [quLocation, setQuLocation] = useState('');
-  const [quEta, setQuEta] = useState('');
-  const [quNotes, setQuNotes] = useState('');
-  const [quMsg, setQuMsg] = useState('');
-  const [quLoading, setQuLoading] = useState(false);
-  const [quFetchingLocation, setQuFetchingLocation] = useState(false);
+  // Status update modal
+  const [statusModal, setStatusModal] = useState(null); // { shipment }
+  const [suTracking, setSuTracking] = useState('');
+  const [suCurrentStatus, setSuCurrentStatus] = useState('');
+  const [suNewStatus, setSuNewStatus] = useState('');
+  const [suLocation, setSuLocation] = useState('');
+  const [suEta, setSuEta] = useState('');
+  const [suNotes, setSuNotes] = useState('');
+  const [suLoading, setSuLoading] = useState(false);
+  const [suError, setSuError] = useState('');
+  const [suFetchingLocation, setSuFetchingLocation] = useState(false);
 
-  // Warehouse modal state
-  const [whModal, setWhModal] = useState(null); // { trackingNumber, senderName }
+  const [sendingWh, setSendingWh] = useState('');
+
+  // Warehouse modal
+  const [whModal, setWhModal] = useState(null);
   const [whFields, setWhFields] = useState({ name: '', address: '', city: '', state: '', country: '', phone: '', email: '', hours: '' });
   const [whLoading, setWhLoading] = useState(false);
   const [whError, setWhError] = useState('');
   const [whFetchingDefaults, setWhFetchingDefaults] = useState(false);
-
-  // Toast
-  const [toast, setToast] = useState('');
 
   const [filesModal, setFilesModal] = useState(null);
 
@@ -169,13 +171,23 @@ function ShipmentsPanel() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Auto-clear toast
   useEffect(() => {
     if (toast) {
       const t = setTimeout(() => setToast(''), 4000);
       return () => clearTimeout(t);
     }
   }, [toast]);
+
+  // Lock body scroll when modal open
+  useEffect(() => {
+    const modalOpen = statusModal || whModal || filesModal;
+    if (modalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [statusModal, whModal, filesModal]);
 
   async function loadShipments() {
     setLoading(true);
@@ -295,15 +307,25 @@ function ShipmentsPanel() {
     }
   }
 
-  async function handleUseRow(s) {
-    setQuTn(s.trackingNumber);
-    setQuCurrentStatus(s.status || '');
-    setQuStatus(s.status || '');
-    setQuEta(s.estimatedDelivery || '');
-    setQuNotes('');
-    setQuMsg('');
-    setQuLocation('');
-    setQuFetchingLocation(true);
+  // ===== OPEN STATUS MODAL =====
+  async function openStatusModal(s) {
+    // If already updated before, confirm edit
+    const hasBeenUpdated = !!s.lastUpdate && String(s.status || '').toLowerCase() !== 'booked';
+    if (hasBeenUpdated) {
+      const dateStr = formatDate(s.lastUpdate);
+      const proceed = window.confirm('Status was last updated on ' + dateStr + '. Edit it?');
+      if (!proceed) return;
+    }
+
+    setStatusModal({ shipment: s });
+    setSuTracking(s.trackingNumber);
+    setSuCurrentStatus(s.status || '');
+    setSuNewStatus(s.status || '');
+    setSuEta(s.estimatedDelivery || '');
+    setSuNotes('');
+    setSuError('');
+    setSuLocation('');
+    setSuFetchingLocation(true);
 
     try {
       const token = localStorage.getItem('sxl_token');
@@ -311,44 +333,51 @@ function ShipmentsPanel() {
         headers: { Authorization: 'Bearer ' + token },
       });
       const data = await res.json();
-      if (data.success && data.location) setQuLocation(data.location);
+      if (data.success && data.location) setSuLocation(data.location);
     } catch (e) { /* silent */ }
 
-    setQuFetchingLocation(false);
-
-    setTimeout(() => {
-      const el = document.getElementById('quick-update-panel');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
+    setSuFetchingLocation(false);
   }
 
-  async function handleQuickUpdate(e) {
-    e.preventDefault();
-    setQuMsg('');
-    if (!quTn.trim()) { setQuMsg('Please enter a tracking number.'); return; }
-    if (!quStatus) { setQuMsg('Please select a new status.'); return; }
+  function closeStatusModal() {
+    setStatusModal(null);
+    setSuTracking('');
+    setSuCurrentStatus('');
+    setSuNewStatus('');
+    setSuLocation('');
+    setSuEta('');
+    setSuNotes('');
+    setSuError('');
+  }
 
-    setQuLoading(true);
+  async function handleStatusUpdate() {
+    setSuError('');
+    if (!suNewStatus) { setSuError('Please select a new status.'); return; }
+
+    setSuLoading(true);
     const token = localStorage.getItem('sxl_token');
     try {
       const res = await fetch('/api/admin/shipments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({
-          trackingNumber: quTn.trim(), newStatus: quStatus,
-          location: quLocation, notes: quNotes, eta: quEta,
+          trackingNumber: suTracking.trim(),
+          newStatus: suNewStatus,
+          location: suLocation,
+          notes: suNotes,
+          eta: suEta,
         }),
       });
       const data = await res.json();
-      if (!data.success) { setQuMsg('❌ ' + (data.error || 'Update failed.')); setQuLoading(false); return; }
-      setQuMsg('✅ Status updated to "' + quStatus + '"!');
-      setQuTn(''); setQuCurrentStatus(''); setQuStatus(''); setQuLocation(''); setQuEta(''); setQuNotes('');
-      setQuLoading(false);
+      if (!data.success) { setSuError(data.error || 'Update failed.'); setSuLoading(false); return; }
+      closeStatusModal();
+      setSuLoading(false);
+      setToast('✅ Status updated to "' + suNewStatus + '" for ' + suTracking);
       setTimeout(loadShipments, 500);
-    } catch (err) { setQuMsg('❌ Connection error.'); setQuLoading(false); }
+    } catch (err) { setSuError('Connection error.'); setSuLoading(false); }
   }
 
-  // ===== Warehouse modal flow =====
+  // ===== WAREHOUSE MODAL =====
   async function openWarehouseModal(s) {
     setWhModal({ trackingNumber: s.trackingNumber, senderName: s.senderName });
     setWhFields({ name: '', address: '', city: '', state: '', country: '', phone: '', email: '', hours: '' });
@@ -361,9 +390,7 @@ function ShipmentsPanel() {
         headers: { Authorization: 'Bearer ' + token },
       });
       const data = await res.json();
-      if (data.success && data.warehouse) {
-        setWhFields(data.warehouse);
-      }
+      if (data.success && data.warehouse) setWhFields(data.warehouse);
     } catch (e) { /* silent */ }
 
     setWhFetchingDefaults(false);
@@ -377,32 +404,19 @@ function ShipmentsPanel() {
 
     setWhLoading(true);
     const token = localStorage.getItem('sxl_token');
-
     try {
       const res = await fetch('/api/admin/send-warehouse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({
-          trackingNumber: whModal.trackingNumber,
-          warehouse: whFields,
-        }),
+        body: JSON.stringify({ trackingNumber: whModal.trackingNumber, warehouse: whFields }),
       });
       const data = await res.json();
-
-      if (!data.success) {
-        setWhError(data.error || 'Failed to send.');
-        setWhLoading(false);
-        return;
-      }
-
+      if (!data.success) { setWhError(data.error || 'Failed to send.'); setWhLoading(false); return; }
       setWhModal(null);
       setWhLoading(false);
       setToast('✅ Warehouse details sent to ' + whModal.senderName + '!');
       setTimeout(loadShipments, 500);
-    } catch (err) {
-      setWhError('Connection error: ' + err.message);
-      setWhLoading(false);
-    }
+    } catch (err) { setWhError('Connection error: ' + err.message); setWhLoading(false); }
   }
 
   function openFiles(s) {
@@ -537,9 +551,9 @@ function ShipmentsPanel() {
       {toast && (
         <div style={{
           position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
-          background: '#D4EDDA', color: '#155724', border: '1px solid #28A745',
-          borderRadius: '10px', padding: '14px 24px', fontWeight: 700,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 99999
+          background: '#003366', color: 'white', borderRadius: '10px',
+          padding: '14px 24px', fontWeight: 700, boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+          zIndex: 99999, maxWidth: '90%', textAlign: 'center'
         }}>
           {toast}
         </div>
@@ -606,58 +620,6 @@ function ShipmentsPanel() {
         <TabButton active={tab === 'cancelled'} onClick={() => setTab('cancelled')} label="⚫ Cancelled" count={counts.cancelled || 0} badgeBg="#E9ECEF" badgeColor="#495057" />
       </div>
 
-      {tab === 'active' && (
-        <form id="quick-update-panel" onSubmit={handleQuickUpdate} style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px', borderLeft: '5px solid #FF6B00' }}>
-          <h3 style={{ color: '#003366', fontSize: '1.1rem', marginBottom: '12px' }}>⚡ Quick Update Status</h3>
-
-          {quCurrentStatus && (
-            <div style={{ background: '#FFF5EB', border: '1px solid #FF6B00', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', fontSize: '0.9rem', color: '#8B4500' }}>
-              <b>Current Status:</b> <span style={{ fontWeight: 700 }}>{quCurrentStatus}</span>
-              {quTn && <span style={{ marginLeft: '12px', color: '#6C757D' }}>• Tracking: <b>{quTn}</b></span>}
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Tracking Number *</label>
-              <input type="text" value={quTn} onChange={(e) => setQuTn(e.target.value)} placeholder="e.g., SM0310202612" style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>New Status *</label>
-              <select value={quStatus} onChange={(e) => setQuStatus(e.target.value)} style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}>
-                <option value="">-- Select New Status --</option>
-                <option>Booked</option>
-                <option>Picked Up</option>
-                <option>In Transit</option>
-                <option>Out for Delivery</option>
-                <option>Delivered</option>
-                <option>Exception</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Location {quFetchingLocation && <span style={{ color: '#FF6B00', fontSize: '0.7rem' }}>(loading...)</span>}</label>
-              <input type="text" value={quLocation} onChange={(e) => setQuLocation(e.target.value)} placeholder="City, Country" style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Estimated Delivery</label>
-              <input type="date" value={quEta} onChange={(e) => setQuEta(e.target.value)} style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-            </div>
-          </div>
-          <div style={{ marginTop: '10px' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Notes</label>
-            <input type="text" value={quNotes} onChange={(e) => setQuNotes(e.target.value)} placeholder="Optional" style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-          </div>
-          <button type="submit" disabled={quLoading} style={{ marginTop: '12px', padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: quLoading ? 'not-allowed' : 'pointer', opacity: quLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
-            {quLoading ? 'Updating...' : '✅ Update Status'}
-          </button>
-          {quMsg && (
-            <div style={{ marginTop: '10px', padding: '10px 15px', borderRadius: '8px', fontSize: '0.9rem', background: quMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: quMsg.startsWith('✅') ? '#155724' : '#721C24' }}>
-              {quMsg}
-            </div>
-          )}
-        </form>
-      )}
-
       {error && <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>❌ {error}</div>}
 
       {loading && (
@@ -676,7 +638,7 @@ function ShipmentsPanel() {
       {!loading && !error && filtered.length > 0 && (
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1750px', tableLayout: 'fixed', width: '100%' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
                   <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
@@ -704,6 +666,8 @@ function ShipmentsPanel() {
                   const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
                   const rowHasFiles = hasFiles(s);
                   const whSent = !!s.warehouseSentAt;
+                  // Has been updated: status is not 'Booked' OR lastUpdate > bookedAt
+                  const wasUpdated = String(s.status || '').toLowerCase() !== 'booked';
 
                   return (
                     <tr key={i} style={{ background: rowBg }}>
@@ -732,40 +696,61 @@ function ShipmentsPanel() {
                         </span>
                       </td>
                       <td style={{ ...TD_STYLE, width: 420 }}>
-                        {tab === 'active' && (
-                          <button onClick={() => handleUseRow(s)} style={{ padding: '5px 10px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📋 Use</button>
-                        )}
-                        {rowHasFiles && (
-                          <button onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
-                        )}
-                        {isSelfDelivery && (
+                        {tab !== 'cancelled' && (
                           <>
+                            {/* Status Update button — orange if never updated, grey if updated before */}
                             <button
-                              onClick={() => openWarehouseModal(s)}
+                              onClick={() => openStatusModal(s)}
                               style={{
                                 padding: '5px 10px',
-                                background: whSent ? '#28A745' : '#DC3545',
-                                color: 'white', border: 'none', borderRadius: '6px',
-                                fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer',
-                                fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap'
+                                background: wasUpdated ? '#E9ECEF' : '#FF6B00',
+                                color: wasUpdated ? '#495057' : 'white',
+                                border: 'none', borderRadius: '6px',
+                                fontWeight: 700, fontSize: '0.72rem',
+                                cursor: 'pointer', fontFamily: 'inherit',
+                                marginRight: '4px', whiteSpace: 'nowrap'
                               }}
                             >
-                              {whSent ? '✅ Warehouse Sent' : '📧 Send Warehouse'}
+                              {wasUpdated ? '✅ Status Updated' : '🔄 Update Status'}
                             </button>
-                            {whSent && (
-                              <button
-                                onClick={() => openWarehouseModal(s)}
-                                style={{
-                                  padding: '5px 8px', background: 'transparent', color: '#003366',
-                                  border: '1px solid #E9ECEF', borderRadius: '6px',
-                                  fontWeight: 600, fontSize: '0.68rem', cursor: 'pointer',
-                                  fontFamily: 'inherit', textDecoration: 'underline'
-                                }}
-                              >
-                                Resend
-                              </button>
+
+                            {rowHasFiles && (
+                              <button onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
+                            )}
+
+                            {isSelfDelivery && (
+                              <>
+                                <button
+                                  onClick={() => openWarehouseModal(s)}
+                                  style={{
+                                    padding: '5px 10px',
+                                    background: whSent ? '#28A745' : '#DC3545',
+                                    color: 'white', border: 'none', borderRadius: '6px',
+                                    fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer',
+                                    fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  {whSent ? '✅ Warehouse Sent' : '📧 Send Warehouse'}
+                                </button>
+                                {whSent && (
+                                  <button
+                                    onClick={() => openWarehouseModal(s)}
+                                    style={{
+                                      padding: '5px 8px', background: 'transparent', color: '#003366',
+                                      border: '1px solid #E9ECEF', borderRadius: '6px',
+                                      fontWeight: 600, fontSize: '0.68rem', cursor: 'pointer',
+                                      fontFamily: 'inherit', textDecoration: 'underline'
+                                    }}
+                                  >
+                                    Resend
+                                  </button>
+                                )}
+                              </>
                             )}
                           </>
+                        )}
+                        {tab === 'cancelled' && (
+                          <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>
                         )}
                       </td>
                     </tr>
@@ -781,10 +766,102 @@ function ShipmentsPanel() {
         </>
       )}
 
+      {/* ============ STATUS UPDATE MODAL ============ */}
+      {statusModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          padding: '20px', overflowY: 'auto'
+        }}>
+          <div style={{
+            background: 'white', maxWidth: '640px', width: '100%',
+            borderRadius: '16px', padding: '30px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            marginTop: '40px', marginBottom: '40px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>🔄 Update Status</h2>
+                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
+                  {statusModal.shipment.trackingNumber} · {statusModal.shipment.shipperName}
+                </div>
+              </div>
+              <button onClick={closeStatusModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+            </div>
+
+            <div style={{ background: '#FFF5EB', border: '1px solid #FF6B00', borderRadius: '8px', padding: '10px 14px', marginBottom: '18px', fontSize: '0.9rem', color: '#8B4500' }}>
+              <b>Current Status:</b> <span style={{ fontWeight: 700 }}>{suCurrentStatus}</span>
+            </div>
+
+            {suError && (
+              <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem' }}>
+                {suError}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>New Status *</label>
+                <select value={suNewStatus} onChange={(e) => setSuNewStatus(e.target.value)}
+                  style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                  <option value="">-- Select New Status --</option>
+                  <option>Booked</option>
+                  <option>Picked Up</option>
+                  <option>In Transit</option>
+                  <option>Out for Delivery</option>
+                  <option>Delivered</option>
+                  <option>Exception</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
+                  Location {suFetchingLocation && <span style={{ color: '#FF6B00', fontSize: '0.72rem' }}>(loading last...)</span>}
+                </label>
+                <input type="text" value={suLocation} onChange={(e) => setSuLocation(e.target.value)} placeholder="City, Country"
+                  style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>Estimated Delivery</label>
+                <input type="date" value={suEta} onChange={(e) => setSuEta(e.target.value)}
+                  style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>Notes</label>
+                <input type="text" value={suNotes} onChange={(e) => setSuNotes(e.target.value)} placeholder="Optional"
+                  style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px', flexWrap: 'wrap' }}>
+              <button onClick={closeStatusModal} disabled={suLoading}
+                style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={handleStatusUpdate} disabled={suLoading}
+                style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: suLoading ? 'not-allowed' : 'pointer', opacity: suLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
+                {suLoading ? 'Updating...' : '✅ Update Status'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ============ WAREHOUSE MODAL ============ */}
       {whModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'white', maxWidth: '640px', width: '100%', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          padding: '20px', overflowY: 'auto'
+        }}>
+          <div style={{
+            background: 'white', maxWidth: '640px', width: '100%',
+            borderRadius: '16px', padding: '30px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            marginTop: '40px', marginBottom: '40px'
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>📧 Send Warehouse Details</h2>
@@ -821,28 +898,13 @@ function ShipmentsPanel() {
               <WhField label="Operating Hours" value={whFields.hours} onChange={(v) => setWhFields({ ...whFields, hours: v })} placeholder="e.g., Mon–Fri 9am–6pm" />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px' }}>
-              <button
-                onClick={() => setWhModal(null)}
-                disabled={whLoading}
-                style={{
-                  padding: '12px 24px', background: 'transparent', color: '#003366',
-                  border: '2px solid #E9ECEF', borderRadius: '8px',
-                  fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit'
-                }}
-              >
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px', flexWrap: 'wrap' }}>
+              <button onClick={() => setWhModal(null)} disabled={whLoading}
+                style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
-              <button
-                onClick={handleSendWarehouseEmail}
-                disabled={whLoading}
-                style={{
-                  padding: '12px 24px', background: '#DC3545', color: 'white',
-                  border: 'none', borderRadius: '8px', fontWeight: 700,
-                  cursor: whLoading ? 'not-allowed' : 'pointer',
-                  opacity: whLoading ? 0.6 : 1, fontFamily: 'inherit'
-                }}
-              >
+              <button onClick={handleSendWarehouseEmail} disabled={whLoading}
+                style={{ padding: '12px 24px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: whLoading ? 'not-allowed' : 'pointer', opacity: whLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
                 {whLoading ? 'Sending...' : '📧 Send Email'}
               </button>
             </div>
@@ -850,9 +912,10 @@ function ShipmentsPanel() {
         </div>
       )}
 
+      {/* ============ FILES MODAL ============ */}
       {filesModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'white', maxWidth: '600px', width: '100%', maxHeight: '85vh', overflowY: 'auto', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '20px', overflowY: 'auto' }}>
+          <div style={{ background: 'white', maxWidth: '600px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', marginTop: '40px', marginBottom: '40px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>📎 Uploaded Documents</h2>
