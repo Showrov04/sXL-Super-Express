@@ -31,7 +31,6 @@ async function requireAdmin(request) {
 
 /**
  * GET — billing shipments (all | due | paid) + outstanding summary
- * Now returns service info + charges + shipper_ref + invoice_sent_at
  */
 export async function GET(request) {
   try {
@@ -54,7 +53,6 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: error.message });
     }
 
-    // Counts
     const counts = {
       total: all.length,
       due: all.filter((s) => {
@@ -65,7 +63,6 @@ export async function GET(request) {
       paid: all.filter((s) => String(s.payment_status || '').toLowerCase() === 'paid').length,
     };
 
-    // Filter
     let filtered = all;
     if (filter === 'due') {
       filtered = filtered.filter((s) => {
@@ -90,7 +87,7 @@ export async function GET(request) {
       });
     }
 
-    // Fetch invoices for these shipments (to know issue state)
+    // Fetch invoices for these shipments
     const tns = filtered.map((s) => s.tracking_number).filter(Boolean);
     let invoiceMap = {};
     if (tns.length > 0) {
@@ -108,18 +105,14 @@ export async function GET(request) {
       });
     }
 
-    // Map
     const shipments = filtered.map((s) => {
       const cost = parseFloat(s.shipping_cost) || 0;
-
-      // Service info flags (from booking)
       const pickupService = s.pickup_service !== false;
       const customService = String(s.custom_service || '').toLowerCase();
       const deliveryService = String(s.delivery_service || '').toLowerCase();
       const parcelType = String(s.parcel_type || '').trim();
       const isSpecial = parcelType === 'Special Parcel';
 
-      // Invoice state for this shipment
       const tnsList = invoiceMap[s.tracking_number] || [];
       const hasIndividual = tnsList.some((inv) => inv.type === 'individual');
       const hasMonthly = tnsList.some((inv) => inv.type === 'monthly-summary');
@@ -141,10 +134,12 @@ export async function GET(request) {
         destination: s.destination,
         weight: s.total_weight,
         bookingWeight: s.total_weight,
+        bookingCbm: parseFloat(s.total_cbm) || 0,
         actualWeight: s.actual_weight,
+        actualCbm: parseFloat(s.total_cbm) || 0,
         ratePerKg: s.rate_per_kg,
         shippingCost: cost > 0 ? cost : null,
-        totalCbm: s.total_cbm,
+        totalCbm: parseFloat(s.total_cbm) || 0,
         currency: s.currency || 'USD',
         paymentStatus: s.payment_status,
         paymentMethod: s.payment_method,
@@ -153,7 +148,6 @@ export async function GET(request) {
         costSavedAt: s.cost_saved_at,
         bookedAt: s.booked_at,
         lastUpdate: s.last_update,
-        // NEW fields for cost form
         isSpecialParcel: isSpecial,
         pickupService,
         customService,
@@ -161,7 +155,6 @@ export async function GET(request) {
         pickupCharge: parseFloat(s.pickup_charge) || 0,
         customsCharge: parseFloat(s.customs_charge) || 0,
         deliveryCharge: parseFloat(s.delivery_charge) || 0,
-        // Invoice state
         hasIndividualInvoice: hasIndividual,
         hasMonthlyInvoice: hasMonthly,
         latestInvoice: latestInvoice ? {
@@ -176,7 +169,7 @@ export async function GET(request) {
       };
     });
 
-    // Outstanding summary — group due by shipper
+    // Outstanding summary
     const dueShipments = all.filter((s) => {
       const st = String(s.status || '').toLowerCase();
       const pay = String(s.payment_status || '').toLowerCase();
@@ -253,12 +246,13 @@ async function handleSaveCost(session, body) {
   const {
     trackingNumber,
     actualWeight,
+    actualCbm,          // NEW: SEA only
+    shipMode,           // NEW: 'SEA' | 'AIR' — to decide calc
     ratePerKg,
     additionalLines,
     currency,
     localCurrency,
     localAmount,
-    // NEW: service charges
     pickupCharge,
     customsCharge,
     deliveryCharge,
@@ -269,6 +263,7 @@ async function handleSaveCost(session, body) {
   }
 
   const aw = parseFloat(actualWeight) || 0;
+  const cbm = parseFloat(actualCbm) || 0;
   const rate = parseFloat(ratePerKg) || 0;
   const pc = parseFloat(pickupCharge) || 0;
   const cc = parseFloat(customsCharge) || 0;
@@ -277,12 +272,19 @@ async function handleSaveCost(session, body) {
   let addlTotal = 0;
   lines.forEach((l) => { addlTotal += parseFloat(l.amount) || 0; });
 
-  const freightTotal = Math.round((aw * rate) * 100) / 100;
+  // Decide freight base:
+  // AIR → weight × rate  |  SEA → CBM × rate
+  const mode = String(shipMode || '').toUpperCase();
+  const freightBase = (mode === 'SEA') ? cbm : aw;
+  const freightTotal = Math.round((freightBase * rate) * 100) / 100;
   const servicesTotal = Math.round((pc + cc + dc) * 100) / 100;
   const total = Math.round((freightTotal + servicesTotal + addlTotal) * 100) / 100;
 
   const breakdown = {
+    shipMode: mode,
     actualWeight: aw,
+    actualCbm: cbm,
+    freightBase,
     ratePerKg: rate,
     freightTotal,
     pickupCharge: pc,
@@ -299,21 +301,28 @@ async function handleSaveCost(session, body) {
     savedBy: session.userId,
   };
 
+  const updateData = {
+    actual_weight: aw,
+    rate_per_kg: rate,
+    pickup_charge: pc,
+    customs_charge: cc,
+    delivery_charge: dc,
+    shipping_cost: total,
+    currency: currency || 'USD',
+    cost_breakdown: breakdown,
+    cost_saved_at: new Date().toISOString(),
+    cost_saved_by: session.userId,
+    last_update: new Date().toISOString(),
+  };
+
+  // Save CBM only for SEA (or if provided)
+  if (mode === 'SEA' && cbm > 0) {
+    updateData.total_cbm = cbm;
+  }
+
   const { error } = await serviceSupabase
     .from('shipments')
-    .update({
-      actual_weight: aw,
-      rate_per_kg: rate,
-      pickup_charge: pc,
-      customs_charge: cc,
-      delivery_charge: dc,
-      shipping_cost: total,
-      currency: currency || 'USD',
-      cost_breakdown: breakdown,
-      cost_saved_at: new Date().toISOString(),
-      cost_saved_by: session.userId,
-      last_update: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq('tracking_number', trackingNumber);
 
   if (error) {
@@ -366,7 +375,6 @@ async function handleMarkUnpaid(session, body) {
   return NextResponse.json({ success: true });
 }
 
-// NEW: mark invoice sent to customer
 async function handleMarkInvoiceSent(session, body) {
   const { trackingNumber } = body;
   if (!trackingNumber) {
@@ -375,7 +383,6 @@ async function handleMarkInvoiceSent(session, body) {
 
   const now = new Date().toISOString();
 
-  // Update shipment
   const { error: shipErr } = await serviceSupabase
     .from('shipments')
     .update({
@@ -386,7 +393,6 @@ async function handleMarkInvoiceSent(session, body) {
 
   if (shipErr) return NextResponse.json({ success: false, error: shipErr.message });
 
-  // Update any invoices containing this tracking number
   const { data: relatedInvoices } = await serviceSupabase
     .from('invoices')
     .select('invoice_id, tracking_numbers')
