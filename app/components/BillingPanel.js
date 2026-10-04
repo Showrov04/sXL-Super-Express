@@ -58,6 +58,11 @@ const FROZEN_LEFT_TRACKING = COL_W_SHIPPER_REF;
 const FROZEN_LEFT_MODE = COL_W_SHIPPER_REF + COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE = COL_W_SHIPPER_REF + COL_W_TRACKING + COL_W_MODE;
 
+// For the All tab (no shipper ref column) — frozen offsets shift left
+const FROZEN_LEFT_TRACKING_ALL = 0;
+const FROZEN_LEFT_MODE_ALL = COL_W_TRACKING;
+const FROZEN_LEFT_ROUTE_ALL = COL_W_TRACKING + COL_W_MODE;
+
 /* ============================================================
  *  MAIN COMPONENT
  * ============================================================ */
@@ -708,6 +713,8 @@ export default function BillingPanel() {
   }
 
   const showInvoiceColumns = tab === 'due';
+  const showShipperRef = tab !== 'all'; // All tab hides Shipper Ref
+  const isAllTab = tab === 'all';
 
   return (
     <div>
@@ -730,7 +737,6 @@ export default function BillingPanel() {
         <StatCard num={counts.paid} label="Paid" color="#D4EDDA" />
       </div>
 
-      {/* Simplified AR card — reacts to filters */}
       {tab === 'due' && !loading && !error && (
         <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '20px 25px', marginBottom: '20px', borderLeft: '5px solid #FF6B00', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
           <div>
@@ -789,16 +795,34 @@ export default function BillingPanel() {
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: showInvoiceColumns ? '2100px' : '1700px', tableLayout: 'fixed', width: '100%' }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
               <tr>
-                <HeaderCell col="shipperRef" label="Shipper Ref" width={COL_W_SHIPPER_REF} frozenLeft={FROZEN_LEFT_REF} />
-                <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
-                <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
-                <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={FROZEN_LEFT_ROUTE} hasShadow={true} />
+                {showShipperRef && (
+                  <HeaderCell col="shipperRef" label="Shipper Ref" width={COL_W_SHIPPER_REF} frozenLeft={FROZEN_LEFT_REF} />
+                )}
+                <HeaderCell
+                  col="tracking"
+                  label="Tracking #"
+                  width={COL_W_TRACKING}
+                  frozenLeft={isAllTab ? FROZEN_LEFT_TRACKING_ALL : FROZEN_LEFT_TRACKING}
+                />
+                <HeaderCell
+                  col="mode"
+                  label="Mode"
+                  width={COL_W_MODE}
+                  frozenLeft={isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE}
+                />
+                <HeaderCell
+                  col="route"
+                  label="Route"
+                  width={COL_W_ROUTE}
+                  frozenLeft={isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE}
+                  hasShadow={true}
+                />
                 <HeaderCell col="shipper" label="Shipper" width={150} />
                 <HeaderCell col="recipient" label="Recipient" width={150} />
                 <HeaderCell col="status" label="Status" width={120} />
                 <HeaderCell col="none" label="Booking Wt" width={100} />
                 <HeaderCell col="none" label="Actual Wt" width={130} />
-                <HeaderCell col="none" label="Freight" width={110} />
+                <HeaderCell col="none" label="Cost" width={110} />
                 <HeaderCell col="payment" label="Payment" width={110} />
                 <HeaderCell col="none" label="Booked" width={115} />
                 <HeaderCell col="none" label="ETA" width={115} />
@@ -820,10 +844,26 @@ export default function BillingPanel() {
 
                 return (
                   <tr key={i} style={{ background: rowBg }}>
-                    <td style={{ ...frozenTd, left: FROZEN_LEFT_REF, width: COL_W_SHIPPER_REF, minWidth: COL_W_SHIPPER_REF }}>{s.shipperRef || '—'}</td>
-                    <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                    <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '—'}</td>
-                    <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '—'} → {s.destination || '—'}</td>
+                    {showShipperRef && (
+                      <td style={{ ...frozenTd, left: FROZEN_LEFT_REF, width: COL_W_SHIPPER_REF, minWidth: COL_W_SHIPPER_REF }}>{s.shipperRef || '—'}</td>
+                    )}
+                    <td style={{
+                      ...frozenTd,
+                      left: isAllTab ? FROZEN_LEFT_TRACKING_ALL : FROZEN_LEFT_TRACKING,
+                      width: COL_W_TRACKING, minWidth: COL_W_TRACKING,
+                      fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366'
+                    }}>{s.trackingNumber}</td>
+                    <td style={{
+                      ...frozenTd,
+                      left: isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE,
+                      width: COL_W_MODE, minWidth: COL_W_MODE
+                    }}>{s.shipmentType || s.shipMode || '—'}</td>
+                    <td style={{
+                      ...frozenTd,
+                      left: isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE,
+                      width: COL_W_ROUTE, minWidth: COL_W_ROUTE,
+                      boxShadow: FROZEN_SHADOW
+                    }}>{s.origin || '—'} → {s.destination || '—'}</td>
                     <td style={{ ...TD_STYLE, width: 150 }}>{s.shipperName || '—'}</td>
                     <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '—'}</td>
                     <td style={{ ...TD_STYLE, width: 120 }}>
@@ -881,7 +921,6 @@ export default function BillingPanel() {
                             {wasCostSaved ? '✅ Cost Updated' : '🔄 Update Shipment Cost'}
                           </button>
 
-                          {/* Invoice issued? */}
                           {!hasInvoice ? (
                             <button onClick={() => handleIssueInvoice(s)} style={{ padding: '5px 10px', background: '#0D6EFD', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap' }}>📄 Issue Invoice</button>
                           ) : (
@@ -914,28 +953,12 @@ export default function BillingPanel() {
                         </>
                       )}
 
-                      {/* ===== ALL TAB ===== */}
+                      {/* ===== ALL TAB — blank Actions cell ===== */}
                       {tab === 'all' && (
-                        <>
-                          <button
-                            onClick={() => openCostModal(s)}
-                            style={{
-                              padding: '5px 10px',
-                              background: wasCostSaved ? '#E9ECEF' : '#FF6B00',
-                              color: wasCostSaved ? '#495057' : 'white',
-                              border: 'none', borderRadius: '6px',
-                              fontWeight: 700, fontSize: '0.72rem',
-                              cursor: 'pointer', fontFamily: 'inherit',
-                              marginRight: '4px', whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {wasCostSaved ? '✅ Cost Updated' : '🔄 Update Shipment Cost'}
-                          </button>
-                          <button onClick={() => handleMarkPaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>💵 Mark Paid</button>
-                        </>
+                        <span style={{ color: '#ADB5BD' }}>—</span>
                       )}
 
-                      {/* ===== PAID TAB ===== */}
+                      {/* ===== PAID TAB — Undo only ===== */}
                       {tab === 'paid' && (
                         <button onClick={() => handleMarkUnpaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#FFC107', color: '#333', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit' }}>↩ Undo</button>
                       )}
