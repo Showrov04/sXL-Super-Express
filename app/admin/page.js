@@ -130,6 +130,8 @@ function ShipmentsPanel() {
   const [suLocation, setSuLocation] = useState('');
   const [suEta, setSuEta] = useState('');
   const [suNotes, setSuNotes] = useState('');
+  const [suActualWeight, setSuActualWeight] = useState('');
+  const [suActualCbm, setSuActualCbm] = useState('');
   const [suLoading, setSuLoading] = useState(false);
   const [suError, setSuError] = useState('');
   const [suFetchingLocation, setSuFetchingLocation] = useState(false);
@@ -145,7 +147,7 @@ function ShipmentsPanel() {
 
   const [filesModal, setFilesModal] = useState(null);
 
-  // ===== Edit Booking modal state (G.5) =====
+  // Edit Booking modal
   const [editModal, setEditModal] = useState(null);
   const [editFields, setEditFields] = useState({});
   const [editSaving, setEditSaving] = useState(false);
@@ -329,6 +331,8 @@ function ShipmentsPanel() {
     setSuNotes('');
     setSuError('');
     setSuLocation('');
+    setSuActualWeight('');   // G.13 — always blank
+    setSuActualCbm('');      // G.13 — always blank
     setSuFetchingLocation(true);
 
     try {
@@ -351,6 +355,8 @@ function ShipmentsPanel() {
     setSuLocation('');
     setSuEta('');
     setSuNotes('');
+    setSuActualWeight('');
+    setSuActualCbm('');
     setSuError('');
   }
 
@@ -365,11 +371,14 @@ function ShipmentsPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({
+          action: 'updateStatus',
           trackingNumber: suTracking.trim(),
           newStatus: suNewStatus,
           location: suLocation,
           notes: suNotes,
           eta: suEta,
+          actualWeight: suActualWeight,   // G.13 — optional
+          actualCbm: suActualCbm,         // G.13 — optional
         }),
       });
       const data = await res.json();
@@ -381,7 +390,7 @@ function ShipmentsPanel() {
     } catch (err) { setSuError('Connection error.'); setSuLoading(false); }
   }
 
-  // ===== OPEN EDIT BOOKING MODAL (G.5) =====
+  // ===== OPEN EDIT BOOKING MODAL =====
   function openEditModal(s) {
     const alreadyEdited = String(s.status || '').toLowerCase() !== 'booked';
     if (alreadyEdited) {
@@ -437,7 +446,6 @@ function ShipmentsPanel() {
 
   async function handleSaveEdit() {
     setEditError('');
-    // Basic validation
     if (!editFields.senderName || !editFields.senderName.trim()) { setEditError('Sender name is required.'); return; }
     if (!editFields.recipientName || !editFields.recipientName.trim()) { setEditError('Recipient name is required.'); return; }
     if (!editFields.description || !editFields.description.trim()) { setEditError('Description is required.'); return; }
@@ -560,7 +568,6 @@ function ShipmentsPanel() {
     return { bg: '#FFF3CD', color: '#856404' };
   }
 
-  // G.4 — render actual weight / CBM for AIR (kg only) and SEA (kg + CBM)
   function renderActualCell(s) {
     const mode = String(s.shipMode || '').toUpperCase();
     const isSeaRow = mode === 'SEA';
@@ -790,7 +797,6 @@ function ShipmentsPanel() {
                   const whSent = !!s.warehouseSentAt;
                   const wasUpdated = String(s.status || '').toLowerCase() !== 'booked';
                   const isActiveTab = tab === 'active';
-                  // G.6 — Send Warehouse only on Active tab
                   const showWarehouseBtn = isActiveTab && isSelfDelivery;
 
                   return (
@@ -824,7 +830,6 @@ function ShipmentsPanel() {
                           <>
                             {isActiveTab && (
                               <>
-                                {/* Update Status */}
                                 <button
                                   onClick={() => openStatusModal(s)}
                                   style={{
@@ -840,7 +845,6 @@ function ShipmentsPanel() {
                                   {wasUpdated ? '✅ Status Updated' : '🔄 Update Status'}
                                 </button>
 
-                                {/* G.5 — Edit Booking */}
                                 <button
                                   onClick={() => openEditModal(s)}
                                   style={{
@@ -923,11 +927,15 @@ function ShipmentsPanel() {
             boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
             marginTop: '40px', marginBottom: '40px'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
               <div>
                 <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>🔄 Update Status</h2>
                 <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
                   {statusModal.shipment.trackingNumber} · {statusModal.shipment.shipperName}
+                </div>
+                {/* G.13 — Route + Mode line */}
+                <div style={{ color: '#003366', fontSize: '0.85rem', marginTop: '2px', fontWeight: 700 }}>
+                  Route: {statusModal.shipment.origin || '—'} → {statusModal.shipment.destination || '—'} · Mode: {statusModal.shipment.shipmentType || statusModal.shipment.shipMode || '—'}
                 </div>
               </div>
               <button onClick={closeStatusModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
@@ -966,6 +974,30 @@ function ShipmentsPanel() {
                   style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
               </div>
 
+              {/* G.13 — Actual Weight + CBM (optional) */}
+              <div style={{ background: '#F8F9FA', border: '1px solid #E9ECEF', borderRadius: '10px', padding: '14px 16px' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  📦 Actual Measurements (optional)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: statusModal && String(statusModal.shipment.shipMode || '').toUpperCase() === 'SEA' ? '1fr 1fr' : '1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Actual Weight (kg)</label>
+                    <input type="number" step="0.01" value={suActualWeight} onChange={(e) => setSuActualWeight(e.target.value)} placeholder="e.g., 5.5"
+                      style={{ width: '100%', padding: '11px 13px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  </div>
+                  {statusModal && String(statusModal.shipment.shipMode || '').toUpperCase() === 'SEA' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Actual Volume (CBM)</label>
+                      <input type="number" step="0.01" value={suActualCbm} onChange={(e) => setSuActualCbm(e.target.value)} placeholder="e.g., 1.2"
+                        style={{ width: '100%', padding: '11px 13px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '8px', fontStyle: 'italic' }}>
+                  Leave blank to keep the current values. Only fill in if you're recording the measurement now.
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>Estimated Delivery</label>
                 <input type="date" value={suEta} onChange={(e) => setSuEta(e.target.value)}
@@ -993,7 +1025,7 @@ function ShipmentsPanel() {
         </div>
       )}
 
-      {/* ============ EDIT BOOKING MODAL (G.5) ============ */}
+      {/* ============ EDIT BOOKING MODAL ============ */}
       {editModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
@@ -1026,7 +1058,6 @@ function ShipmentsPanel() {
               </div>
             )}
 
-            {/* SENDER */}
             <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px', marginTop: '10px' }}>📤 Sender (Shipper)</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '24px' }}>
               <EditField label="Name *" value={editFields.senderName} onChange={(v) => setEditField('senderName', v)} />
@@ -1034,7 +1065,6 @@ function ShipmentsPanel() {
               <EditField label="Email" value={editFields.senderEmail} onChange={(v) => setEditField('senderEmail', v)} />
             </div>
 
-            {/* RECIPIENT */}
             <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>📥 Recipient (Consignee)</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '12px' }}>
               <EditField label="Name *" value={editFields.recipientName} onChange={(v) => setEditField('recipientName', v)} />
@@ -1050,7 +1080,6 @@ function ShipmentsPanel() {
               <EditField label="State" value={editFields.recipientState} onChange={(v) => setEditField('recipientState', v)} />
             </div>
 
-            {/* SHIPMENT */}
             <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>📦 Shipment Details</h3>
             <div style={{ marginBottom: '12px' }}>
               <EditField label="Description *" value={editFields.description} onChange={(v) => setEditField('description', v)} textarea />
@@ -1084,7 +1113,6 @@ function ShipmentsPanel() {
               <EditField label="Packaging Type (custom)" value={editFields.packagingTypeCustom} onChange={(v) => setEditField('packagingTypeCustom', v)} />
             </div>
 
-            {/* PICKUP */}
             {editModal.shipment.pickupService !== false && (
               <>
                 <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>🚚 Pickup</h3>
@@ -1099,7 +1127,6 @@ function ShipmentsPanel() {
               </>
             )}
 
-            {/* SPECIAL */}
             <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>📝 Special Instructions</h3>
             <div style={{ marginBottom: '24px' }}>
               <EditField label="Special Instructions" value={editFields.specialInstruction} onChange={(v) => setEditField('specialInstruction', v)} textarea />
@@ -1236,7 +1263,6 @@ function ShipmentsPanel() {
   );
 }
 
-// Helper input for warehouse modal
 function WhField({ label, value, onChange, textarea, placeholder }) {
   const baseStyle = {
     width: '100%', padding: '10px 14px', fontSize: '0.9rem',
@@ -1255,7 +1281,6 @@ function WhField({ label, value, onChange, textarea, placeholder }) {
   );
 }
 
-// Helper input for edit booking modal
 function EditField({ label, value, onChange, type = 'text', textarea = false }) {
   const baseStyle = {
     width: '100%', padding: '10px 14px', fontSize: '0.9rem',
