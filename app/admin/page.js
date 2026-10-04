@@ -136,8 +136,6 @@ function ShipmentsPanel() {
   const [suError, setSuError] = useState('');
   const [suFetchingLocation, setSuFetchingLocation] = useState(false);
 
-  const [sendingWh, setSendingWh] = useState('');
-
   // Warehouse modal
   const [whModal, setWhModal] = useState(null);
   const [whFields, setWhFields] = useState({ name: '', address: '', city: '', state: '', country: '', phone: '', email: '', hours: '' });
@@ -331,8 +329,8 @@ function ShipmentsPanel() {
     setSuNotes('');
     setSuError('');
     setSuLocation('');
-    setSuActualWeight('');   // G.13 — always blank
-    setSuActualCbm('');      // G.13 — always blank
+    setSuActualWeight('');
+    setSuActualCbm('');
     setSuFetchingLocation(true);
 
     try {
@@ -377,8 +375,8 @@ function ShipmentsPanel() {
           location: suLocation,
           notes: suNotes,
           eta: suEta,
-          actualWeight: suActualWeight,   // G.13 — optional
-          actualCbm: suActualCbm,         // G.13 — optional
+          actualWeight: suActualWeight,
+          actualCbm: suActualCbm,
         }),
       });
       const data = await res.json();
@@ -402,9 +400,20 @@ function ShipmentsPanel() {
 
     setEditModal({ shipment: s });
     setEditFields({
+      // Reference & Mode
+      shipperRef: s.shipperRef || '',
+      shipmentDate: s.shipmentDate ? String(s.shipmentDate).slice(0, 10) : '',
+      parcelType: s.parcelType || '',
+      parcelTypeCustom: s.parcelTypeCustom || '',
+      deliveryTimeline: s.deliveryTimeline || '',
+      originCountry: s.originCountry || '',
+
+      // Sender
       senderName: s.senderName || '',
       senderPhone: s.senderPhone || '',
       senderEmail: s.senderEmail || '',
+
+      // Recipient
       recipientName: s.recipientName || '',
       recipientPhone: s.recipientPhone || '',
       recipientEmail: s.recipientEmail || '',
@@ -412,22 +421,38 @@ function ShipmentsPanel() {
       recipientAddress: s.recipientAddress || '',
       recipientCity: s.recipientCity || '',
       recipientState: s.recipientState || '',
+
+      // Shipment Details
       description: s.description || '',
       packages: s.packages != null ? String(s.packages) : '',
       totalWeight: s.bookingWeight != null ? String(s.bookingWeight) : '',
       totalCbm: s.actualCbm != null ? String(s.actualCbm) : '',
       hsCode: s.hsCode || '',
-      totalValue: s.totalValue != null ? String(s.totalValue) : '',
-      valueCurrency: s.valueCurrency || 'USD',
       dimLength: s.dimLength != null ? String(s.dimLength) : '',
       dimWidth: s.dimWidth != null ? String(s.dimWidth) : '',
       dimHeight: s.dimHeight != null ? String(s.dimHeight) : '',
       packagingType: s.packagingType || '',
       packagingTypeCustom: s.packagingTypeCustom || '',
+      totalValue: s.totalValue != null ? String(s.totalValue) : '',
+      valueCurrency: s.valueCurrency || 'USD',
+
+      // Pickup
       pickupAddress: s.pickupAddress || '',
       pickupCity: s.pickupCity || '',
       pickupState: s.pickupState || '',
       pickupCountry: s.pickupCountry || '',
+      parcelReadyDate: s.parcelReadyDate ? String(s.parcelReadyDate).slice(0, 10) : '',
+      parcelReadyTime: s.parcelReadyTime ? String(s.parcelReadyTime).slice(0, 5) : '',
+
+      // Payment & Billing
+      paymentTerms: s.paymentTerms || '',
+      paymentMethod: s.paymentMethod || '',
+      freightBillTo: s.freightBillTo || '',
+      dutyTaxBillTo: s.dutyTaxBillTo || '',
+
+      // Services & Notes
+      customService: s.customService || 'sxl',
+      deliveryService: s.deliveryService || 'sxl',
       specialInstruction: s.specialInstruction || '',
     });
     setEditError('');
@@ -933,7 +958,6 @@ function ShipmentsPanel() {
                 <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
                   {statusModal.shipment.trackingNumber} · {statusModal.shipment.shipperName}
                 </div>
-                {/* G.13 — Route + Mode line */}
                 <div style={{ color: '#003366', fontSize: '0.85rem', marginTop: '2px', fontWeight: 700 }}>
                   Route: {statusModal.shipment.origin || '—'} → {statusModal.shipment.destination || '—'} · Mode: {statusModal.shipment.shipmentType || statusModal.shipment.shipMode || '—'}
                 </div>
@@ -974,7 +998,6 @@ function ShipmentsPanel() {
                   style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
               </div>
 
-              {/* G.13 — Actual Weight + CBM (optional) */}
               <div style={{ background: '#F8F9FA', border: '1px solid #E9ECEF', borderRadius: '10px', padding: '14px 16px' }}>
                 <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   📦 Actual Measurements (optional)
@@ -994,7 +1017,7 @@ function ShipmentsPanel() {
                   )}
                 </div>
                 <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '8px', fontStyle: 'italic' }}>
-                  Leave blank to keep the current values. Only fill in if you're recording the measurement now.
+                  Leave blank to keep the current values.
                 </div>
               </div>
 
@@ -1025,122 +1048,323 @@ function ShipmentsPanel() {
         </div>
       )}
 
-      {/* ============ EDIT BOOKING MODAL ============ */}
+      {/* ============ EDIT BOOKING MODAL (G.15 — 7 cards + sticky header/footer) ============ */}
       {editModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
           display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          padding: '20px', overflowY: 'auto'
+          padding: '20px'
         }}>
           <div style={{
-            background: 'white', maxWidth: '900px', width: '100%',
-            borderRadius: '16px', padding: '30px',
+            background: '#F8F9FA',
+            maxWidth: '1000px', width: '100%',
+            borderRadius: '16px',
             boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            marginTop: '30px', marginBottom: '40px'
+            marginTop: '20px', marginBottom: '20px',
+            display: 'flex', flexDirection: 'column',
+            maxHeight: 'calc(100vh - 40px)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            {/* Sticky header */}
+            <div style={{
+              background: 'white',
+              borderRadius: '16px 16px 0 0',
+              padding: '20px 28px',
+              borderBottom: '1px solid #E9ECEF',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '15px',
+              flexWrap: 'wrap',
+              flexShrink: 0
+            }}>
               <div>
-                <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>✏️ Edit Booking</h2>
+                <h2 style={{ color: '#003366', fontSize: '1.35rem', margin: 0 }}>✏️ Edit Booking</h2>
                 <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
-                  {editModal.shipment.trackingNumber} · {editModal.shipment.shipperName} · Current status: <b>{editModal.shipment.status}</b>
+                  <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>
+                    {editModal.shipment.trackingNumber}
+                  </span>
+                  {' · '}
+                  {editModal.shipment.shipperName}
+                  {' · '}
+                  <span style={{ background: '#FFF3CD', color: '#856404', padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                    {editModal.shipment.status}
+                  </span>
+                </div>
+                <div style={{ color: '#003366', fontSize: '0.82rem', marginTop: '4px', fontWeight: 700 }}>
+                  Route: {editModal.shipment.origin || '—'} → {editModal.shipment.destination || '—'} · Mode: {editModal.shipment.shipmentType || editModal.shipment.shipMode || '—'}
                 </div>
               </div>
-              <button onClick={closeEditModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+              <button onClick={closeEditModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D', lineHeight: 1 }}>✕</button>
             </div>
 
-            <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.85rem', color: '#8B4500' }}>
-              ⚠️ This is normally locked after pickup. Changes here will be logged in tracking history as "Booking Edited" and visible to the customer on the tracking page.
+            {/* Warning banner */}
+            <div style={{ background: '#FFF5EB', borderBottom: '1px solid #FF6B00', padding: '10px 28px', fontSize: '0.82rem', color: '#8B4500', flexShrink: 0 }}>
+              ⚠️ All changes are logged as <b>"Booking Edited"</b> and visible on the customer's tracking timeline. Only fill in what needs to change.
             </div>
 
-            {editError && (
-              <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem' }}>
-                {editError}
-              </div>
-            )}
+            {/* Scrollable body */}
+            <div style={{
+              overflowY: 'auto',
+              padding: '20px 28px',
+              flex: 1
+            }}>
+              {editError && (
+                <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem' }}>
+                  {editError}
+                </div>
+              )}
 
-            <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px', marginTop: '10px' }}>📤 Sender (Shipper)</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '24px' }}>
-              <EditField label="Name *" value={editFields.senderName} onChange={(v) => setEditField('senderName', v)} />
-              <EditField label="Phone" value={editFields.senderPhone} onChange={(v) => setEditField('senderPhone', v)} />
-              <EditField label="Email" value={editFields.senderEmail} onChange={(v) => setEditField('senderEmail', v)} />
-            </div>
+              {/* ===== CARD 1 — Reference & Mode ===== */}
+              <EditCard title="📋 Reference & Mode">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <EditField label="Shipper Reference" value={editFields.shipperRef} onChange={(v) => setEditField('shipperRef', v)} />
+                  <EditField label="Shipment Date" type="date" value={editFields.shipmentDate} onChange={(v) => setEditField('shipmentDate', v)} />
+                </div>
 
-            <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>📥 Recipient (Consignee)</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '12px' }}>
-              <EditField label="Name *" value={editFields.recipientName} onChange={(v) => setEditField('recipientName', v)} />
-              <EditField label="Phone" value={editFields.recipientPhone} onChange={(v) => setEditField('recipientPhone', v)} />
-              <EditField label="Email" value={editFields.recipientEmail} onChange={(v) => setEditField('recipientEmail', v)} />
-              <EditField label="BIN" value={editFields.recipientBin} onChange={(v) => setEditField('recipientBin', v)} />
-            </div>
-            <div style={{ marginBottom: '12px' }}>
-              <EditField label="Address" value={editFields.recipientAddress} onChange={(v) => setEditField('recipientAddress', v)} textarea />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
-              <EditField label="City" value={editFields.recipientCity} onChange={(v) => setEditField('recipientCity', v)} />
-              <EditField label="State" value={editFields.recipientState} onChange={(v) => setEditField('recipientState', v)} />
-            </div>
+                <div style={{ marginTop: '14px', padding: '12px 14px', background: '#F8F9FA', borderRadius: '8px', fontSize: '0.82rem', color: '#6C757D' }}>
+                  <b style={{ color: '#003366' }}>Ship Mode:</b> {editModal.shipment.shipmentType || editModal.shipment.shipMode || '—'}
+                  {editModal.shipment.seaLoadType && <> · <b style={{ color: '#003366' }}>Load:</b> {editModal.shipment.seaLoadType}</>}
+                  {' · '}
+                  <span style={{ fontStyle: 'italic' }}>Ship mode cannot be changed after booking.</span>
+                </div>
 
-            <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>📦 Shipment Details</h3>
-            <div style={{ marginBottom: '12px' }}>
-              <EditField label="Description *" value={editFields.description} onChange={(v) => setEditField('description', v)} textarea />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
-              <EditField label="Packages" type="number" value={editFields.packages} onChange={(v) => setEditField('packages', v)} />
-              <EditField label="Weight (kg)" type="number" value={editFields.totalWeight} onChange={(v) => setEditField('totalWeight', v)} />
-              <EditField label="CBM (SEA only)" type="number" value={editFields.totalCbm} onChange={(v) => setEditField('totalCbm', v)} />
-              <EditField label="HS Code" value={editFields.hsCode} onChange={(v) => setEditField('hsCode', v)} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', marginBottom: '12px' }}>
-              <EditField label="Total Value" type="number" value={editFields.totalValue} onChange={(v) => setEditField('totalValue', v)} />
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Currency</label>
-                <select value={editFields.valueCurrency || 'USD'} onChange={(e) => setEditField('valueCurrency', e.target.value)}
-                  style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
-                  <option>USD</option>
-                  <option>HKD</option>
-                  <option>CNY</option>
-                  <option>BDT</option>
-                </select>
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-              <EditField label="Dim Length (cm)" type="number" value={editFields.dimLength} onChange={(v) => setEditField('dimLength', v)} />
-              <EditField label="Dim Width (cm)" type="number" value={editFields.dimWidth} onChange={(v) => setEditField('dimWidth', v)} />
-              <EditField label="Dim Height (cm)" type="number" value={editFields.dimHeight} onChange={(v) => setEditField('dimHeight', v)} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
-              <EditField label="Packaging Type" value={editFields.packagingType} onChange={(v) => setEditField('packagingType', v)} />
-              <EditField label="Packaging Type (custom)" value={editFields.packagingTypeCustom} onChange={(v) => setEditField('packagingTypeCustom', v)} />
-            </div>
+                {String(editModal.shipment.shipMode || '').toUpperCase() === 'AIR' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginTop: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Parcel Type</label>
+                      <select value={editFields.parcelType || ''} onChange={(e) => setEditField('parcelType', e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                        <option value="">-- Select --</option>
+                        <option>Document</option>
+                        <option>No-Document (Sample)</option>
+                        <option>Special Parcel</option>
+                        <option>Others</option>
+                      </select>
+                    </div>
+                    {editFields.parcelType === 'Others' && (
+                      <EditField label="Parcel Type (custom)" value={editFields.parcelTypeCustom} onChange={(v) => setEditField('parcelTypeCustom', v)} />
+                    )}
+                  </div>
+                )}
 
-            {editModal.shipment.pickupService !== false && (
-              <>
-                <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>🚚 Pickup</h3>
-                <div style={{ marginBottom: '12px' }}>
+                {editFields.parcelType === 'Special Parcel' && (
+                  <div style={{ marginTop: '14px' }}>
+                    <EditField label="Delivery Timeline" value={editFields.deliveryTimeline} onChange={(v) => setEditField('deliveryTimeline', v)} />
+                  </div>
+                )}
+              </EditCard>
+
+              {/* ===== CARD 2 — Sender ===== */}
+              <EditCard title="📤 Sender (Shipper)">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+                  <EditField label="Name *" value={editFields.senderName} onChange={(v) => setEditField('senderName', v)} />
+                  <EditField label="Phone" value={editFields.senderPhone} onChange={(v) => setEditField('senderPhone', v)} />
+                  <EditField label="Email" value={editFields.senderEmail} onChange={(v) => setEditField('senderEmail', v)} />
+                </div>
+              </EditCard>
+
+              {/* ===== CARD 3 — Recipient ===== */}
+              <EditCard title="📥 Recipient (Consignee)">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px' }}>
+                  <EditField label="Name *" value={editFields.recipientName} onChange={(v) => setEditField('recipientName', v)} />
+                  <EditField label="Phone" value={editFields.recipientPhone} onChange={(v) => setEditField('recipientPhone', v)} />
+                  <EditField label="Email" value={editFields.recipientEmail} onChange={(v) => setEditField('recipientEmail', v)} />
+                  <EditField label="BIN" value={editFields.recipientBin} onChange={(v) => setEditField('recipientBin', v)} />
+                </div>
+                <div style={{ marginTop: '14px' }}>
+                  <EditField label="Full Address" value={editFields.recipientAddress} onChange={(v) => setEditField('recipientAddress', v)} textarea />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginTop: '14px' }}>
+                  <EditField label="City" value={editFields.recipientCity} onChange={(v) => setEditField('recipientCity', v)} />
+                  <EditField label="State" value={editFields.recipientState} onChange={(v) => setEditField('recipientState', v)} />
+                </div>
+              </EditCard>
+
+              {/* ===== CARD 4 — Shipment Details ===== */}
+              <EditCard title="📦 Shipment Details">
+                <EditField label="Description of Goods *" value={editFields.description} onChange={(v) => setEditField('description', v)} textarea />
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginTop: '14px' }}>
+                  <EditField label="Packages" type="number" value={editFields.packages} onChange={(v) => setEditField('packages', v)} />
+                  <EditField label="Weight (kg)" type="number" value={editFields.totalWeight} onChange={(v) => setEditField('totalWeight', v)} />
+                  <EditField label="CBM" type="number" value={editFields.totalCbm} onChange={(v) => setEditField('totalCbm', v)} />
+                  <EditField label="HS Code" value={editFields.hsCode} onChange={(v) => setEditField('hsCode', v)} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginTop: '14px' }}>
+                  <EditField label="Dim Length (cm)" type="number" value={editFields.dimLength} onChange={(v) => setEditField('dimLength', v)} />
+                  <EditField label="Dim Width (cm)" type="number" value={editFields.dimWidth} onChange={(v) => setEditField('dimWidth', v)} />
+                  <EditField label="Dim Height (cm)" type="number" value={editFields.dimHeight} onChange={(v) => setEditField('dimHeight', v)} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginTop: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Packaging Type</label>
+                    <select value={editFields.packagingType || ''} onChange={(e) => setEditField('packagingType', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                      <option value="">-- Select --</option>
+                      <option>Carton</option>
+                      <option>Pallet</option>
+                      <option>Roll</option>
+                      <option>Flyer</option>
+                      <option>Bag / Sack</option>
+                      <option>Others</option>
+                    </select>
+                  </div>
+                  {editFields.packagingType === 'Others' && (
+                    <EditField label="Packaging Type (custom)" value={editFields.packagingTypeCustom} onChange={(v) => setEditField('packagingTypeCustom', v)} />
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px', marginTop: '14px' }}>
+                  <EditField label="Total Value" type="number" value={editFields.totalValue} onChange={(v) => setEditField('totalValue', v)} />
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Value Currency</label>
+                    <select value={editFields.valueCurrency || 'USD'} onChange={(e) => setEditField('valueCurrency', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                      <option>USD</option>
+                      <option>HKD</option>
+                      <option>CNY</option>
+                      <option>BDT</option>
+                    </select>
+                  </div>
+                </div>
+              </EditCard>
+
+              {/* ===== CARD 5 — Pickup ===== */}
+              {editModal.shipment.pickupService !== false && (
+                <EditCard title="🚚 Pickup Details">
                   <EditField label="Pickup Address" value={editFields.pickupAddress} onChange={(v) => setEditField('pickupAddress', v)} textarea />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '24px' }}>
-                  <EditField label="City" value={editFields.pickupCity} onChange={(v) => setEditField('pickupCity', v)} />
-                  <EditField label="State" value={editFields.pickupState} onChange={(v) => setEditField('pickupState', v)} />
-                  <EditField label="Country" value={editFields.pickupCountry} onChange={(v) => setEditField('pickupCountry', v)} />
-                </div>
-              </>
-            )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginTop: '14px' }}>
+                    <EditField label="City" value={editFields.pickupCity} onChange={(v) => setEditField('pickupCity', v)} />
+                    <EditField label="State" value={editFields.pickupState} onChange={(v) => setEditField('pickupState', v)} />
+                    <EditField label="Country" value={editFields.pickupCountry} onChange={(v) => setEditField('pickupCountry', v)} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginTop: '14px' }}>
+                    <EditField label="Ready Date" type="date" value={editFields.parcelReadyDate} onChange={(v) => setEditField('parcelReadyDate', v)} />
+                    <EditField label="Ready Time" type="time" value={editFields.parcelReadyTime} onChange={(v) => setEditField('parcelReadyTime', v)} />
+                  </div>
+                </EditCard>
+              )}
 
-            <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>📝 Special Instructions</h3>
-            <div style={{ marginBottom: '24px' }}>
-              <EditField label="Special Instructions" value={editFields.specialInstruction} onChange={(v) => setEditField('specialInstruction', v)} textarea />
+              {/* ===== CARD 6 — Payment & Billing ===== */}
+              <EditCard title="💳 Payment & Billing">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Payment Terms</label>
+                    <select value={editFields.paymentTerms || ''} onChange={(e) => setEditField('paymentTerms', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                      <option value="">-- Select --</option>
+                      <option>Prepaid</option>
+                      <option>Collect</option>
+                      <option>Credit Account</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Payment Method</label>
+                    <select value={editFields.paymentMethod || ''} onChange={(e) => setEditField('paymentMethod', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                      <option value="">-- Select --</option>
+                      <option>Bank Transfer</option>
+                      <option>Cash</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginTop: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Freight Bill To</label>
+                    <select value={editFields.freightBillTo || ''} onChange={(e) => setEditField('freightBillTo', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                      <option value="">-- Select --</option>
+                      <option>Shipper</option>
+                      <option>Consignee</option>
+                      <option>Third Party</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Duty & Taxes Bill To</label>
+                    <select value={editFields.dutyTaxBillTo || ''} onChange={(e) => setEditField('dutyTaxBillTo', e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                      <option value="">-- Select --</option>
+                      <option>Shipper</option>
+                      <option>Consignee</option>
+                      <option>Third Party</option>
+                    </select>
+                  </div>
+                </div>
+              </EditCard>
+
+              {/* ===== CARD 7 — Services & Notes ===== */}
+              <EditCard title="🛠️ Services & Notes" highlight={true}>
+                <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', borderRadius: '8px', padding: '10px 14px', fontSize: '0.82rem', color: '#8B4500', marginBottom: '16px' }}>
+                  💡 If the shipper asks sXL to take over <b>Customs</b> or <b>Delivery</b>, switch the option below. Then go to <b>Financial &amp; Billing → Update Shipment Cost</b> to enter the new charge.
+                </div>
+
+                <div style={{ marginBottom: '18px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>🛃 Customs Clearance</label>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <ServiceOption
+                      value="sxl"
+                      current={editFields.customService}
+                      label="✅ Handled by sXL"
+                      description="sXL manages customs clearance"
+                      onChange={(v) => setEditField('customService', v)}
+                    />
+                    <ServiceOption
+                      value="consignee"
+                      current={editFields.customService}
+                      label="⬜ Handled by Consignee"
+                      description="Consignee is responsible for customs"
+                      onChange={(v) => setEditField('customService', v)}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '18px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>📦 Delivery Service</label>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <ServiceOption
+                      value="sxl"
+                      current={editFields.deliveryService}
+                      label="✅ Handled by sXL"
+                      description="sXL delivers to the consignee"
+                      onChange={(v) => setEditField('deliveryService', v)}
+                    />
+                    <ServiceOption
+                      value="consignee"
+                      current={editFields.deliveryService}
+                      label="⬜ Handled by Consignee"
+                      description="Consignee arranges own delivery"
+                      onChange={(v) => setEditField('deliveryService', v)}
+                    />
+                  </div>
+                </div>
+
+                <EditField label="📝 Special Instructions" value={editFields.specialInstruction} onChange={(v) => setEditField('specialInstruction', v)} textarea />
+              </EditCard>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
-              <button onClick={closeEditModal} disabled={editSaving}
-                style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Cancel
-              </button>
-              <button onClick={handleSaveEdit} disabled={editSaving}
-                style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', opacity: editSaving ? 0.6 : 1, fontFamily: 'inherit' }}>
-                {editSaving ? 'Saving...' : '💾 Save Changes'}
-              </button>
+            {/* Sticky footer */}
+            <div style={{
+              background: 'white',
+              borderTop: '1px solid #E9ECEF',
+              borderRadius: '0 0 16px 16px',
+              padding: '16px 28px',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
+              flexWrap: 'wrap',
+              flexShrink: 0
+            }}>
+              <div style={{ fontSize: '0.8rem', color: '#6C757D' }}>
+                Tracking: <b style={{ color: '#003366', fontFamily: 'Consolas, monospace' }}>{editModal.shipment.trackingNumber}</b>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button onClick={closeEditModal} disabled={editSaving}
+                  style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Cancel
+                </button>
+                <button onClick={handleSaveEdit} disabled={editSaving}
+                  style={{ padding: '12px 28px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', opacity: editSaving ? 0.6 : 1, fontFamily: 'inherit' }}>
+                  {editSaving ? 'Saving...' : '💾 Save Changes'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1260,6 +1484,59 @@ function ShipmentsPanel() {
         </div>
       )}
     </div>
+  );
+}
+
+/* ============================================================
+   Edit modal helpers
+   ============================================================ */
+function EditCard({ title, children, highlight }) {
+  return (
+    <div style={{
+      background: 'white',
+      borderRadius: '12px',
+      padding: '20px 22px',
+      marginBottom: '16px',
+      border: highlight ? '2px solid #FF6B00' : '1px solid #E9ECEF',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+    }}>
+      <div style={{
+        fontSize: '0.95rem',
+        fontWeight: 800,
+        color: highlight ? '#FF6B00' : '#003366',
+        marginBottom: '16px',
+        paddingBottom: '10px',
+        borderBottom: highlight ? '2px solid #FF6B00' : '1px solid #F1F3F5'
+      }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ServiceOption({ value, current, label, description, onChange }) {
+  const selected = current === value;
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(value)}
+      style={{
+        flex: 1, minWidth: '220px',
+        padding: '14px 16px',
+        border: '3px solid ' + (selected ? '#28A745' : '#E9ECEF'),
+        background: selected ? '#E8F7EF' : 'white',
+        borderRadius: '10px', cursor: 'pointer',
+        fontFamily: 'inherit', textAlign: 'left'
+      }}
+    >
+      <div style={{ fontWeight: 800, color: selected ? '#155724' : '#343A40', fontSize: '0.92rem', marginBottom: '3px' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: '0.78rem', color: '#6C757D' }}>
+        {description}
+      </div>
+    </button>
   );
 }
 
