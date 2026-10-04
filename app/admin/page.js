@@ -145,6 +145,12 @@ function ShipmentsPanel() {
 
   const [filesModal, setFilesModal] = useState(null);
 
+  // ===== Edit Booking modal state (G.5) =====
+  const [editModal, setEditModal] = useState(null);
+  const [editFields, setEditFields] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
   useEffect(() => {
     loadShipments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -179,14 +185,14 @@ function ShipmentsPanel() {
   }, [toast]);
 
   useEffect(() => {
-    const modalOpen = statusModal || whModal || filesModal;
+    const modalOpen = statusModal || whModal || filesModal || editModal;
     if (modalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
     return () => { document.body.style.overflow = ''; };
-  }, [statusModal, whModal, filesModal]);
+  }, [statusModal, whModal, filesModal, editModal]);
 
   async function loadShipments() {
     setLoading(true);
@@ -375,6 +381,96 @@ function ShipmentsPanel() {
     } catch (err) { setSuError('Connection error.'); setSuLoading(false); }
   }
 
+  // ===== OPEN EDIT BOOKING MODAL (G.5) =====
+  function openEditModal(s) {
+    const alreadyEdited = String(s.status || '').toLowerCase() !== 'booked';
+    if (alreadyEdited) {
+      const proceed = window.confirm(
+        'This booking has already moved past "Booked" status. Editing is normally locked after pickup.\n\nContinue editing?'
+      );
+      if (!proceed) return;
+    }
+
+    setEditModal({ shipment: s });
+    setEditFields({
+      senderName: s.senderName || '',
+      senderPhone: s.senderPhone || '',
+      senderEmail: s.senderEmail || '',
+      recipientName: s.recipientName || '',
+      recipientPhone: s.recipientPhone || '',
+      recipientEmail: s.recipientEmail || '',
+      recipientBin: s.recipientBin || '',
+      recipientAddress: s.recipientAddress || '',
+      recipientCity: s.recipientCity || '',
+      recipientState: s.recipientState || '',
+      description: s.description || '',
+      packages: s.packages != null ? String(s.packages) : '',
+      totalWeight: s.bookingWeight != null ? String(s.bookingWeight) : '',
+      totalCbm: s.actualCbm != null ? String(s.actualCbm) : '',
+      hsCode: s.hsCode || '',
+      totalValue: s.totalValue != null ? String(s.totalValue) : '',
+      valueCurrency: s.valueCurrency || 'USD',
+      dimLength: s.dimLength != null ? String(s.dimLength) : '',
+      dimWidth: s.dimWidth != null ? String(s.dimWidth) : '',
+      dimHeight: s.dimHeight != null ? String(s.dimHeight) : '',
+      packagingType: s.packagingType || '',
+      packagingTypeCustom: s.packagingTypeCustom || '',
+      pickupAddress: s.pickupAddress || '',
+      pickupCity: s.pickupCity || '',
+      pickupState: s.pickupState || '',
+      pickupCountry: s.pickupCountry || '',
+      specialInstruction: s.specialInstruction || '',
+    });
+    setEditError('');
+  }
+
+  function closeEditModal() {
+    setEditModal(null);
+    setEditFields({});
+    setEditError('');
+    setEditSaving(false);
+  }
+
+  function setEditField(key, value) {
+    setEditFields((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSaveEdit() {
+    setEditError('');
+    // Basic validation
+    if (!editFields.senderName || !editFields.senderName.trim()) { setEditError('Sender name is required.'); return; }
+    if (!editFields.recipientName || !editFields.recipientName.trim()) { setEditError('Recipient name is required.'); return; }
+    if (!editFields.description || !editFields.description.trim()) { setEditError('Description is required.'); return; }
+
+    setEditSaving(true);
+    const token = localStorage.getItem('sxl_token');
+    try {
+      const res = await fetch('/api/admin/shipments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          action: 'editBooking',
+          trackingNumber: editModal.shipment.trackingNumber,
+          fields: editFields,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setEditError(data.error || 'Failed to save.');
+        setEditSaving(false);
+        return;
+      }
+      setEditSaving(false);
+      const tn = editModal.shipment.trackingNumber;
+      closeEditModal();
+      setToast('✅ Booking updated for ' + tn);
+      setTimeout(loadShipments, 500);
+    } catch (err) {
+      setEditError('Connection error: ' + err.message);
+      setEditSaving(false);
+    }
+  }
+
   // ===== WAREHOUSE MODAL =====
   async function openWarehouseModal(s) {
     setWhModal({ trackingNumber: s.trackingNumber, senderName: s.senderName });
@@ -462,6 +558,35 @@ function ShipmentsPanel() {
     const s = String(status || '').toLowerCase();
     if (s === 'paid') return { bg: '#D4EDDA', color: '#155724' };
     return { bg: '#FFF3CD', color: '#856404' };
+  }
+
+  // G.4 — render actual weight / CBM for AIR (kg only) and SEA (kg + CBM)
+  function renderActualCell(s) {
+    const mode = String(s.shipMode || '').toUpperCase();
+    const isSeaRow = mode === 'SEA';
+
+    if (isSeaRow) {
+      const weight = s.actualWeight;
+      const cbm = s.actualCbm;
+      const hasWeight = weight !== null && weight !== undefined && parseFloat(weight) > 0;
+      const hasCbm = cbm !== null && cbm !== undefined && parseFloat(cbm) > 0;
+      if (!hasWeight && !hasCbm) {
+        return <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>;
+      }
+      return (
+        <div style={{ lineHeight: 1.4 }}>
+          {hasWeight && <div style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(weight).toFixed(2)} kg</div>}
+          {hasCbm && <div style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(cbm).toFixed(2)} CBM</div>}
+        </div>
+      );
+    }
+
+    const weight = s.actualWeight;
+    const hasWeight = weight !== null && weight !== undefined && parseFloat(weight) > 0;
+    if (!hasWeight) {
+      return <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>;
+    }
+    return <span style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(weight).toFixed(2)} kg</span>;
   }
 
   function HeaderCell({ col, label, width, frozenLeft, hasShadow }) {
@@ -645,12 +770,12 @@ function ShipmentsPanel() {
                   <HeaderCell col="none" label="Recipient" width={150} />
                   <HeaderCell col="status" label="Status" width={140} />
                   <HeaderCell col="none" label="Booking Wt" width={110} />
-                  <HeaderCell col="none" label="Actual Wt" width={105} />
+                  <HeaderCell col="none" label="Actual Wt" width={130} />
                   <HeaderCell col="none" label="Cost" width={115} />
                   <HeaderCell col="payment" label="Payment" width={120} />
                   <HeaderCell col="none" label="Booked" width={120} />
                   <HeaderCell col="none" label="ETA" width={125} />
-                  <HeaderCell col="none" label="Actions" width={420} />
+                  <HeaderCell col="none" label="Actions" width={520} />
                 </tr>
               </thead>
               <tbody>
@@ -664,8 +789,9 @@ function ShipmentsPanel() {
                   const rowHasFiles = hasFiles(s);
                   const whSent = !!s.warehouseSentAt;
                   const wasUpdated = String(s.status || '').toLowerCase() !== 'booked';
-                  // G.2: only show Update Status button on Active tab
                   const isActiveTab = tab === 'active';
+                  // G.6 — Send Warehouse only on Active tab
+                  const showWarehouseBtn = isActiveTab && isSelfDelivery;
 
                   return (
                     <tr key={i} style={{ background: rowBg }}>
@@ -678,7 +804,7 @@ function ShipmentsPanel() {
                         <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
                       </td>
                       <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 105 }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
+                      <td style={{ ...TD_STYLE, width: 130 }}>{renderActualCell(s)}</td>
                       <td style={{ ...TD_STYLE, width: 115 }}>
                         {hasCost
                           ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
@@ -693,32 +819,50 @@ function ShipmentsPanel() {
                           {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                         </span>
                       </td>
-                      <td style={{ ...TD_STYLE, width: 420 }}>
+                      <td style={{ ...TD_STYLE, width: 520 }}>
                         {tab !== 'cancelled' && (
                           <>
-                            {/* G.2: Update Status button — ONLY on Active tab */}
                             {isActiveTab && (
-                              <button
-                                onClick={() => openStatusModal(s)}
-                                style={{
-                                  padding: '5px 10px',
-                                  background: wasUpdated ? '#E9ECEF' : '#FF6B00',
-                                  color: wasUpdated ? '#495057' : 'white',
-                                  border: 'none', borderRadius: '6px',
-                                  fontWeight: 700, fontSize: '0.72rem',
-                                  cursor: 'pointer', fontFamily: 'inherit',
-                                  marginRight: '4px', whiteSpace: 'nowrap'
-                                }}
-                              >
-                                {wasUpdated ? '✅ Status Updated' : '🔄 Update Status'}
-                              </button>
+                              <>
+                                {/* Update Status */}
+                                <button
+                                  onClick={() => openStatusModal(s)}
+                                  style={{
+                                    padding: '5px 10px',
+                                    background: wasUpdated ? '#E9ECEF' : '#FF6B00',
+                                    color: wasUpdated ? '#495057' : 'white',
+                                    border: 'none', borderRadius: '6px',
+                                    fontWeight: 700, fontSize: '0.72rem',
+                                    cursor: 'pointer', fontFamily: 'inherit',
+                                    marginRight: '4px', whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  {wasUpdated ? '✅ Status Updated' : '🔄 Update Status'}
+                                </button>
+
+                                {/* G.5 — Edit Booking */}
+                                <button
+                                  onClick={() => openEditModal(s)}
+                                  style={{
+                                    padding: '5px 10px',
+                                    background: '#003366',
+                                    color: 'white',
+                                    border: 'none', borderRadius: '6px',
+                                    fontWeight: 700, fontSize: '0.72rem',
+                                    cursor: 'pointer', fontFamily: 'inherit',
+                                    marginRight: '4px', whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  ✏️ Edit Booking
+                                </button>
+                              </>
                             )}
 
                             {rowHasFiles && (
                               <button onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
                             )}
 
-                            {isSelfDelivery && (
+                            {showWarehouseBtn && (
                               <>
                                 <button
                                   onClick={() => openWarehouseModal(s)}
@@ -843,6 +987,132 @@ function ShipmentsPanel() {
               <button onClick={handleStatusUpdate} disabled={suLoading}
                 style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: suLoading ? 'not-allowed' : 'pointer', opacity: suLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
                 {suLoading ? 'Updating...' : '✅ Update Status'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ EDIT BOOKING MODAL (G.5) ============ */}
+      {editModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          padding: '20px', overflowY: 'auto'
+        }}>
+          <div style={{
+            background: 'white', maxWidth: '900px', width: '100%',
+            borderRadius: '16px', padding: '30px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            marginTop: '30px', marginBottom: '40px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>✏️ Edit Booking</h2>
+                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
+                  {editModal.shipment.trackingNumber} · {editModal.shipment.shipperName} · Current status: <b>{editModal.shipment.status}</b>
+                </div>
+              </div>
+              <button onClick={closeEditModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+            </div>
+
+            <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.85rem', color: '#8B4500' }}>
+              ⚠️ This is normally locked after pickup. Changes here will be logged in tracking history as "Booking Edited" and visible to the customer on the tracking page.
+            </div>
+
+            {editError && (
+              <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem' }}>
+                {editError}
+              </div>
+            )}
+
+            {/* SENDER */}
+            <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px', marginTop: '10px' }}>📤 Sender (Shipper)</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+              <EditField label="Name *" value={editFields.senderName} onChange={(v) => setEditField('senderName', v)} />
+              <EditField label="Phone" value={editFields.senderPhone} onChange={(v) => setEditField('senderPhone', v)} />
+              <EditField label="Email" value={editFields.senderEmail} onChange={(v) => setEditField('senderEmail', v)} />
+            </div>
+
+            {/* RECIPIENT */}
+            <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>📥 Recipient (Consignee)</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+              <EditField label="Name *" value={editFields.recipientName} onChange={(v) => setEditField('recipientName', v)} />
+              <EditField label="Phone" value={editFields.recipientPhone} onChange={(v) => setEditField('recipientPhone', v)} />
+              <EditField label="Email" value={editFields.recipientEmail} onChange={(v) => setEditField('recipientEmail', v)} />
+              <EditField label="BIN" value={editFields.recipientBin} onChange={(v) => setEditField('recipientBin', v)} />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <EditField label="Address" value={editFields.recipientAddress} onChange={(v) => setEditField('recipientAddress', v)} textarea />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+              <EditField label="City" value={editFields.recipientCity} onChange={(v) => setEditField('recipientCity', v)} />
+              <EditField label="State" value={editFields.recipientState} onChange={(v) => setEditField('recipientState', v)} />
+            </div>
+
+            {/* SHIPMENT */}
+            <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>📦 Shipment Details</h3>
+            <div style={{ marginBottom: '12px' }}>
+              <EditField label="Description *" value={editFields.description} onChange={(v) => setEditField('description', v)} textarea />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+              <EditField label="Packages" type="number" value={editFields.packages} onChange={(v) => setEditField('packages', v)} />
+              <EditField label="Weight (kg)" type="number" value={editFields.totalWeight} onChange={(v) => setEditField('totalWeight', v)} />
+              <EditField label="CBM (SEA only)" type="number" value={editFields.totalCbm} onChange={(v) => setEditField('totalCbm', v)} />
+              <EditField label="HS Code" value={editFields.hsCode} onChange={(v) => setEditField('hsCode', v)} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <EditField label="Total Value" type="number" value={editFields.totalValue} onChange={(v) => setEditField('totalValue', v)} />
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Currency</label>
+                <select value={editFields.valueCurrency || 'USD'} onChange={(e) => setEditField('valueCurrency', e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                  <option>USD</option>
+                  <option>HKD</option>
+                  <option>CNY</option>
+                  <option>BDT</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <EditField label="Dim Length (cm)" type="number" value={editFields.dimLength} onChange={(v) => setEditField('dimLength', v)} />
+              <EditField label="Dim Width (cm)" type="number" value={editFields.dimWidth} onChange={(v) => setEditField('dimWidth', v)} />
+              <EditField label="Dim Height (cm)" type="number" value={editFields.dimHeight} onChange={(v) => setEditField('dimHeight', v)} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+              <EditField label="Packaging Type" value={editFields.packagingType} onChange={(v) => setEditField('packagingType', v)} />
+              <EditField label="Packaging Type (custom)" value={editFields.packagingTypeCustom} onChange={(v) => setEditField('packagingTypeCustom', v)} />
+            </div>
+
+            {/* PICKUP */}
+            {editModal.shipment.pickupService !== false && (
+              <>
+                <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>🚚 Pickup</h3>
+                <div style={{ marginBottom: '12px' }}>
+                  <EditField label="Pickup Address" value={editFields.pickupAddress} onChange={(v) => setEditField('pickupAddress', v)} textarea />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+                  <EditField label="City" value={editFields.pickupCity} onChange={(v) => setEditField('pickupCity', v)} />
+                  <EditField label="State" value={editFields.pickupState} onChange={(v) => setEditField('pickupState', v)} />
+                  <EditField label="Country" value={editFields.pickupCountry} onChange={(v) => setEditField('pickupCountry', v)} />
+                </div>
+              </>
+            )}
+
+            {/* SPECIAL */}
+            <h3 style={{ color: '#003366', fontSize: '1rem', marginBottom: '12px' }}>📝 Special Instructions</h3>
+            <div style={{ marginBottom: '24px' }}>
+              <EditField label="Special Instructions" value={editFields.specialInstruction} onChange={(v) => setEditField('specialInstruction', v)} textarea />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+              <button onClick={closeEditModal} disabled={editSaving}
+                style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={handleSaveEdit} disabled={editSaving}
+                style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: editSaving ? 'not-allowed' : 'pointer', opacity: editSaving ? 0.6 : 1, fontFamily: 'inherit' }}>
+                {editSaving ? 'Saving...' : '💾 Save Changes'}
               </button>
             </div>
           </div>
@@ -980,6 +1250,25 @@ function WhField({ label, value, onChange, textarea, placeholder }) {
         <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ ...baseStyle, minHeight: '70px', resize: 'vertical' }} />
       ) : (
         <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={baseStyle} />
+      )}
+    </div>
+  );
+}
+
+// Helper input for edit booking modal
+function EditField({ label, value, onChange, type = 'text', textarea = false }) {
+  const baseStyle = {
+    width: '100%', padding: '10px 14px', fontSize: '0.9rem',
+    border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none',
+    fontFamily: 'inherit', boxSizing: 'border-box'
+  };
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>{label}</label>
+      {textarea ? (
+        <textarea value={value || ''} onChange={(e) => onChange(e.target.value)} style={{ ...baseStyle, minHeight: '70px', resize: 'vertical' }} />
+      ) : (
+        <input type={type} value={value || ''} onChange={(e) => onChange(e.target.value)} style={baseStyle} />
       )}
     </div>
   );
