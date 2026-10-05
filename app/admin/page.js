@@ -122,7 +122,6 @@ function ShipmentsPanel() {
   const downloadMenuRef = useRef(null);
   const filterDropdownRef = useRef(null);
 
-  // Status update modal
   const [statusModal, setStatusModal] = useState(null);
   const [suTracking, setSuTracking] = useState('');
   const [suCurrentStatus, setSuCurrentStatus] = useState('');
@@ -136,7 +135,6 @@ function ShipmentsPanel() {
   const [suError, setSuError] = useState('');
   const [suFetchingLocation, setSuFetchingLocation] = useState(false);
 
-  // Warehouse modal
   const [whModal, setWhModal] = useState(null);
   const [whFields, setWhFields] = useState({ name: '', address: '', city: '', state: '', country: '', phone: '', email: '', hours: '' });
   const [whLoading, setWhLoading] = useState(false);
@@ -145,7 +143,6 @@ function ShipmentsPanel() {
 
   const [filesModal, setFilesModal] = useState(null);
 
-  // Edit Booking modal
   const [editModal, setEditModal] = useState(null);
   const [editFields, setEditFields] = useState({});
   const [editReason, setEditReason] = useState('');
@@ -313,7 +310,6 @@ function ShipmentsPanel() {
     }
   }
 
-  // ===== OPEN STATUS MODAL =====
   async function openStatusModal(s) {
     const hasBeenUpdated = !!s.lastUpdate && String(s.status || '').toLowerCase() !== 'booked';
     if (hasBeenUpdated) {
@@ -389,7 +385,6 @@ function ShipmentsPanel() {
     } catch (err) { setSuError('Connection error.'); setSuLoading(false); }
   }
 
-  // ===== OPEN EDIT BOOKING MODAL =====
   function openEditModal(s) {
     const alreadyEdited = String(s.status || '').toLowerCase() !== 'booked';
     if (alreadyEdited) {
@@ -510,7 +505,6 @@ function ShipmentsPanel() {
     }
   }
 
-  // ===== WAREHOUSE MODAL =====
   async function openWarehouseModal(s) {
     setWhModal({ trackingNumber: s.trackingNumber, senderName: s.senderName });
     setWhFields({ name: '', address: '', city: '', state: '', country: '', phone: '', email: '', hours: '' });
@@ -798,7 +792,7 @@ function ShipmentsPanel() {
       {!loading && !error && filtered.length > 0 && (
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1720px', tableLayout: 'fixed', width: '100%' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
                   <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
@@ -813,7 +807,7 @@ function ShipmentsPanel() {
                   <HeaderCell col="payment" label="Payment" width={120} />
                   <HeaderCell col="none" label="Booked" width={120} />
                   <HeaderCell col="none" label="ETA" width={125} />
-                  <HeaderCell col="none" label="Actions" width={520} />
+                  <HeaderCell col="none" label="Actions" width={600} />
                 </tr>
               </thead>
               <tbody>
@@ -856,9 +850,30 @@ function ShipmentsPanel() {
                           {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                         </span>
                       </td>
-                      <td style={{ ...TD_STYLE, width: 520 }}>
+                      <td style={{ ...TD_STYLE, width: 600 }}>
                         {tab !== 'cancelled' && (
                           <>
+                            {/* G.20 — Booking PDF button (all active/awaiting/paid tabs) */}
+                            <a
+                              href={'/api/pdf/booking/' + s.trackingNumber}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                padding: '5px 10px',
+                                background: '#00A86B',
+                                color: 'white',
+                                borderRadius: '6px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                marginRight: '4px',
+                                whiteSpace: 'nowrap',
+                                display: 'inline-block'
+                              }}
+                            >
+                              📄 Booking PDF
+                            </a>
+
                             {isActiveTab && (
                               <>
                                 <button
@@ -1110,7 +1125,6 @@ function ShipmentsPanel() {
                 </div>
               )}
 
-              {/* Reason for change — top of modal */}
               <div style={{
                 background: 'white', borderRadius: '12px', padding: '18px 22px',
                 marginBottom: '16px', border: '2px solid #FF6B00',
@@ -1136,7 +1150,6 @@ function ShipmentsPanel() {
                 />
               </div>
 
-              {/* Card 1 */}
               <EditCard title="📋 Reference & Mode">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <EditField label="Shipper Reference" value={editFields.shipperRef} onChange={(v) => setEditField('shipperRef', v)} />
@@ -1176,7 +1189,6 @@ function ShipmentsPanel() {
                 )}
               </EditCard>
 
-              {/* Card 2 */}
               <EditCard title="📤 Sender (Shipper)">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
                   <EditField label="Name *" value={editFields.senderName} onChange={(v) => setEditField('senderName', v)} />
@@ -1185,7 +1197,6 @@ function ShipmentsPanel() {
                 </div>
               </EditCard>
 
-              {/* Card 3 */}
               <EditCard title="📥 Recipient (Consignee)">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px' }}>
                   <EditField label="Name *" value={editFields.recipientName} onChange={(v) => setEditField('recipientName', v)} />
@@ -1202,7 +1213,6 @@ function ShipmentsPanel() {
                 </div>
               </EditCard>
 
-              {/* Card 4 */}
               <EditCard title="📦 Shipment Details">
                 <EditField label="Description of Goods *" value={editFields.description} onChange={(v) => setEditField('description', v)} textarea />
 
@@ -1239,7 +1249,7 @@ function ShipmentsPanel() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px', marginTop: '14px' }}>
-                  <EditField label="Total Value" type="number" value={editFields.totalValue} onChange={(v) => setEditField('totalValue', v)} />
+                  <EditField label="Total Customs Value" type="number" value={editFields.totalValue} onChange={(v) => setEditField('totalValue', v)} />
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Value Currency</label>
                     <select value={editFields.valueCurrency || 'USD'} onChange={(e) => setEditField('valueCurrency', e.target.value)}
@@ -1253,7 +1263,6 @@ function ShipmentsPanel() {
                 </div>
               </EditCard>
 
-              {/* Card 5 */}
               {editModal.shipment.pickupService !== false && (
                 <EditCard title="🚚 Pickup Details">
                   <EditField label="Pickup Address" value={editFields.pickupAddress} onChange={(v) => setEditField('pickupAddress', v)} textarea />
@@ -1269,7 +1278,6 @@ function ShipmentsPanel() {
                 </EditCard>
               )}
 
-              {/* Card 6 */}
               <EditCard title="💳 Payment & Billing (internal — not shown to customer)">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div>
@@ -1317,7 +1325,6 @@ function ShipmentsPanel() {
                 </div>
               </EditCard>
 
-              {/* Card 7 */}
               <EditCard title="🛠️ Services & Notes" highlight={true}>
                 <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', borderRadius: '8px', padding: '10px 14px', fontSize: '0.82rem', color: '#8B4500', marginBottom: '16px' }}>
                   💡 If the shipper asks sXL to take over <b>Customs</b> or <b>Delivery</b>, switch the option below. Then go to <b>Financial &amp; Billing → Update Shipment Cost</b> to enter the new charge.
@@ -1394,7 +1401,6 @@ function ShipmentsPanel() {
         </div>
       )}
 
-      {/* ============ WAREHOUSE MODAL ============ */}
       {whModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
@@ -1457,7 +1463,6 @@ function ShipmentsPanel() {
         </div>
       )}
 
-      {/* ============ FILES MODAL ============ */}
       {filesModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '20px', overflowY: 'auto' }}>
           <div style={{ background: 'white', maxWidth: '600px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', marginTop: '40px', marginBottom: '40px' }}>
