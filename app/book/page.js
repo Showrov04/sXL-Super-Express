@@ -106,7 +106,6 @@ export default function BookPage() {
   const [packingListFiles, setPackingListFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
 
-  // NEW: Custom & Delivery service
   const [customService, setCustomService] = useState('sxl');
   const [deliveryService, setDeliveryService] = useState('sxl');
 
@@ -207,7 +206,6 @@ export default function BookPage() {
   const isSpecialParcel = parcelType === 'Special Parcel';
   const showBillingParty = !(!isSea && isSpecialParcel);
 
-  // NEW STEP ORDER: Custom & Delivery inserted after Pickup
   const steps = isSea
     ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Custom & Delivery', 'Payment', 'Review']
     : ['Ship Mode', 'Parcel Type', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Custom & Delivery', 'Payment', 'Review'];
@@ -260,7 +258,7 @@ export default function BookPage() {
       if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) return 'Total CBM is required.';
     }
     if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
-      return 'Total Value for Customs is required.';
+      return 'Total Customs Value is required.';
     }
     if (showBillingParty) {
       if (!freightBillTo) return 'Please select who pays the freight cost.';
@@ -905,7 +903,7 @@ export default function BookPage() {
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
-                <Field label="Total Value for Customs *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} />
+                <Field label="Total Customs Value *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} />
                 <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
               </div>
 
@@ -951,7 +949,6 @@ export default function BookPage() {
             </>
           )}
 
-          {/* STEP 6 / 5 — PICKUP SERVICE */}
           {((step === 5 && isSea) || (step === 6 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -1046,7 +1043,6 @@ export default function BookPage() {
             </>
           )}
 
-          {/* NEW STEP 7 / 6 — CUSTOM & DELIVERY SERVICE */}
           {((step === 6 && isSea) || (step === 7 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -1056,7 +1052,6 @@ export default function BookPage() {
                 <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
               </div>
 
-              {/* Custom Service */}
               <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>🛃 Customs Clearance</h4>
               <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
                 Who will handle the customs clearance for this shipment?
@@ -1100,7 +1095,6 @@ export default function BookPage() {
                 </button>
               </div>
 
-              {/* Delivery Service */}
               <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>📦 Delivery Service</h4>
               <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
                 Who will handle the final delivery to the consignee?
@@ -1151,7 +1145,6 @@ export default function BookPage() {
             </>
           )}
 
-          {/* PAYMENT */}
           {((step === 7 && isSea) || (step === 8 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -1298,7 +1291,6 @@ export default function BookPage() {
             </>
           )}
 
-          {/* REVIEW */}
           {((step === 8 && isSea) || (step === 9 && !isSea)) && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #F1F3F5', gap: '10px', flexWrap: 'wrap' }}>
@@ -1337,7 +1329,7 @@ export default function BookPage() {
                       <div><b>Dimensions:</b> {shipment.dimLength}x{shipment.dimWidth}x{shipment.dimHeight} cm</div>
                       <div><b>Packages:</b> {shipment.packages}</div>
                       <div><b>Weight:</b> {shipment.totalWeight} kg</div>
-                      <div><b>Total Value:</b> {shipment.totalValue} {shipment.valueCurrency}</div>
+                      <div><b>Total Customs Value:</b> {shipment.totalValue} {shipment.valueCurrency}</div>
                       {showBillingParty && freightBillTo && <div><b>Freight Bill To:</b> {freightBillTo}</div>}
                       {showBillingParty && dutyTaxBillTo && <div><b>Duty & Taxes Bill To:</b> {dutyTaxBillTo}</div>}
                       <div><b>Customs:</b> {customService === 'sxl' ? 'Handled by sXL' : 'Handled by Consignee'}</div>
