@@ -69,7 +69,6 @@ function getStatusIndex(status) {
   return -1;
 }
 
-// Build a display label: "SEA - LCL", "AIR - Document", "AIR - Special Parcel | Timeline: ..."
 function buildShipmentType(shipment) {
   const mode = String(shipment.ship_mode || '').toUpperCase();
   const load = String(shipment.sea_load_type || '').toUpperCase();
@@ -129,14 +128,18 @@ export async function GET(request) {
       return { label: status, state, index: idx };
     });
 
-    // Shipment type (new)
     const shipmentType = buildShipmentType(shipment);
 
-    // Delivery timeline (Special Parcel only)
     const deliveryTimeline = (shipment.parcel_type === 'Special Parcel' && shipment.delivery_timeline)
       ? String(shipment.delivery_timeline).trim()
       : null;
 
+    // ============================================================
+    // G.23 — public response: only non-private fields
+    // Removed: shipperName, shipperPhone, shipperEmail,
+    //          recipientName, recipientPhone, recipientEmail,
+    //          recipientBIN, description
+    // ============================================================
     return NextResponse.json({
       success: true,
       shipment: {
@@ -150,16 +153,8 @@ export async function GET(request) {
         status: shipment.status,
         origin: getCountryName(shipment.origin),
         destination: getCountryName(shipment.destination),
-        shipperName: shipment.sender_name,
-        shipperPhone: shipment.sender_phone,
-        shipperEmail: shipment.sender_email,
-        recipientName: shipment.recipient_name,
-        recipientPhone: shipment.recipient_phone,
-        recipientEmail: shipment.recipient_email,
-        recipientBIN: shipment.recipient_bin,
         weight: shipment.total_weight,
         packages: shipment.packages,
-        description: shipment.description,
         estimatedDelivery: shipment.estimated_delivery,
         lastUpdate: shipment.last_update,
         bookedAt: shipment.booked_at,
