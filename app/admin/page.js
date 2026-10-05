@@ -148,6 +148,7 @@ function ShipmentsPanel() {
   // Edit Booking modal
   const [editModal, setEditModal] = useState(null);
   const [editFields, setEditFields] = useState({});
+  const [editReason, setEditReason] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
 
@@ -400,7 +401,6 @@ function ShipmentsPanel() {
 
     setEditModal({ shipment: s });
     setEditFields({
-      // Reference & Mode
       shipperRef: s.shipperRef || '',
       shipmentDate: s.shipmentDate ? String(s.shipmentDate).slice(0, 10) : '',
       parcelType: s.parcelType || '',
@@ -408,12 +408,10 @@ function ShipmentsPanel() {
       deliveryTimeline: s.deliveryTimeline || '',
       originCountry: s.originCountry || '',
 
-      // Sender
       senderName: s.senderName || '',
       senderPhone: s.senderPhone || '',
       senderEmail: s.senderEmail || '',
 
-      // Recipient
       recipientName: s.recipientName || '',
       recipientPhone: s.recipientPhone || '',
       recipientEmail: s.recipientEmail || '',
@@ -422,7 +420,6 @@ function ShipmentsPanel() {
       recipientCity: s.recipientCity || '',
       recipientState: s.recipientState || '',
 
-      // Shipment Details
       description: s.description || '',
       packages: s.packages != null ? String(s.packages) : '',
       totalWeight: s.bookingWeight != null ? String(s.bookingWeight) : '',
@@ -436,7 +433,6 @@ function ShipmentsPanel() {
       totalValue: s.totalValue != null ? String(s.totalValue) : '',
       valueCurrency: s.valueCurrency || 'USD',
 
-      // Pickup
       pickupAddress: s.pickupAddress || '',
       pickupCity: s.pickupCity || '',
       pickupState: s.pickupState || '',
@@ -444,23 +440,23 @@ function ShipmentsPanel() {
       parcelReadyDate: s.parcelReadyDate ? String(s.parcelReadyDate).slice(0, 10) : '',
       parcelReadyTime: s.parcelReadyTime ? String(s.parcelReadyTime).slice(0, 5) : '',
 
-      // Payment & Billing
       paymentTerms: s.paymentTerms || '',
       paymentMethod: s.paymentMethod || '',
       freightBillTo: s.freightBillTo || '',
       dutyTaxBillTo: s.dutyTaxBillTo || '',
 
-      // Services & Notes
       customService: s.customService || 'sxl',
       deliveryService: s.deliveryService || 'sxl',
       specialInstruction: s.specialInstruction || '',
     });
+    setEditReason('');
     setEditError('');
   }
 
   function closeEditModal() {
     setEditModal(null);
     setEditFields({});
+    setEditReason('');
     setEditError('');
     setEditSaving(false);
   }
@@ -485,6 +481,7 @@ function ShipmentsPanel() {
           action: 'editBooking',
           trackingNumber: editModal.shipment.trackingNumber,
           fields: editFields,
+          changeReason: editReason.trim(),
         }),
       });
       const data = await res.json();
@@ -493,10 +490,19 @@ function ShipmentsPanel() {
         setEditSaving(false);
         return;
       }
-      setEditSaving(false);
+
       const tn = editModal.shipment.trackingNumber;
       closeEditModal();
-      setToast('✅ Booking updated for ' + tn);
+      setEditSaving(false);
+
+      if (data.noChanges) {
+        setToast('ℹ️ No changes to save for ' + tn);
+      } else if (data.publicChangeCount > 0) {
+        setToast('✅ Booking updated for ' + tn + ' (' + data.publicChangeCount + ' change' + (data.publicChangeCount !== 1 ? 's' : '') + ')');
+      } else {
+        setToast('✅ Booking updated for ' + tn + ' (internal only)');
+      }
+
       setTimeout(loadShipments, 500);
     } catch (err) {
       setEditError('Connection error: ' + err.message);
@@ -1048,7 +1054,7 @@ function ShipmentsPanel() {
         </div>
       )}
 
-      {/* ============ EDIT BOOKING MODAL (G.15 — 7 cards + sticky header/footer) ============ */}
+      {/* ============ EDIT BOOKING MODAL ============ */}
       {editModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
@@ -1064,7 +1070,6 @@ function ShipmentsPanel() {
             display: 'flex', flexDirection: 'column',
             maxHeight: 'calc(100vh - 40px)'
           }}>
-            {/* Sticky header */}
             <div style={{
               background: 'white',
               borderRadius: '16px 16px 0 0',
@@ -1094,24 +1099,44 @@ function ShipmentsPanel() {
               <button onClick={closeEditModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D', lineHeight: 1 }}>✕</button>
             </div>
 
-            {/* Warning banner */}
             <div style={{ background: '#FFF5EB', borderBottom: '1px solid #FF6B00', padding: '10px 28px', fontSize: '0.82rem', color: '#8B4500', flexShrink: 0 }}>
-              ⚠️ All changes are logged as <b>"Booking Edited"</b> and visible on the customer's tracking timeline. Only fill in what needs to change.
+              ⚠️ Only customer-facing changes will be logged as <b>"Booking Edited"</b> on the tracking timeline. Internal changes (payment, billing) are saved silently.
             </div>
 
-            {/* Scrollable body */}
-            <div style={{
-              overflowY: 'auto',
-              padding: '20px 28px',
-              flex: 1
-            }}>
+            <div style={{ overflowY: 'auto', padding: '20px 28px', flex: 1 }}>
               {editError && (
                 <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem' }}>
                   {editError}
                 </div>
               )}
 
-              {/* ===== CARD 1 — Reference & Mode ===== */}
+              {/* Reason for change — top of modal */}
+              <div style={{
+                background: 'white', borderRadius: '12px', padding: '18px 22px',
+                marginBottom: '16px', border: '2px solid #FF6B00',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+              }}>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#FF6B00', marginBottom: '4px' }}>
+                  📝 Reason for Change (optional)
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#6C757D', marginBottom: '12px' }}>
+                  If you fill this in, it will appear on the customer's tracking timeline along with the changed fields.
+                </div>
+                <textarea
+                  value={editReason}
+                  onChange={(e) => setEditReason(e.target.value)}
+                  placeholder="e.g., Customer requested switch to SEA due to lower cost"
+                  style={{
+                    width: '100%', padding: '11px 14px',
+                    fontSize: '0.9rem', border: '2px solid #E9ECEF',
+                    borderRadius: '8px', outline: 'none',
+                    fontFamily: 'inherit', boxSizing: 'border-box',
+                    minHeight: '60px', resize: 'vertical'
+                  }}
+                />
+              </div>
+
+              {/* Card 1 */}
               <EditCard title="📋 Reference & Mode">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <EditField label="Shipper Reference" value={editFields.shipperRef} onChange={(v) => setEditField('shipperRef', v)} />
@@ -1151,7 +1176,7 @@ function ShipmentsPanel() {
                 )}
               </EditCard>
 
-              {/* ===== CARD 2 — Sender ===== */}
+              {/* Card 2 */}
               <EditCard title="📤 Sender (Shipper)">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
                   <EditField label="Name *" value={editFields.senderName} onChange={(v) => setEditField('senderName', v)} />
@@ -1160,7 +1185,7 @@ function ShipmentsPanel() {
                 </div>
               </EditCard>
 
-              {/* ===== CARD 3 — Recipient ===== */}
+              {/* Card 3 */}
               <EditCard title="📥 Recipient (Consignee)">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px' }}>
                   <EditField label="Name *" value={editFields.recipientName} onChange={(v) => setEditField('recipientName', v)} />
@@ -1177,7 +1202,7 @@ function ShipmentsPanel() {
                 </div>
               </EditCard>
 
-              {/* ===== CARD 4 — Shipment Details ===== */}
+              {/* Card 4 */}
               <EditCard title="📦 Shipment Details">
                 <EditField label="Description of Goods *" value={editFields.description} onChange={(v) => setEditField('description', v)} textarea />
 
@@ -1228,7 +1253,7 @@ function ShipmentsPanel() {
                 </div>
               </EditCard>
 
-              {/* ===== CARD 5 — Pickup ===== */}
+              {/* Card 5 */}
               {editModal.shipment.pickupService !== false && (
                 <EditCard title="🚚 Pickup Details">
                   <EditField label="Pickup Address" value={editFields.pickupAddress} onChange={(v) => setEditField('pickupAddress', v)} textarea />
@@ -1244,8 +1269,8 @@ function ShipmentsPanel() {
                 </EditCard>
               )}
 
-              {/* ===== CARD 6 — Payment & Billing ===== */}
-              <EditCard title="💳 Payment & Billing">
+              {/* Card 6 */}
+              <EditCard title="💳 Payment & Billing (internal — not shown to customer)">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Payment Terms</label>
@@ -1292,7 +1317,7 @@ function ShipmentsPanel() {
                 </div>
               </EditCard>
 
-              {/* ===== CARD 7 — Services & Notes ===== */}
+              {/* Card 7 */}
               <EditCard title="🛠️ Services & Notes" highlight={true}>
                 <div style={{ background: '#FFF5EB', borderLeft: '4px solid #FF6B00', borderRadius: '8px', padding: '10px 14px', fontSize: '0.82rem', color: '#8B4500', marginBottom: '16px' }}>
                   💡 If the shipper asks sXL to take over <b>Customs</b> or <b>Delivery</b>, switch the option below. Then go to <b>Financial &amp; Billing → Update Shipment Cost</b> to enter the new charge.
@@ -1342,7 +1367,6 @@ function ShipmentsPanel() {
               </EditCard>
             </div>
 
-            {/* Sticky footer */}
             <div style={{
               background: 'white',
               borderTop: '1px solid #E9ECEF',
