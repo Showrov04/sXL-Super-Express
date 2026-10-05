@@ -37,6 +37,37 @@ function generateShortForm(name) {
   return short || 'SXL';
 }
 
+// G.22 — 8 random digits (10000000-99999999, never leading zero)
+function randomEightDigits() {
+  return String(Math.floor(10000000 + Math.random() * 90000000));
+}
+
+// G.22 — build a TN: SHORT + 8 random digits + S/A
+function buildTrackingNumber(shortForm, shipMode) {
+  const suffix = shipMode === 'SEA' ? 'S' : 'A';
+  return shortForm + randomEightDigits() + suffix;
+}
+
+// G.22 — generate unique TN against the shipments table
+async function generateUniqueTrackingNumber(shortForm, shipMode) {
+  const MAX_ATTEMPTS = 5;
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const candidate = buildTrackingNumber(shortForm, shipMode);
+    const { data: existing, error } = await serviceSupabase
+      .from('shipments')
+      .select('tracking_number')
+      .eq('tracking_number', candidate)
+      .maybeSingle();
+
+    if (error) {
+      // DB error — fail this attempt, try again
+      continue;
+    }
+    if (!existing) return candidate;
+  }
+  throw new Error('Could not generate a unique tracking number after 5 attempts. Please try again.');
+}
+
 function mapServiceType(shipMode) {
   if (shipMode === 'AIR') return 'Freight-Air';
   if (shipMode === 'SEA') return 'Freight-Sea';
@@ -48,7 +79,7 @@ export async function POST(request) {
     const session = await getSessionUser(request);
     if (!session) return NextResponse.json({ success: false, error: 'Session expired.' });
 
-    // ===== Check user is active (not suspended) =====
+    // Check user is active (not suspended)
     const { data: userRecord } = await serviceSupabase
       .from('users')
       .select('active, credit_approved, credit_limit')
@@ -78,7 +109,6 @@ export async function POST(request) {
     const invoiceUrls = Array.isArray(body.invoiceUrls) ? body.invoiceUrls : [];
     const packingListUrls = Array.isArray(body.packingListUrls) ? body.packingListUrls : [];
 
-    // Custom & Delivery service
     const customService = String(body.customService || '').trim().toLowerCase();
     const deliveryService = String(body.deliveryService || '').trim().toLowerCase();
 
@@ -188,27 +218,17 @@ export async function POST(request) {
       uploadedAt: new Date().toISOString(),
     };
 
+    // ============================================================
+    // G.22 — New tracking number: SHORT + 8 random digits + S/A
+    // ============================================================
     const shortForm = generateShortForm(shipper.name);
-    const today = new Date();
-    const ddmmyyyy = String(today.getDate()).padStart(2, '0') +
-                     String(today.getMonth() + 1).padStart(2, '0') +
-                     today.getFullYear();
 
-    const { data: existingCounter } = await serviceSupabase
-      .from('counters').select('*').eq('short_form', shortForm).maybeSingle();
-
-    let nextNum = 1;
-    if (existingCounter) {
-      nextNum = (parseInt(existingCounter.last_number, 10) || 0) + 1;
-      await serviceSupabase.from('counters')
-        .update({ last_number: nextNum, updated_at: new Date().toISOString() })
-        .eq('short_form', shortForm);
-    } else {
-      await serviceSupabase.from('counters').insert({ short_form: shortForm, last_number: 1 });
+    let trackingNumber;
+    try {
+      trackingNumber = await generateUniqueTrackingNumber(shortForm, shipMode);
+    } catch (tnErr) {
+      return NextResponse.json({ success: false, error: tnErr.message || 'Tracking number generation failed.' });
     }
-
-    const modeSuffix = shipMode === 'SEA' ? 'S' : '';
-    const trackingNumber = shortForm + ddmmyyyy + nextNum + modeSuffix;
 
     let pickupAddress = '';
     let pickupCity = '';
