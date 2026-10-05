@@ -85,6 +85,127 @@ async function requireAdmin(request) {
   return { userId: session.user_id, role: session.role };
 }
 
+/* ============================================================
+ *  G.16 — Field metadata for editBooking diffing
+ *  Each entry: formKey -> { dbKey, label, public, kind }
+ *  kind: 'text' | 'int' | 'float' | 'date' | 'time'
+ *  public: true -> visible to customer on tracking page
+ * ============================================================ */
+const EDITABLE_FIELDS = {
+  // Reference & Mode
+  shipperRef:         { dbKey: 'shipper_ref',            label: 'Shipper Reference',      public: false, kind: 'text' },
+  shipmentDate:       { dbKey: 'shipment_date',          label: 'Shipment Date',          public: false, kind: 'date' },
+  parcelType:         { dbKey: 'parcel_type',            label: 'Parcel Type',            public: true,  kind: 'text' },
+  parcelTypeCustom:   { dbKey: 'parcel_type_custom',     label: 'Parcel Type (Custom)',   public: true,  kind: 'text' },
+  deliveryTimeline:   { dbKey: 'delivery_timeline',      label: 'Delivery Timeline',      public: true,  kind: 'text' },
+  originCountry:      { dbKey: 'origin_country',         label: 'Country of Origin',      public: true,  kind: 'text' },
+
+  // Sender
+  senderName:         { dbKey: 'sender_name',            label: 'Sender Name',            public: true,  kind: 'text' },
+  senderPhone:        { dbKey: 'sender_phone',           label: 'Sender Phone',           public: true,  kind: 'text' },
+  senderEmail:        { dbKey: 'sender_email',           label: 'Sender Email',           public: true,  kind: 'text' },
+
+  // Recipient
+  recipientName:      { dbKey: 'recipient_name',         label: 'Recipient Name',         public: true,  kind: 'text' },
+  recipientPhone:     { dbKey: 'recipient_phone',        label: 'Recipient Phone',        public: true,  kind: 'text' },
+  recipientEmail:     { dbKey: 'recipient_email',        label: 'Recipient Email',        public: true,  kind: 'text' },
+  recipientBin:       { dbKey: 'recipient_bin',          label: 'Recipient BIN',          public: true,  kind: 'text' },
+  recipientAddress:   { dbKey: 'recipient_address',      label: 'Recipient Address',      public: true,  kind: 'text' },
+  recipientCity:      { dbKey: 'recipient_city',         label: 'Recipient City',         public: true,  kind: 'text' },
+  recipientState:     { dbKey: 'recipient_state',        label: 'Recipient State',        public: true,  kind: 'text' },
+
+  // Shipment Details
+  description:        { dbKey: 'description',            label: 'Description',            public: true,  kind: 'text' },
+  packages:           { dbKey: 'packages',               label: 'Packages',               public: true,  kind: 'int' },
+  totalWeight:        { dbKey: 'total_weight',           label: 'Weight (kg)',            public: true,  kind: 'float' },
+  totalCbm:           { dbKey: 'total_cbm',              label: 'Volume (CBM)',           public: true,  kind: 'float' },
+  hsCode:             { dbKey: 'hs_code',                label: 'HS Code',                public: true,  kind: 'text' },
+  dimLength:          { dbKey: 'dim_length',             label: 'Dimension Length (cm)',  public: true,  kind: 'float' },
+  dimWidth:           { dbKey: 'dim_width',              label: 'Dimension Width (cm)',   public: true,  kind: 'float' },
+  dimHeight:          { dbKey: 'dim_height',             label: 'Dimension Height (cm)',  public: true,  kind: 'float' },
+  packagingType:      { dbKey: 'packaging_type',         label: 'Packaging Type',         public: true,  kind: 'text' },
+  packagingTypeCustom:{ dbKey: 'packaging_type_custom',  label: 'Packaging Type (Custom)',public: true,  kind: 'text' },
+  totalValue:         { dbKey: 'total_value',            label: 'Declared Value',         public: true,  kind: 'float' },
+  valueCurrency:      { dbKey: 'value_currency',         label: 'Value Currency',         public: true,  kind: 'text' },
+
+  // Pickup
+  pickupAddress:      { dbKey: 'pickup_address',         label: 'Pickup Address',         public: true,  kind: 'text' },
+  pickupCity:         { dbKey: 'pickup_city',            label: 'Pickup City',            public: true,  kind: 'text' },
+  pickupState:        { dbKey: 'pickup_state',           label: 'Pickup State',           public: true,  kind: 'text' },
+  pickupCountry:      { dbKey: 'pickup_country',         label: 'Pickup Country',         public: true,  kind: 'text' },
+  parcelReadyDate:    { dbKey: 'parcel_ready_date',      label: 'Parcel Ready Date',      public: true,  kind: 'date' },
+  parcelReadyTime:    { dbKey: 'parcel_ready_time',      label: 'Parcel Ready Time',      public: true,  kind: 'time' },
+
+  // Payment & Billing — internal only
+  paymentTerms:       { dbKey: 'payment_terms',          label: 'Payment Terms',          public: false, kind: 'text' },
+  paymentMethod:      { dbKey: 'payment_method',         label: 'Payment Method',         public: false, kind: 'text' },
+  freightBillTo:      { dbKey: 'freight_bill_to',        label: 'Freight Bill To',        public: false, kind: 'text' },
+  dutyTaxBillTo:      { dbKey: 'duty_tax_bill_to',       label: 'Duty & Tax Bill To',     public: false, kind: 'text' },
+
+  // Services & Notes
+  customService:      { dbKey: 'custom_service',         label: 'Customs Clearance',      public: true,  kind: 'text' },
+  deliveryService:    { dbKey: 'delivery_service',       label: 'Delivery Service',       public: true,  kind: 'text' },
+  specialInstruction: { dbKey: 'special_instruction',    label: 'Special Instructions',   public: true,  kind: 'text' },
+};
+
+function normalizeValue(val, kind) {
+  if (val === undefined || val === null || val === '') return null;
+  if (kind === 'int') {
+    const n = parseInt(val, 10);
+    return isNaN(n) ? null : n;
+  }
+  if (kind === 'float') {
+    const n = parseFloat(val);
+    return isNaN(n) ? null : n;
+  }
+  if (kind === 'date') {
+    // Keep only YYYY-MM-DD portion
+    return String(val).slice(0, 10) || null;
+  }
+  if (kind === 'time') {
+    return String(val).slice(0, 5) || null;
+  }
+  return String(val).trim() || null;
+}
+
+function valuesDiffer(a, b) {
+  if (a === b) return false;
+  if (a === null && b === null) return false;
+  if (a === undefined && b === null) return false;
+  if (a === null && b === undefined) return false;
+  return String(a) !== String(b);
+}
+
+// Turn raw service key into human label
+function prettyServiceValue(val) {
+  const v = String(val || '').toLowerCase();
+  if (v === 'sxl') return 'Handled by sXL';
+  if (v === 'consignee') return 'Handled by Consignee';
+  return val || '(none)';
+}
+
+// For very long text values, truncate for the note
+function truncateVal(val, max = 40) {
+  if (val === null || val === undefined) return '(empty)';
+  const s = String(val);
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1) + '…';
+}
+
+function prettyValue(val, label) {
+  if (val === null || val === undefined || val === '') return '(empty)';
+  if (label === 'Customs Clearance' || label === 'Delivery Service') {
+    return prettyServiceValue(val);
+  }
+  if (label === 'Weight (kg)' || label === 'Volume (CBM)') {
+    return val + ' ' + (label === 'Weight (kg)' ? 'kg' : 'CBM');
+  }
+  if (label === 'Declared Value') {
+    return String(val);
+  }
+  return truncateVal(val);
+}
+
 export async function GET(request) {
   try {
     const session = await requireAdmin(request);
@@ -204,7 +325,6 @@ export async function GET(request) {
         deliveryService: s.delivery_service || null,
         uploadedDocuments: s.uploaded_documents || null,
         warehouseSentAt: s.warehouse_sent_at || null,
-        // Editable booking detail fields
         shipperRef: s.shipper_ref || null,
         shipmentDate: s.shipment_date || null,
         description: s.description || null,
@@ -309,107 +429,60 @@ export async function POST(request) {
       return NextResponse.json({ success: true });
     }
 
-    // ---- Edit Booking action (G.14 — expanded whitelist) ----
+    // ---- Edit Booking action (G.16 — real diff + human-readable note) ----
     if (body.action === 'editBooking') {
-      const { trackingNumber, fields } = body;
+      const { trackingNumber, fields, changeReason } = body;
       if (!trackingNumber || !fields || typeof fields !== 'object') {
         return NextResponse.json({ success: false, error: 'Tracking number and fields required.' });
       }
 
-      // Expanded whitelist — everything admin can edit
-      // NOT editable: tracking_number, id, booked_by, booked_at, status, payment_status,
-      // cost_saved_at, cost_saved_by, shipping_cost, uploaded_documents, warehouse_sent_at
-      const editableMap = {
-        // Reference & Mode
-        shipperRef: 'shipper_ref',
-        shipmentDate: 'shipment_date',
-        parcelType: 'parcel_type',
-        parcelTypeCustom: 'parcel_type_custom',
-        deliveryTimeline: 'delivery_timeline',
-        originCountry: 'origin_country',
+      // Fetch current row for real diff
+      const { data: current, error: fetchErr } = await serviceSupabase
+        .from('shipments')
+        .select('*')
+        .eq('tracking_number', trackingNumber)
+        .maybeSingle();
 
-        // Sender
-        senderName: 'sender_name',
-        senderPhone: 'sender_phone',
-        senderEmail: 'sender_email',
+      if (fetchErr) return NextResponse.json({ success: false, error: fetchErr.message });
+      if (!current) return NextResponse.json({ success: false, error: 'Shipment not found.' });
 
-        // Recipient
-        recipientName: 'recipient_name',
-        recipientPhone: 'recipient_phone',
-        recipientEmail: 'recipient_email',
-        recipientBin: 'recipient_bin',
-        recipientAddress: 'recipient_address',
-        recipientCity: 'recipient_city',
-        recipientState: 'recipient_state',
+      const updateData = {};
+      const publicChanges = []; // { label, oldVal, newVal }
+      const internalChangeCount = { count: 0 };
+      const allChangedLabels = [];
 
-        // Shipment Details
-        description: 'description',
-        packages: 'packages',
-        totalWeight: 'total_weight',
-        totalCbm: 'total_cbm',
-        hsCode: 'hs_code',
-        dimLength: 'dim_length',
-        dimWidth: 'dim_width',
-        dimHeight: 'dim_height',
-        dimensions: 'dimensions',
-        packagingType: 'packaging_type',
-        packagingTypeCustom: 'packaging_type_custom',
-        totalValue: 'total_value',
-        valueCurrency: 'value_currency',
+      Object.entries(EDITABLE_FIELDS).forEach(([formKey, meta]) => {
+        if (!Object.prototype.hasOwnProperty.call(fields, formKey)) return;
 
-        // Pickup
-        pickupAddress: 'pickup_address',
-        pickupCity: 'pickup_city',
-        pickupState: 'pickup_state',
-        pickupCountry: 'pickup_country',
-        parcelReadyDate: 'parcel_ready_date',
-        parcelReadyTime: 'parcel_ready_time',
+        const newVal = normalizeValue(fields[formKey], meta.kind);
+        const oldVal = normalizeValue(current[meta.dbKey], meta.kind);
 
-        // Payment & Billing
-        paymentTerms: 'payment_terms',
-        paymentMethod: 'payment_method',
-        freightBillTo: 'freight_bill_to',
-        dutyTaxBillTo: 'duty_tax_bill_to',
+        if (!valuesDiffer(oldVal, newVal)) return; // no real change
 
-        // Services & Notes
-        customService: 'custom_service',
-        deliveryService: 'delivery_service',
-        specialInstruction: 'special_instruction',
-      };
+        updateData[meta.dbKey] = newVal;
+        allChangedLabels.push(meta.label);
 
-      const numericIntFields = ['packages'];
-      const numericFloatFields = [
-        'dim_length', 'dim_width', 'dim_height',
-        'total_weight', 'total_cbm', 'total_value',
-      ];
-
-      const updateData = { last_update: new Date().toISOString() };
-      const changed = [];
-
-      Object.entries(editableMap).forEach(([formKey, dbKey]) => {
-        if (Object.prototype.hasOwnProperty.call(fields, formKey)) {
-          let val = fields[formKey];
-
-          // Normalize
-          if (typeof val === 'string') val = val.trim();
-
-          // Numeric conversions
-          if (numericIntFields.includes(dbKey)) {
-            val = (val === '' || val === null || val === undefined) ? null : (parseInt(val, 10) || null);
-          } else if (numericFloatFields.includes(dbKey)) {
-            val = (val === '' || val === null || val === undefined) ? null : (parseFloat(val) || null);
-          } else {
-            if (val === '') val = null;
-          }
-
-          updateData[dbKey] = val;
-          changed.push(formKey);
+        if (meta.public) {
+          publicChanges.push({
+            label: meta.label,
+            oldVal: prettyValue(oldVal, meta.label),
+            newVal: prettyValue(newVal, meta.label),
+          });
+        } else {
+          internalChangeCount.count++;
         }
       });
 
-      if (changed.length === 0) {
-        return NextResponse.json({ success: false, error: 'No fields to update.' });
+      // No real changes → return early, no update, no history entry
+      if (Object.keys(updateData).length === 0) {
+        return NextResponse.json({
+          success: true,
+          noChanges: true,
+          changed: [],
+        });
       }
+
+      updateData.last_update = new Date().toISOString();
 
       const { error: updErr } = await serviceSupabase
         .from('shipments')
@@ -418,16 +491,32 @@ export async function POST(request) {
 
       if (updErr) return NextResponse.json({ success: false, error: updErr.message });
 
-      // Log to tracking history (visible on customer's tracking page)
-      await serviceSupabase.from('tracking_history').insert({
-        tracking_number: trackingNumber,
-        status: 'Booking Edited',
-        location: '',
-        notes: 'Booking details updated by admin: ' + changed.join(', '),
-        updated_by: session.userId,
-      });
+      // Build customer-facing note — only if there's at least one public change
+      let historyNotes = '';
+      if (publicChanges.length > 0) {
+        const lines = publicChanges.map((c) => c.label + ': ' + c.oldVal + ' → ' + c.newVal);
+        historyNotes = lines.join('\n');
+        if (changeReason && String(changeReason).trim()) {
+          historyNotes += '\nReason: ' + String(changeReason).trim();
+        }
 
-      return NextResponse.json({ success: true, changed });
+        await serviceSupabase.from('tracking_history').insert({
+          tracking_number: trackingNumber,
+          status: 'Booking Edited',
+          location: '',
+          notes: historyNotes,
+          updated_by: session.userId,
+        });
+      }
+
+      // Internal-only edits: no customer-facing history entry (per user request)
+
+      return NextResponse.json({
+        success: true,
+        changed: allChangedLabels,
+        publicChangeCount: publicChanges.length,
+        internalChangeCount: internalChangeCount.count,
+      });
     }
 
     return NextResponse.json({ success: false, error: 'Unknown action.' });
