@@ -269,7 +269,7 @@ function TrackContent() {
               )}
 
               <div style={{ padding: '30px' }}>
-                {/* ===== ESTIMATED DELIVERY (HIGHLIGHTED) ===== */}
+                {/* ESTIMATED DELIVERY (HIGHLIGHTED) */}
                 <div style={{
                   background: '#FFF5EB',
                   border: '2px solid #FF6B00',
@@ -304,7 +304,7 @@ function TrackContent() {
                   </div>
                 </div>
 
-                {/* ===== OTHER DETAILS GRID ===== */}
+                {/* OTHER DETAILS GRID — G.24: removed Shipper & Consignee cells */}
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -315,9 +315,7 @@ function TrackContent() {
                   {[
                     { label: 'Shipment Type', value: result.shipment.shipmentType || '—' },
                     ...(result.shipment.deliveryTimeline ? [{ label: 'Delivery Timeline', value: result.shipment.deliveryTimeline }] : []),
-                    { label: 'Shipper', value: result.shipment.shipperName || '—' },
                     { label: 'From', value: result.shipment.origin || '—' },
-                    { label: 'Consignee', value: result.shipment.recipientName || '—' },
                     { label: 'To', value: result.shipment.destination || '—' },
                     { label: 'Weight', value: `${result.shipment.weight || '—'} kg` },
                     { label: 'Packages', value: result.shipment.packages || '—' },
