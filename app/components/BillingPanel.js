@@ -62,13 +62,9 @@ const FROZEN_LEFT_TRACKING_ALL = 0;
 const FROZEN_LEFT_MODE_ALL = COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE_ALL = COL_W_TRACKING + COL_W_MODE;
 
-// G.11 — Actions column now wide enough for 6 buttons
-const COL_W_ACTIONS_DUE = 800;
+const COL_W_ACTIONS_DUE = 900;
 const COL_W_ACTIONS_OTHER = 340;
 
-/* ============================================================
- *  MAIN COMPONENT
- * ============================================================ */
 export default function BillingPanel() {
   const [tab, setTab] = useState('all');
   const [shipperFilter, setShipperFilter] = useState('');
@@ -785,7 +781,7 @@ export default function BillingPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-          <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: isDueTab ? '2500px' : '1700px', tableLayout: 'fixed', width: '100%' }}>
+          <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: isDueTab ? '2600px' : '1700px', tableLayout: 'fixed', width: '100%' }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
               <tr>
                 {showShipperRef && (
@@ -895,7 +891,6 @@ export default function BillingPanel() {
                       </td>
                     )}
 
-                    {/* G.11 — Actions cell now wraps and has generous width */}
                     <td style={{
                       ...TD_STYLE,
                       whiteSpace: 'normal',
@@ -906,6 +901,26 @@ export default function BillingPanel() {
                     }}>
                       {isDueTab && (
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {/* G.21 — Booking PDF button */}
+                          <a
+                            href={'/api/pdf/booking/' + s.trackingNumber}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              padding: '5px 10px',
+                              background: '#00A86B',
+                              color: 'white',
+                              borderRadius: '6px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              textDecoration: 'none',
+                              whiteSpace: 'nowrap',
+                              display: 'inline-block'
+                            }}
+                          >
+                            📄 Booking PDF
+                          </a>
+
                           <button
                             onClick={() => openCostModal(s)}
                             style={{
@@ -940,7 +955,7 @@ export default function BillingPanel() {
                                 ✅ Invoice Issued
                               </button>
                               <button onClick={() => openEditInvModal(s)} style={{ padding: '5px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✏️ Edit Invoice</button>
-                              <a href={'/api/pdf/invoice/' + s.latestInvoice.invoiceId} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block' }}>📄 PDF</a>
+                              <a href={'/api/pdf/invoice/' + s.latestInvoice.invoiceId} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block' }}>📄 Inv PDF</a>
                               {!invSent ? (
                                 <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>📤 Send Customer</button>
                               ) : (
