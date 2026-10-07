@@ -29,12 +29,12 @@ async function requireAdmin(request) {
   return { userId: session.user_id, role: session.role };
 }
 
-/**
- * Sort helper — G.7 ordering:
+/* ============================================================
+ *  G.7 — Due tab order (unchanged):
  *   0 = Unpaid + not delivered  (top)
  *   1 = Unpaid + delivered
  *   2 = Paid                    (bottom)
- */
+ * ============================================================ */
 function orderRank(s) {
   const status = String(s.status || '').toLowerCase();
   const pay = String(s.payment_status || '').toLowerCase();
@@ -43,6 +43,57 @@ function orderRank(s) {
   if (isPaid) return 2;
   if (isDelivered) return 1;
   return 0;
+}
+
+/* ============================================================
+ *  G.54 — Status-based sort for All Shipments tab
+ *  (same rule as G.52 admin shipments API)
+ * ============================================================ */
+const STATUS_RANK = {
+  'booked': 1,
+  'picked up': 2,
+  'in transit': 3,
+  'out for delivery': 4,
+  'cancellation requested': 5,
+  'exception': 6,
+  'delivered': 7,
+};
+
+const MODE_RANK = {
+  'AIR-SP': 1,
+  'AIR': 2,
+  'SEA': 3,
+};
+
+function getStatusRank(status) {
+  const s = String(status || '').toLowerCase().trim();
+  if (STATUS_RANK[s] !== undefined) return STATUS_RANK[s];
+  return 99;
+}
+
+function getModeRank(shipment) {
+  const mode = String(shipment.ship_mode || '').toUpperCase();
+  const pType = String(shipment.parcel_type || '').trim();
+  if (mode === 'AIR' && pType === 'Special Parcel') return MODE_RANK['AIR-SP'];
+  if (mode === 'AIR') return MODE_RANK['AIR'];
+  if (mode === 'SEA') return MODE_RANK['SEA'];
+  return 99;
+}
+
+function sortAllShipments(list) {
+  return list.slice().sort((a, b) => {
+    const srA = getStatusRank(a.status);
+    const srB = getStatusRank(b.status);
+    if (srA !== srB) return srA - srB;
+
+    const mrA = getModeRank(a);
+    const mrB = getModeRank(b);
+    if (mrA !== mrB) return mrA - mrB;
+
+    const da = new Date(a.booked_at || 0).getTime() || 0;
+    const db = new Date(b.booked_at || 0).getTime() || 0;
+    return db - da;
+  });
 }
 
 /**
@@ -103,16 +154,30 @@ export async function GET(request) {
       });
     }
 
-    // G.7 — sort: unpaid-not-delivered → unpaid-delivered → paid
-    filtered = filtered.slice().sort((a, b) => {
-      const ra = orderRank(a);
-      const rb = orderRank(b);
-      if (ra !== rb) return ra - rb;
-      // secondary: newest booked first
-      const da = new Date(a.booked_at || 0).getTime() || 0;
-      const db = new Date(b.booked_at || 0).getTime() || 0;
-      return db - da;
-    });
+    // ============================================================
+    //  G.54 — Sort
+    //  All Shipments tab → status → mode → booked_at DESC
+    //  Due tab           → G.7 orderRank (unchanged)
+    //  Paid tab          → booked_at DESC (unchanged)
+    // ============================================================
+    if (filter === 'all') {
+      filtered = sortAllShipments(filtered);
+    } else if (filter === 'due') {
+      filtered = filtered.slice().sort((a, b) => {
+        const ra = orderRank(a);
+        const rb = orderRank(b);
+        if (ra !== rb) return ra - rb;
+        const da = new Date(a.booked_at || 0).getTime() || 0;
+        const db = new Date(b.booked_at || 0).getTime() || 0;
+        return db - da;
+      });
+    } else {
+      filtered = filtered.slice().sort((a, b) => {
+        const da = new Date(a.booked_at || 0).getTime() || 0;
+        const db = new Date(b.booked_at || 0).getTime() || 0;
+        return db - da;
+      });
+    }
 
     // Fetch invoices for these shipments
     const tns = filtered.map((s) => s.tracking_number).filter(Boolean);
@@ -160,6 +225,7 @@ export async function GET(request) {
         shipmentType: (String(s.ship_mode || '').toUpperCase() === 'SEA' && s.sea_load_type)
           ? ('SEA - ' + s.sea_load_type)
           : (s.ship_mode || ''),
+        parcelType: parcelType || null,
         origin: s.origin,
         destination: s.destination,
         weight: s.total_weight,
@@ -203,7 +269,6 @@ export async function GET(request) {
       };
     });
 
-    // Outstanding summary
     const dueShipments = all.filter((s) => {
       const st = String(s.status || '').toLowerCase();
       const pay = String(s.payment_status || '').toLowerCase();
@@ -290,7 +355,7 @@ async function handleSaveCost(session, body) {
     currency,
     localCurrency,
     localAmount,
-    exchangeRate,           // G.8 — USD -> local rate (optional)
+    exchangeRate,
     pickupCharge,
     customsCharge,
     deliveryCharge,
@@ -317,7 +382,6 @@ async function handleSaveCost(session, body) {
   const servicesTotal = Math.round((pc + cc + dc) * 100) / 100;
   const total = Math.round((freightTotal + servicesTotal + addlTotal) * 100) / 100;
 
-  // G.8 — if exchange rate provided, compute local total from USD total
   const localTotalComputed = fx > 0 ? Math.round(total * fx * 100) / 100 : 0;
 
   const breakdown = {
@@ -457,9 +521,6 @@ async function handleMarkInvoiceSent(session, body) {
   return NextResponse.json({ success: true, sentAt: now });
 }
 
-/**
- * G.9 — update invoice issue_date / due_date from the Edit Invoice modal
- */
 async function handleUpdateInvoiceDates(session, body) {
   const { invoiceId, issueDate, dueDate } = body;
   if (!invoiceId) {
