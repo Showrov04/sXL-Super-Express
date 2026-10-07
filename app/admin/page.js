@@ -10,7 +10,7 @@ import CancellationPanel from '../components/CancellationPanel';
 import CreditRequestsPanel from '../components/CreditRequestsPanel';
 
 const COL_W_TRACKING = 170;
-const COL_W_MODE = 105;
+const COL_W_MODE = 130;
 const COL_W_ROUTE = 170;
 const FROZEN_LEFT_TRACKING = 0;
 const FROZEN_LEFT_MODE = COL_W_TRACKING;
@@ -27,6 +27,33 @@ const TD_STYLE = {
 };
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
+
+// G.38 — Mode cell renderer: Special Parcel → red badge "AIR-SP"; else plain text
+function renderModeCell(s) {
+  const mode = String(s.shipMode || '').toUpperCase();
+  const parcelType = String(s.parcelType || '').trim();
+  const isSpecialParcel = parcelType === 'Special Parcel';
+
+  if (isSpecialParcel && mode === 'AIR') {
+    return (
+      <span style={{
+        background: '#F8D7DA',
+        color: '#721C24',
+        padding: '4px 10px',
+        borderRadius: '12px',
+        fontWeight: 700,
+        fontSize: '0.72rem',
+        letterSpacing: '0.3px',
+        whiteSpace: 'nowrap'
+      }}>
+        AIR-SP
+      </span>
+    );
+  }
+
+  // Fallback — plain text
+  return s.shipmentType || s.shipMode || '-';
+}
 
 export default function AdminPage() {
   const router = useRouter();
@@ -792,7 +819,7 @@ function ShipmentsPanel() {
       {!loading && !error && filtered.length > 0 && (
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1720px', tableLayout: 'fixed', width: '100%' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
                   <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
@@ -807,7 +834,7 @@ function ShipmentsPanel() {
                   <HeaderCell col="payment" label="Payment" width={120} />
                   <HeaderCell col="none" label="Booked" width={120} />
                   <HeaderCell col="none" label="ETA" width={125} />
-                  <HeaderCell col="none" label="Actions" width={600} />
+                  <HeaderCell col="none" label="Actions" width={520} />
                 </tr>
               </thead>
               <tbody>
@@ -827,7 +854,7 @@ function ShipmentsPanel() {
                   return (
                     <tr key={i} style={{ background: rowBg }}>
                       <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                      <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
+                      <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{renderModeCell(s)}</td>
                       <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
                       <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
                       <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
@@ -850,10 +877,9 @@ function ShipmentsPanel() {
                           {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                         </span>
                       </td>
-                      <td style={{ ...TD_STYLE, width: 600 }}>
+                      <td style={{ ...TD_STYLE, width: 520 }}>
                         {tab !== 'cancelled' && (
                           <>
-                            {/* G.20 — Booking PDF button (all active/awaiting/paid tabs) */}
                             <a
                               href={'/api/pdf/booking/' + s.trackingNumber}
                               target="_blank"
@@ -960,7 +986,6 @@ function ShipmentsPanel() {
         </>
       )}
 
-      {/* ============ STATUS UPDATE MODAL ============ */}
       {statusModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
@@ -1069,7 +1094,6 @@ function ShipmentsPanel() {
         </div>
       )}
 
-      {/* ============ EDIT BOOKING MODAL ============ */}
       {editModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
@@ -1370,7 +1394,7 @@ function ShipmentsPanel() {
                   </div>
                 </div>
 
-                <EditField label="📝 Special Instructions" value={editFields.specialInstruction} onChange={(v) => setEditField('specialInstruction', v)} textarea />
+                <EditField label="📝 Special Instructions" value={editFields.specialInstructions} onChange={(v) => setEditField('specialInstruction', v)} textarea />
               </EditCard>
             </div>
 
