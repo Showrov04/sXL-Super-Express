@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { sendAdminEditNotification } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,69 +63,6 @@ function buildShipmentType(shipment) {
   if (mode === 'SEA') return load ? ('SEA - ' + load) : 'SEA';
   if (mode === 'AIR') return 'AIR';
   return mode || '—';
-}
-
-/* ============================================================
- *  G.52 — Status-based sort for the Active tab (and customer side)
- *
- *  Primary key:   status rank (Booked → Picked Up → In Transit →
- *                 Out for Delivery → Cancellation Requested → Exception)
- *  Secondary key: mode rank  (AIR-SP → AIR → SEA)
- *  Tiebreaker:    booked_at DESC (newest first)
- * ============================================================ */
-const STATUS_RANK = {
-  'booked': 1,
-  'picked up': 2,
-  'in transit': 3,
-  'out for delivery': 4,
-  'cancellation requested': 5,
-  'exception': 6,
-};
-
-const MODE_RANK = {
-  'AIR-SP': 1,   // Special Parcel
-  'AIR': 2,
-  'SEA': 3,
-};
-
-function getStatusRank(status) {
-  const s = String(status || '').toLowerCase().trim();
-  if (STATUS_RANK[s] !== undefined) return STATUS_RANK[s];
-  // Unknown status → push to end
-  return 99;
-}
-
-function getModeRank(shipment) {
-  const mode = String(shipment.ship_mode || '').toUpperCase();
-  const pType = String(shipment.parcel_type || '').trim();
-  if (mode === 'AIR' && pType === 'Special Parcel') return MODE_RANK['AIR-SP'];
-  if (mode === 'AIR') return MODE_RANK['AIR'];
-  if (mode === 'SEA') return MODE_RANK['SEA'];
-  return 99;
-}
-
-function sortByStatusThenModeThenBooked(list) {
-  return list.slice().sort((a, b) => {
-    const srA = getStatusRank(a.status);
-    const srB = getStatusRank(b.status);
-    if (srA !== srB) return srA - srB;
-
-    const mrA = getModeRank(a);
-    const mrB = getModeRank(b);
-    if (mrA !== mrB) return mrA - mrB;
-
-    const da = new Date(a.booked_at || 0).getTime() || 0;
-    const db = new Date(b.booked_at || 0).getTime() || 0;
-    return db - da;
-  });
-}
-
-function sortByBookedDesc(list) {
-  return list.slice().sort((a, b) => {
-    const da = new Date(a.booked_at || 0).getTime() || 0;
-    const db = new Date(b.booked_at || 0).getTime() || 0;
-    return db - da;
-  });
 }
 
 async function requireAdmin(request) {
@@ -277,8 +215,6 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: error.message });
     }
 
-    // Counts — 'Cancellation Requested' counts as Active (pending decision),
-    // only 'Cancelled' counts toward cancelled.
     const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: all.length };
     all.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
@@ -325,17 +261,6 @@ export async function GET(request) {
           String(s.sender_email || '').toLowerCase().includes(search)
         );
       });
-    }
-
-    // ============================================================
-    //  G.52 — Sort
-    //  Active tab → status → mode → booked_at DESC
-    //  Other tabs → booked_at DESC (unchanged)
-    // ============================================================
-    if (tab === 'active') {
-      filtered = sortByStatusThenModeThenBooked(filtered);
-    } else {
-      filtered = sortByBookedDesc(filtered);
     }
 
     const shipments = filtered.map((s) => {
@@ -494,7 +419,7 @@ export async function POST(request) {
       return NextResponse.json({ success: true });
     }
 
-    // ---- Edit Booking action ----
+    // ---- Edit Booking action (E.2 — now also emails admin) ----
     if (body.action === 'editBooking') {
       const { trackingNumber, fields, changeReason } = body;
       if (!trackingNumber || !fields || typeof fields !== 'object') {
@@ -511,7 +436,8 @@ export async function POST(request) {
       if (!current) return NextResponse.json({ success: false, error: 'Shipment not found.' });
 
       const updateData = {};
-      const publicChanges = [];
+      const publicChanges = [];   // for tracking timeline (public only)
+      const allChanges = [];      // for admin email (public + internal)
       const internalChangeCount = { count: 0 };
       const allChangedLabels = [];
 
@@ -526,17 +452,28 @@ export async function POST(request) {
         updateData[meta.dbKey] = newVal;
         allChangedLabels.push(meta.label);
 
+        const prettyOld = prettyValue(oldVal, meta.label);
+        const prettyNew = prettyValue(newVal, meta.label);
+
+        allChanges.push({
+          label: meta.label,
+          oldVal: prettyOld,
+          newVal: prettyNew,
+          isPublic: meta.public === true,
+        });
+
         if (meta.public) {
           publicChanges.push({
             label: meta.label,
-            oldVal: prettyValue(oldVal, meta.label),
-            newVal: prettyValue(newVal, meta.label),
+            oldVal: prettyOld,
+            newVal: prettyNew,
           });
         } else {
           internalChangeCount.count++;
         }
       });
 
+      // No real changes → no update, no history, no email
       if (Object.keys(updateData).length === 0) {
         return NextResponse.json({
           success: true,
@@ -554,10 +491,12 @@ export async function POST(request) {
 
       if (updErr) return NextResponse.json({ success: false, error: updErr.message });
 
-      let historyNotes = '';
+      // Timeline entry — only for public changes
       if (publicChanges.length > 0) {
-        const lines = publicChanges.map((c) => c.label + ': ' + c.oldVal + ' → ' + c.newVal);
-        historyNotes = lines.join('\n');
+        let historyNotes = publicChanges
+          .map((c) => c.label + ': ' + c.oldVal + ' → ' + c.newVal)
+          .join('\n');
+
         if (changeReason && String(changeReason).trim()) {
           historyNotes += '\nReason: ' + String(changeReason).trim();
         }
@@ -569,6 +508,22 @@ export async function POST(request) {
           notes: historyNotes,
           updated_by: session.userId,
         });
+      }
+
+      // E.2 — Admin-only email notification
+      try {
+        // Rebuild the shipment row for the email (current row has old values;
+        // merge updateData over it so the email reflects post-edit state for context)
+        const shipmentForEmail = { ...current, ...updateData };
+        const emailResult = await sendAdminEditNotification(
+          shipmentForEmail,
+          allChanges,
+          changeReason,
+          session.userId
+        );
+        console.log('[Edit Booking Email] Admin alert:', emailResult.success ? 'sent' : 'failed', emailResult.error || '');
+      } catch (emailErr) {
+        console.error('[Edit Booking Email] Exception:', emailErr.message);
       }
 
       return NextResponse.json({
