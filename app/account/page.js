@@ -296,7 +296,7 @@ export default function AccountPage() {
     }
   }
 
-  // G.34 — Real change password via API
+  // G.35 — Now uses the profile API with action: 'changePassword'
   async function handlePasswordChange(e) {
     e.preventDefault();
     setPwdMsg('');
@@ -327,13 +327,14 @@ export default function AccountPage() {
     const token = localStorage.getItem('sxl_token');
 
     try {
-      const res = await fetch('/api/customer/change-password', {
+      const res = await fetch('/api/customer/profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: 'Bearer ' + token,
         },
         body: JSON.stringify({
+          action: 'changePassword',
           currentPassword: curPwd,
           newPassword: newPwd,
         }),
