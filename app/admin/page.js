@@ -871,7 +871,8 @@ function ShipmentsPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <>
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
+          {/* G.55 — removed maxHeight: '70vh' so the page scrolls naturally */}
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', position: 'relative' }}>
             <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
@@ -1901,7 +1902,8 @@ function ShippersPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <>
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
+          {/* G.55 — removed maxHeight: '70vh' so the page scrolls naturally */}
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', position: 'relative' }}>
             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '900px', tableLayout: 'fixed' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
