@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { sendAdminCancelRequestAlert } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,6 +93,14 @@ export async function POST(request) {
       notes: 'Customer requested cancellation: ' + reason,
       updated_by: session.userId,
     });
+
+    // G.43 — Notify admin by email
+    try {
+      const result = await sendAdminCancelRequestAlert(shipment, reason);
+      console.log('[Cancel Request Email] Admin alert:', result.success ? 'sent' : 'failed', result.error || '');
+    } catch (emailErr) {
+      console.error('[Cancel Request Email] Exception:', emailErr.message);
+    }
 
     return NextResponse.json({ success: true });
 
