@@ -29,13 +29,13 @@ const DRAFT_KEY = 'sxl_booking_draft';
 const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const DRAFT_DISMISS_KEY = 'sxl_booking_draft_dismissed_at';
 
-// G.40 — Mode cell renderer: AIR Special Parcel → red badge "AIR-SP"
+// G.40b — Mode cell renderer
+// Detects Special Parcel from the shipmentType string (customer API does not return parcelType)
 function renderModeCell(s) {
-  const mode = String(s.shipMode || '').toUpperCase();
-  const parcelType = String(s.parcelType || '').trim();
-  const isSpecialParcel = parcelType === 'Special Parcel';
+  const shipmentType = String(s.shipmentType || s.shipMode || '').toUpperCase();
+  const isSpecialParcel = shipmentType.includes('SPECIAL PARCEL');
 
-  if (isSpecialParcel && mode === 'AIR') {
+  if (isSpecialParcel) {
     return (
       <span style={{
         background: '#F8D7DA',
