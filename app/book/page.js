@@ -64,6 +64,12 @@ const FIELD_ERROR_STYLE = {
   background: '#FFF5F5',
 };
 
+const LOCKED_STYLE = {
+  background: '#F8F9FA',
+  color: '#6C757D',
+  cursor: 'not-allowed',
+};
+
 function FieldError({ message }) {
   if (!message) return null;
   return (
@@ -85,7 +91,7 @@ export default function BookPage() {
   const [fieldErrors, setFieldErrors] = useState({});
 
   // G.29 — Draft state
-  const [draftFound, setDraftFound] = useState(null); // { savedAt, data }
+  const [draftFound, setDraftFound] = useState(null);
   const [draftSavedToast, setDraftSavedToast] = useState(false);
   const saveTimeoutRef = useRef(null);
   const initialLoadDoneRef = useRef(false);
@@ -141,7 +147,6 @@ export default function BookPage() {
     if (!stored) { router.push('/login'); return; }
     try { setUser(JSON.parse(stored)); } catch (e) { router.push('/login'); }
 
-    // G.29 — Check for existing draft
     checkForDraft();
 
     fetch('/api/countries')
@@ -154,8 +159,7 @@ export default function BookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  // ============ G.29 — Draft management ============
-
+  // ============ Draft management ============
   function checkForDraft() {
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
@@ -164,35 +168,26 @@ export default function BookPage() {
       if (!parsed || !parsed.savedAt || !parsed.data) return;
       const age = Date.now() - new Date(parsed.savedAt).getTime();
       if (age > DRAFT_MAX_AGE_MS) {
-        // expired → clear
         localStorage.removeItem(DRAFT_KEY);
         return;
       }
       setDraftFound(parsed);
     } catch (e) {
-      // corrupted → clear
       localStorage.removeItem(DRAFT_KEY);
     }
   }
 
   function saveDraft(snapshot) {
     try {
-      const payload = {
-        savedAt: new Date().toISOString(),
-        data: snapshot,
-      };
+      const payload = { savedAt: new Date().toISOString(), data: snapshot };
       localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
       setDraftSavedToast(true);
       setTimeout(() => setDraftSavedToast(false), 2000);
-    } catch (e) {
-      // silent fail (quota exceeded, etc.)
-    }
+    } catch (e) { /* silent */ }
   }
 
   function clearDraft() {
-    try {
-      localStorage.removeItem(DRAFT_KEY);
-    } catch (e) { /* silent */ }
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* silent */ }
   }
 
   function restoreDraft() {
@@ -220,16 +215,12 @@ export default function BookPage() {
     setDraftFound(null);
   }
 
-  // Auto-save draft — debounced. Runs whenever wizard state changes.
   useEffect(() => {
-    // Don't save during initial mount — only after the user has actually interacted
     if (!initialLoadDoneRef.current) {
       initialLoadDoneRef.current = true;
       return;
     }
-    // Don't save if success screen is showing
     if (success) return;
-    // Don't save if draft modal is open
     if (draftFound) return;
 
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -254,8 +245,6 @@ export default function BookPage() {
     paymentTerms, paymentMethod, freightBillTo, dutyTaxBillTo,
     customService, deliveryService, success, draftFound
   ]);
-
-  // ============ end draft management ============
 
   async function loadAddresses() {
     const token = localStorage.getItem('sxl_token');
@@ -361,18 +350,31 @@ export default function BookPage() {
     clearFields(['consignee.name', 'consignee.fullAddress', 'consignee.country', 'consignee.email', 'consignee.phone', 'consignee.bin']);
   }
 
+  // G.31 — parcel type setter with auto-fill logic
   function pickParcelType(p) {
     setParcelType(p);
-    clearFields(['parcelType', 'parcelTypeCustom', 'shipment.deliveryTimeline']);
+    clearFields(['parcelType', 'parcelTypeCustom', 'shipment.deliveryTimeline', 'shipment.hsCode', 'shipment.totalValue']);
+
+    // G.31 — auto-fill HS Code & Customs Value for Document / Special Parcel
+    const autoFill = (p === 'Document' || p === 'Special Parcel');
+    setShipment((s) => ({
+      ...s,
+      hsCode: autoFill ? 'N/A' : (p !== 'Document' && p !== 'Special Parcel' ? s.hsCode : ''),
+      totalValue: autoFill ? '0' : s.totalValue,
+    }));
+
     if (p !== 'Others') setParcelTypeCustom('');
     if (p !== 'Special Parcel') {
-      setShipmentField('deliveryTimeline', '');
+      setShipment((s) => ({ ...s, deliveryTimeline: '' }));
     }
   }
 
   const isSea = shipMode === 'SEA';
   const isSpecialParcel = parcelType === 'Special Parcel';
   const showBillingParty = !(!isSea && isSpecialParcel);
+
+  // G.31 — is the current parcel type auto-locked (N/A)?
+  const isAutoLocked = parcelType === 'Document' || parcelType === 'Special Parcel';
 
   const steps = isSea
     ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Custom & Delivery', 'Payment', 'Review']
@@ -420,7 +422,8 @@ export default function BookPage() {
   function validateShipment() {
     const errs = {};
     if (!shipment.description.trim()) errs['shipment.description'] = 'Required';
-    if (!shipment.hsCode.trim()) errs['shipment.hsCode'] = 'Required';
+    // G.31 — skip HS Code validation if auto-locked (N/A)
+    if (!isAutoLocked && !shipment.hsCode.trim()) errs['shipment.hsCode'] = 'Required';
     if (!shipment.originCountry) errs['shipment.originCountry'] = 'Required';
     const count = Object.keys(errs).length;
     return count === 0 ? null : { message: count + ' field(s) need attention', fields: errs };
@@ -439,8 +442,11 @@ export default function BookPage() {
     if (isSea) {
       if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) errs['shipment.totalCbm'] = 'Required';
     }
-    if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
-      errs['shipment.totalValue'] = 'Required';
+    // G.31 — skip Customs Value validation if auto-locked (0)
+    if (!isAutoLocked) {
+      if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
+        errs['shipment.totalValue'] = 'Required';
+      }
     }
     if (showBillingParty) {
       if (!freightBillTo) errs.freightBillTo = 'Please select';
@@ -633,7 +639,6 @@ export default function BookPage() {
         return;
       }
 
-      // G.29 — clear draft on successful submission
       clearDraft();
 
       setSuccess({ trackingNumber: data.trackingNumber, invoiceUrls, packingListUrls });
@@ -644,7 +649,6 @@ export default function BookPage() {
     }
   }
 
-  // ============ G.29 — Draft restore modal ============
   const draftModal = draftFound ? (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 99999,
@@ -707,8 +711,6 @@ export default function BookPage() {
       </div>
     </div>
   ) : null;
-
-  // ============ end draft modal ============
 
   if (!user) {
     return (
@@ -788,10 +790,8 @@ export default function BookPage() {
     <>
       <Header />
 
-      {/* G.29 — Draft restore modal */}
       {draftModal}
 
-      {/* G.29 — Draft saved toast */}
       {draftSavedToast && (
         <div style={{
           position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999,
@@ -946,6 +946,16 @@ export default function BookPage() {
                 ))}
               </div>
               <FieldError message={fieldErrors.parcelType} />
+
+              {(parcelType === 'Document' || parcelType === 'Special Parcel') && (
+                <div style={{
+                  background: '#E8F7EF', borderLeft: '4px solid #28A745',
+                  borderRadius: '8px', padding: '12px 16px', marginBottom: '15px',
+                  fontSize: '0.85rem', color: '#155724'
+                }}>
+                  ℹ️ <b>HS Code</b> will be set to <b>N/A</b> and <b>Total Customs Value</b> to <b>0</b> automatically for this parcel type.
+                </div>
+              )}
 
               {parcelType === 'Others' && (
                 <div style={{ marginTop: '10px', marginBottom: '15px' }}>
@@ -1106,7 +1116,18 @@ export default function BookPage() {
               </div>
               <Field label="Description of Goods *" value={shipment.description} onChange={(v) => setShipmentField('description', v)} textarea error={fieldErrors['shipment.description']} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <Field label="HS Code *" value={shipment.hsCode} onChange={(v) => setShipmentField('hsCode', v)} placeholder="Harmonized System Code" error={fieldErrors['shipment.hsCode']} />
+                {/* G.31 — HS Code auto-locked for Document / Special Parcel */}
+                {isAutoLocked ? (
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
+                      HS Code <span style={{ color: '#28A745', fontSize: '0.75rem', marginLeft: '4px' }}>(auto N/A for {parcelType})</span>
+                    </label>
+                    <input type="text" value="N/A" disabled readOnly
+                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', ...LOCKED_STYLE }} />
+                  </div>
+                ) : (
+                  <Field label="HS Code *" value={shipment.hsCode} onChange={(v) => setShipmentField('hsCode', v)} placeholder="Harmonized System Code" error={fieldErrors['shipment.hsCode']} />
+                )}
                 <SelectField label="Country of Origin *" value={shipment.originCountry} onChange={(v) => setShipmentField('originCountry', v)} countries={countries} error={fieldErrors['shipment.originCountry']} />
               </div>
               <Field label="Special Instruction" value={shipment.specialInstruction} onChange={(v) => setShipmentField('specialInstruction', v)} textarea />
@@ -1203,7 +1224,18 @@ export default function BookPage() {
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
-                <Field label="Total Customs Value *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} error={fieldErrors['shipment.totalValue']} />
+                {/* G.31 — Customs Value auto-locked for Document / Special Parcel */}
+                {isAutoLocked ? (
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
+                      Total Customs Value <span style={{ color: '#28A745', fontSize: '0.75rem', marginLeft: '4px' }}>(auto 0 for {parcelType})</span>
+                    </label>
+                    <input type="text" value="0" disabled readOnly
+                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', ...LOCKED_STYLE }} />
+                  </div>
+                ) : (
+                  <Field label="Total Customs Value *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} error={fieldErrors['shipment.totalValue']} />
+                )}
                 <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
               </div>
 
