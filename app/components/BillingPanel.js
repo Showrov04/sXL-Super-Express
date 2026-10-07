@@ -22,11 +22,11 @@ function statusClass(s) {
   return { bg: '#FFF3CD', color: '#856404' };
 }
 
-// G.39 — Mode cell renderer: AIR Special Parcel → red badge "AIR-SP"
+// G.39b — Mode cell renderer
+// Uses `isSpecialParcel` flag from the billing API (billing API does not return parcelType)
 function renderModeCell(s) {
   const mode = String(s.shipMode || '').toUpperCase();
-  const parcelType = String(s.parcelType || s.parcel_type || '').trim();
-  const isSpecialParcel = parcelType === 'Special Parcel';
+  const isSpecialParcel = s.isSpecialParcel === true;
 
   if (isSpecialParcel && mode === 'AIR') {
     return (
@@ -45,7 +45,7 @@ function renderModeCell(s) {
     );
   }
 
-  // Fallback
+  // Fallback — plain text
   return s.shipmentType || s.shipMode || '—';
 }
 
