@@ -25,6 +25,11 @@ const TD_STYLE = {
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
+// G.30 — draft reminder constants
+const DRAFT_KEY = 'sxl_booking_draft';
+const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DRAFT_DISMISS_KEY = 'sxl_booking_draft_dismissed_at';
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -39,6 +44,9 @@ export default function DashboardPage() {
     totalPaid: { total: 0, currency: 'USD', count: 0 },
   });
   const [error, setError] = useState('');
+
+  // G.30 — draft banner state
+  const [draftBanner, setDraftBanner] = useState(null); // { savedAt }
 
   const [colFilters, setColFilters] = useState({
     tracking: [], mode: [], shipper: [], route: [], status: [], payment: [],
@@ -63,10 +71,42 @@ export default function DashboardPage() {
     if (!stored || !token) { router.push('/login'); return; }
     try { setUser(JSON.parse(stored)); } catch (e) { router.push('/login'); }
 
-    // G.27 — fetch company name from profile (not stored in localStorage)
     loadCompanyName();
+    checkForDraftBanner();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  // ============ G.30 — Draft banner check ============
+  function checkForDraftBanner() {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.savedAt) return;
+      const age = Date.now() - new Date(parsed.savedAt).getTime();
+      if (age > DRAFT_MAX_AGE_MS) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      // Already dismissed for this draft?
+      const dismissedAt = localStorage.getItem(DRAFT_DISMISS_KEY);
+      if (dismissedAt && new Date(dismissedAt).getTime() >= new Date(parsed.savedAt).getTime()) {
+        return;
+      }
+      setDraftBanner({ savedAt: parsed.savedAt });
+    } catch (e) {
+      // Corrupted → clear silently
+      localStorage.removeItem(DRAFT_KEY);
+    }
+  }
+
+  function dismissDraftBanner() {
+    try {
+      localStorage.setItem(DRAFT_DISMISS_KEY, new Date().toISOString());
+    } catch (e) { /* silent */ }
+    setDraftBanner(null);
+  }
+  // ============ end draft banner ============
 
   async function loadCompanyName() {
     const token = localStorage.getItem('sxl_token');
@@ -408,6 +448,63 @@ export default function DashboardPage() {
       <Header />
 
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '40px 20px', minHeight: '60vh' }}>
+
+        {/* G.30 — Draft reminder banner */}
+        {draftBanner && (
+          <div style={{
+            background: '#FFF5EB',
+            border: '2px solid #FF6B00',
+            borderLeft: '6px solid #FF6B00',
+            borderRadius: '12px',
+            padding: '16px 20px',
+            marginBottom: '20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '15px',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '260px' }}>
+              <span style={{ fontSize: '1.6rem' }}>📝</span>
+              <div>
+                <div style={{ fontWeight: 800, color: '#8B4500', fontSize: '0.95rem', marginBottom: '2px' }}>
+                  You have an unfinished booking
+                </div>
+                <div style={{ color: '#8B4500', fontSize: '0.82rem' }}>
+                  Started on {new Date(draftBanner.savedAt).toLocaleString('en-US', {
+                    year: 'numeric', month: 'short', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                  })}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={dismissDraftBanner}
+                style={{
+                  padding: '9px 16px', background: 'transparent', color: '#8B4500',
+                  border: '2px solid #FF6B00', borderRadius: '8px',
+                  fontWeight: 700, fontSize: '0.82rem',
+                  cursor: 'pointer', fontFamily: 'inherit'
+                }}
+              >
+                Dismiss
+              </button>
+              <Link
+                href="/book"
+                style={{
+                  padding: '9px 20px', background: '#FF6B00', color: 'white',
+                  borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem',
+                  textDecoration: 'none', display: 'inline-block', whiteSpace: 'nowrap'
+                }}
+              >
+                Continue →
+              </Link>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
           <div>
             <h1 style={{ fontSize: '2rem', color: '#003366', fontWeight: 800, marginBottom: '5px' }}>
@@ -564,8 +661,7 @@ export default function DashboardPage() {
                         <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
                         <td style={{ ...TD_STYLE, width: 105 }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
                         <td style={{ ...TD_STYLE, width: 115 }}>
-                          {hasCost
-                            ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
+                          {hasCost                            ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
                             : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                         </td>
                         <td style={{ ...TD_STYLE, width: 120 }}>
