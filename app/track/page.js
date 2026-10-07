@@ -200,10 +200,14 @@ function TrackContent() {
                   letterSpacing: '0.8px',
                   background: result.shipment.status === 'Delivered' ? '#D4EDDA' :
                               result.shipment.status === 'In Transit' ? '#CCE5FF' :
-                              result.shipment.status === 'Out for Delivery' ? '#FFE5B4' : '#FFF3CD',
+                              result.shipment.status === 'Out for Delivery' ? '#FFE5B4' :
+                              result.shipment.status === 'Cancelled' ? '#E9ECEF' :
+                              result.shipment.status === 'Cancellation Requested' ? '#F8D7DA' : '#FFF3CD',
                   color: result.shipment.status === 'Delivered' ? '#155724' :
                          result.shipment.status === 'In Transit' ? '#004085' :
-                         result.shipment.status === 'Out for Delivery' ? '#8B4500' : '#856404'
+                         result.shipment.status === 'Out for Delivery' ? '#8B4500' :
+                         result.shipment.status === 'Cancelled' ? '#495057' :
+                         result.shipment.status === 'Cancellation Requested' ? '#721C24' : '#856404'
                 }}>
                   {result.shipment.status}
                 </div>
@@ -304,7 +308,7 @@ function TrackContent() {
                   </div>
                 </div>
 
-                {/* OTHER DETAILS GRID — G.24: removed Shipper & Consignee cells */}
+                {/* OTHER DETAILS GRID */}
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -356,43 +360,48 @@ function TrackContent() {
                         width: '2px',
                         background: '#E9ECEF'
                       }} />
-                      {result.history.map((item, i) => (
-                        <div key={i} style={{ position: 'relative', paddingBottom: '25px' }}>
-                          <div style={{
-                            position: 'absolute',
-                            left: '-35px',
-                            top: '4px',
-                            width: '22px',
-                            height: '22px',
-                            borderRadius: '50%',
-                            background: i === 0 ? '#00A86B' : '#E9ECEF',
-                            border: '4px solid white',
-                            boxShadow: i === 0 ? '0 0 0 2px #00A86B, 0 0 0 6px rgba(0,168,107,0.15)' : '0 0 0 2px #E9ECEF'
-                          }} />
-                          <div style={{ fontWeight: 700, color: '#343A40', marginBottom: '2px' }}>
-                            {item.status}
-                          </div>
-                          <div style={{ fontSize: '0.9rem', color: '#6C757D' }}>
-                            📍 {item.location || '—'}
-                          </div>
-                          <div style={{ fontSize: '0.8rem', color: '#ADB5BD', marginTop: '3px' }}>
-                            🕐 {formatDateTime(item.timestamp)}
-                          </div>
-                          {item.notes && (
+                      {result.history.map((item, i) => {
+                        const isCurrent = i === 0;
+                        return (
+                          <div key={i} style={{ position: 'relative', paddingBottom: '25px' }}>
                             <div style={{
-                              fontSize: '0.85rem',
-                              color: '#6C757D',
-                              fontStyle: 'italic',
-                              marginTop: '5px',
-                              padding: '8px 12px',
-                              background: '#F8F9FA',
-                              borderRadius: '6px'
-                            }}>
-                              {item.notes}
+                              position: 'absolute',
+                              left: isCurrent ? '-35px' : '-34px',
+                              top: isCurrent ? '4px' : '5px',
+                              width: isCurrent ? '22px' : '20px',
+                              height: isCurrent ? '22px' : '20px',
+                              borderRadius: '50%',
+                              background: isCurrent ? '#00A86B' : '#E8F7EF',
+                              border: isCurrent ? '4px solid white' : '3px solid #00A86B',
+                              boxShadow: isCurrent
+                                ? '0 0 0 2px #00A86B, 0 0 0 6px rgba(0,168,107,0.15)'
+                                : 'none'
+                            }} />
+                            <div style={{ fontWeight: 700, color: '#343A40', marginBottom: '2px' }}>
+                              {item.status}
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            <div style={{ fontSize: '0.9rem', color: '#6C757D' }}>
+                              📍 {item.location || '—'}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#ADB5BD', marginTop: '3px' }}>
+                              🕐 {formatDateTime(item.timestamp)}
+                            </div>
+                            {item.notes && (
+                              <div style={{
+                                fontSize: '0.85rem',
+                                color: '#6C757D',
+                                fontStyle: 'italic',
+                                marginTop: '5px',
+                                padding: '8px 12px',
+                                background: '#F8F9FA',
+                                borderRadius: '6px'
+                              }}>
+                                {item.notes}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
