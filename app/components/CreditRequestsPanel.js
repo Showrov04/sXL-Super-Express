@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-export default function CreditRequestsPanel() {
+export default function CreditRequestsPanel({ onActionComplete }) {
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
   const [error, setError] = useState('');
@@ -14,6 +14,7 @@ export default function CreditRequestsPanel() {
 
   useEffect(() => {
     loadRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadRequests() {
@@ -83,6 +84,9 @@ export default function CreditRequestsPanel() {
       setMsg('✅ Request ' + (action === 'approve' ? 'approved' : 'rejected') + ' successfully.');
       setActionLoading('');
       setTimeout(loadRequests, 500);
+
+      // G.45c — tell parent to refresh pending badge counts
+      if (typeof onActionComplete === 'function') onActionComplete();
     } catch (err) {
       window.alert('Error: ' + err.message);
       setActionLoading('');
