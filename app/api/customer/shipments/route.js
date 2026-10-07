@@ -58,11 +58,21 @@ function countryName(code) {
   return COUNTRY_NAMES[upper] || code;
 }
 
+// G.40c — Include parcel type in the mode string (matches admin API behavior)
 function buildShipmentType(shipment) {
   const mode = String(shipment.ship_mode || '').toUpperCase();
   const load = String(shipment.sea_load_type || '').toUpperCase();
-  if (mode === 'SEA') return load ? ('SEA - ' + load) : 'SEA';
-  if (mode === 'AIR') return 'AIR';
+  const pType = String(shipment.parcel_type || '').trim();
+  const pCustom = String(shipment.parcel_type_custom || '').trim();
+
+  if (mode === 'SEA') {
+    return load ? ('SEA - ' + load) : 'SEA';
+  }
+  if (mode === 'AIR') {
+    let p = pType;
+    if (p === 'Others' && pCustom) p = 'Others: ' + pCustom;
+    return p ? ('AIR - ' + p) : 'AIR';
+  }
   return mode || '—';
 }
 
@@ -153,6 +163,8 @@ export async function GET(request) {
         shipMode: s.ship_mode,
         seaLoadType: s.sea_load_type || null,
         shipmentType: buildShipmentType(s),
+        // G.40c — also expose raw parcel type for the badge
+        parcelType: s.parcel_type || null,
         serviceType: s.service_type,
         status: s.status,
         origin: countryName(s.origin),
@@ -173,7 +185,6 @@ export async function GET(request) {
         originCountry: s.origin_country || null,
         freightBillTo: s.freight_bill_to || null,
         dutyTaxBillTo: s.duty_tax_bill_to || null,
-        // NEW
         customService: s.custom_service || null,
         deliveryService: s.delivery_service || null,
         uploadedDocuments: s.uploaded_documents || null,
