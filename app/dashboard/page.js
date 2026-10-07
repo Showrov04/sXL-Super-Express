@@ -28,6 +28,7 @@ const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
+  const [companyName, setCompanyName] = useState('');
   const [tab, setTab] = useState('active');
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState([]);
@@ -61,7 +62,25 @@ export default function DashboardPage() {
     const token = localStorage.getItem('sxl_token');
     if (!stored || !token) { router.push('/login'); return; }
     try { setUser(JSON.parse(stored)); } catch (e) { router.push('/login'); }
+
+    // G.27 — fetch company name from profile (not stored in localStorage)
+    loadCompanyName();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  async function loadCompanyName() {
+    const token = localStorage.getItem('sxl_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/customer/profile', {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const data = await res.json();
+      if (data.success && data.profile && data.profile.companyName) {
+        setCompanyName(data.profile.companyName);
+      }
+    } catch (e) { /* silent */ }
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -285,35 +304,6 @@ export default function DashboardPage() {
     return { bg: '#FFF3CD', color: '#856404' };
   }
 
-  // G.3: render actual weight / volume for AIR (kg) and SEA (kg + CBM)
-  function renderActualCell(s) {
-    const mode = String(s.shipMode || '').toUpperCase();
-    const isSeaRow = mode === 'SEA';
-
-    if (isSeaRow) {
-      const weight = s.actualWeight;
-      const cbm = s.actualCbm;
-      const hasWeight = weight !== null && weight !== undefined && parseFloat(weight) > 0;
-      const hasCbm = cbm !== null && cbm !== undefined && parseFloat(cbm) > 0;
-      if (!hasWeight && !hasCbm) {
-        return <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>;
-      }
-      return (
-        <div style={{ lineHeight: 1.4 }}>
-          {hasWeight && <div style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(weight).toFixed(2)} kg</div>}
-          {hasCbm && <div style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(cbm).toFixed(2)} CBM</div>}
-        </div>
-      );
-    }
-
-    const weight = s.actualWeight;
-    const hasWeight = weight !== null && weight !== undefined && parseFloat(weight) > 0;
-    if (!hasWeight) {
-      return <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>;
-    }
-    return <span style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(weight).toFixed(2)} kg</span>;
-  }
-
   const summaryCardConfig =
     tab === 'awaiting'
       ? { label: '💵 Total Outstanding', data: { total: outstanding?.total || 0, currency: outstanding?.currency || 'USD', count: outstanding?.count || 0 } }
@@ -423,6 +413,11 @@ export default function DashboardPage() {
             <h1 style={{ fontSize: '2rem', color: '#003366', fontWeight: 800, marginBottom: '5px' }}>
               Welcome, {user.name || 'Customer'}
             </h1>
+            {companyName && (
+              <p style={{ color: '#6C757D', fontSize: '1rem', fontWeight: 600, marginBottom: '5px' }}>
+                {companyName}
+              </p>
+            )}
             <p style={{ color: '#6C757D', fontSize: '0.95rem' }}>
               Account ID: <b>{user.userId || '-'}</b>
             </p>
@@ -567,7 +562,7 @@ export default function DashboardPage() {
                           <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
                         </td>
                         <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
-                        <td style={{ ...TD_STYLE, width: 105 }}>{renderActualCell(s)}</td>
+                        <td style={{ ...TD_STYLE, width: 105 }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
                         <td style={{ ...TD_STYLE, width: 115 }}>
                           {hasCost
                             ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
