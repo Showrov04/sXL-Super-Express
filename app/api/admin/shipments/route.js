@@ -86,6 +86,19 @@ async function requireAdmin(request) {
 }
 
 /* ============================================================
+ *  G.46 — Status classifier
+ *  A shipment is "truly cancelled" only when status === 'Cancelled'.
+ *  'Cancellation Requested' stays in Active until admin decides.
+ * ============================================================ */
+function isTrulyCancelled(status) {
+  return String(status || '').toLowerCase() === 'cancelled';
+}
+
+function isCancellationPending(status) {
+  return String(status || '').toLowerCase().includes('cancellation');
+}
+
+/* ============================================================
  *  G.16 — Field metadata for editBooking diffing
  *  Each entry: formKey -> { dbKey, label, public, kind }
  *  kind: 'text' | 'int' | 'float' | 'date' | 'time'
@@ -159,7 +172,6 @@ function normalizeValue(val, kind) {
     return isNaN(n) ? null : n;
   }
   if (kind === 'date') {
-    // Keep only YYYY-MM-DD portion
     return String(val).slice(0, 10) || null;
   }
   if (kind === 'time') {
@@ -176,7 +188,6 @@ function valuesDiffer(a, b) {
   return String(a) !== String(b);
 }
 
-// Turn raw service key into human label
 function prettyServiceValue(val) {
   const v = String(val || '').toLowerCase();
   if (v === 'sxl') return 'Handled by sXL';
@@ -184,7 +195,6 @@ function prettyServiceValue(val) {
   return val || '(none)';
 }
 
-// For very long text values, truncate for the note
 function truncateVal(val, max = 40) {
   if (val === null || val === undefined) return '(empty)';
   const s = String(val);
@@ -227,15 +237,19 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: error.message });
     }
 
+    // G.46 — counts: 'Cancellation Requested' counts as Active (pending decision),
+    // only 'Cancelled' counts toward cancelled.
     const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: all.length };
     all.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
-      const isCancelled = status === 'cancelled' || status.includes('cancellation');
+      const isCancelled = status === 'cancelled';
+      const isPendingCancel = status.includes('cancellation');
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
 
       if (isCancelled) { counts.cancelled++; return; }
+      if (isPendingCancel) { counts.active++; return; }  // G.46 — pending stays active
       if (!isDelivered) counts.active++;
       else if (!isPaid) counts.awaiting++;
       else counts.paid++;
@@ -244,14 +258,15 @@ export async function GET(request) {
     let filtered = all.filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
-      const isCancelled = status === 'cancelled' || status.includes('cancellation');
+      const isCancelled = status === 'cancelled';
+      const isPendingCancel = status.includes('cancellation');
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
 
-      if (tab === 'cancelled') return isCancelled;
+      if (tab === 'cancelled') return isCancelled;   // G.46 — only truly Cancelled
       if (isCancelled) return false;
 
-      if (tab === 'active') return !isDelivered;
+      if (tab === 'active') return !isDelivered;     // G.46 — pending cancel is still !delivered, so stays
       if (tab === 'awaiting') return isDelivered && !isPaid;
       if (tab === 'paid') return isDelivered && isPaid;
       return true;
@@ -436,7 +451,6 @@ export async function POST(request) {
         return NextResponse.json({ success: false, error: 'Tracking number and fields required.' });
       }
 
-      // Fetch current row for real diff
       const { data: current, error: fetchErr } = await serviceSupabase
         .from('shipments')
         .select('*')
@@ -447,7 +461,7 @@ export async function POST(request) {
       if (!current) return NextResponse.json({ success: false, error: 'Shipment not found.' });
 
       const updateData = {};
-      const publicChanges = []; // { label, oldVal, newVal }
+      const publicChanges = [];
       const internalChangeCount = { count: 0 };
       const allChangedLabels = [];
 
@@ -457,7 +471,7 @@ export async function POST(request) {
         const newVal = normalizeValue(fields[formKey], meta.kind);
         const oldVal = normalizeValue(current[meta.dbKey], meta.kind);
 
-        if (!valuesDiffer(oldVal, newVal)) return; // no real change
+        if (!valuesDiffer(oldVal, newVal)) return;
 
         updateData[meta.dbKey] = newVal;
         allChangedLabels.push(meta.label);
@@ -473,7 +487,6 @@ export async function POST(request) {
         }
       });
 
-      // No real changes → return early, no update, no history entry
       if (Object.keys(updateData).length === 0) {
         return NextResponse.json({
           success: true,
@@ -491,7 +504,6 @@ export async function POST(request) {
 
       if (updErr) return NextResponse.json({ success: false, error: updErr.message });
 
-      // Build customer-facing note — only if there's at least one public change
       let historyNotes = '';
       if (publicChanges.length > 0) {
         const lines = publicChanges.map((c) => c.label + ': ' + c.oldVal + ' → ' + c.newVal);
@@ -508,8 +520,6 @@ export async function POST(request) {
           updated_by: session.userId,
         });
       }
-
-      // Internal-only edits: no customer-facing history entry (per user request)
 
       return NextResponse.json({
         success: true,
