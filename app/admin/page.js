@@ -28,7 +28,14 @@ const TD_STYLE = {
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
-// G.38 — Mode cell renderer: Special Parcel → red badge "AIR-SP"; else plain text
+// S.1 — Top scrollbar styling
+const TOP_SCROLLBAR_STYLE = {
+  overflowX: 'auto',
+  overflowY: 'hidden',
+  borderBottom: '1px solid #E9ECEF',
+  background: 'white',
+};
+
 function renderModeCell(s) {
   const mode = String(s.shipMode || '').toUpperCase();
   const parcelType = String(s.parcelType || '').trim();
@@ -200,6 +207,11 @@ function ShipmentsPanel() {
   const downloadMenuRef = useRef(null);
   const filterDropdownRef = useRef(null);
 
+  // S.1 — refs for dual horizontal scrollbar sync
+  const topScrollRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const isSyncingRef = useRef(false);
+
   const [statusModal, setStatusModal] = useState(null);
   const [suTracking, setSuTracking] = useState('');
   const [suCurrentStatus, setSuCurrentStatus] = useState('');
@@ -269,6 +281,35 @@ function ShipmentsPanel() {
     }
     return () => { document.body.style.overflow = ''; };
   }, [statusModal, whModal, filesModal, editModal]);
+
+  // S.1 — Sync top scrollbar <-> table scrollbar
+  // The top scrollbar is a mirror: it has the same content width, so dragging
+  // it moves the table's scrollLeft, and vice versa.
+  useEffect(() => {
+    const topEl = topScrollRef.current;
+    const tableEl = tableScrollRef.current;
+    if (!topEl || !tableEl) return;
+
+    function syncFromTop() {
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
+      tableEl.scrollLeft = topEl.scrollLeft;
+      isSyncingRef.current = false;
+    }
+    function syncFromTable() {
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
+      topEl.scrollLeft = tableEl.scrollLeft;
+      isSyncingRef.current = false;
+    }
+
+    topEl.addEventListener('scroll', syncFromTop);
+    tableEl.addEventListener('scroll', syncFromTable);
+    return () => {
+      topEl.removeEventListener('scroll', syncFromTop);
+      tableEl.removeEventListener('scroll', syncFromTable);
+    };
+  }, [loading, shipments.length, tab]);
 
   async function loadShipments() {
     setLoading(true);
@@ -869,168 +910,179 @@ function ShipmentsPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <>
-          {/* Reverted from G.55 / G.55-fix — original behavior: maxHeight + overflow auto,
-              table scrolls internally, header sticks inside the table box */}
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
-              <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
-                <tr>
-                  <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
-                  <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
-                  <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={FROZEN_LEFT_ROUTE} hasShadow={true} />
-                  <HeaderCell col="shipper" label="Shipper" width={150} />
-                  <HeaderCell col="none" label="Recipient" width={150} />
-                  <HeaderCell col="status" label="Status" width={140} />
-                  <HeaderCell col="none" label="Booking Wt" width={110} />
-                  <HeaderCell col="none" label="Actual Wt" width={130} />
-                  <HeaderCell col="none" label="Cost" width={115} />
-                  <HeaderCell col="payment" label="Payment" width={120} />
-                  <HeaderCell col="none" label="Booked" width={120} />
-                  <HeaderCell col="none" label="ETA" width={125} />
-                  <HeaderCell col="none" label="Actions" width={520} />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s, i) => {
-                  const sc = statusClass(s.status);
-                  const pc = paymentClass(s.paymentStatus);
-                  const isSelfDelivery = s.pickupService === false;
-                  const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
-                  const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
-                  const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
-                  const rowHasFiles = hasFiles(s);
-                  const whSent = !!s.warehouseSentAt;
-                  const wasUpdated = String(s.status || '').toLowerCase() !== 'booked';
-                  const isActiveTab = tab === 'active';
-                  const showWarehouseBtn = isActiveTab && isSelfDelivery;
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
+            {/* S.1 — TOP horizontal scrollbar (mirrors the table's own scrollbar) */}
+            <div
+              ref={topScrollRef}
+              style={TOP_SCROLLBAR_STYLE}
+              aria-hidden="true"
+            >
+              {/* Ghost div with the same width as the table so the top scrollbar has room to drag */}
+              <div style={{ width: '1650px', height: '1px' }} />
+            </div>
 
-                  return (
-                    <tr key={i} style={{ background: rowBg }}>
-                      <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                      <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{renderModeCell(s)}</td>
-                      <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 140 }}>
-                        <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
-                      </td>
-                      <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 130 }}>{renderActualCell(s)}</td>
-                      <td style={{ ...TD_STYLE, width: 115 }}>
-                        {hasCost
-                          ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
-                          : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
-                      </td>
-                      <td style={{ ...TD_STYLE, width: 120 }}>
-                        <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
-                      </td>
-                      <td style={{ ...TD_STYLE, width: 120 }}>{formatDate(s.bookedAt)}</td>
-                      <td style={{ ...TD_STYLE, width: 125 }}>
-                        <span style={{ color: '#FF6B00', fontWeight: 800 }}>
-                          {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
-                        </span>
-                      </td>
-                      <td style={{ ...TD_STYLE, width: 520 }}>
-                        {tab !== 'cancelled' && (
-                          <>
-                            <a
-                              href={'/api/pdf/booking/' + s.trackingNumber}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                padding: '5px 10px',
-                                background: '#00A86B',
-                                color: 'white',
-                                borderRadius: '6px',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                textDecoration: 'none',
-                                marginRight: '4px',
-                                whiteSpace: 'nowrap',
-                                display: 'inline-block'
-                              }}
-                            >
-                              📄 Booking PDF
-                            </a>
+            {/* Table with its own internal scroll (frozen header + frozen left cols) */}
+            <div ref={tableScrollRef} style={{ overflow: 'auto', maxHeight: '70vh' }}>
+              <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
+                  <tr>
+                    <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
+                    <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
+                    <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={FROZEN_LEFT_ROUTE} hasShadow={true} />
+                    <HeaderCell col="shipper" label="Shipper" width={150} />
+                    <HeaderCell col="none" label="Recipient" width={150} />
+                    <HeaderCell col="status" label="Status" width={140} />
+                    <HeaderCell col="none" label="Booking Wt" width={110} />
+                    <HeaderCell col="none" label="Actual Wt" width={130} />
+                    <HeaderCell col="none" label="Cost" width={115} />
+                    <HeaderCell col="payment" label="Payment" width={120} />
+                    <HeaderCell col="none" label="Booked" width={120} />
+                    <HeaderCell col="none" label="ETA" width={125} />
+                    <HeaderCell col="none" label="Actions" width={520} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((s, i) => {
+                    const sc = statusClass(s.status);
+                    const pc = paymentClass(s.paymentStatus);
+                    const isSelfDelivery = s.pickupService === false;
+                    const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
+                    const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+                    const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
+                    const rowHasFiles = hasFiles(s);
+                    const whSent = !!s.warehouseSentAt;
+                    const wasUpdated = String(s.status || '').toLowerCase() !== 'booked';
+                    const isActiveTab = tab === 'active';
+                    const showWarehouseBtn = isActiveTab && isSelfDelivery;
 
-                            {isActiveTab && (
-                              <>
-                                <button
-                                  onClick={() => openStatusModal(s)}
-                                  style={{
-                                    padding: '5px 10px',
-                                    background: wasUpdated ? '#E9ECEF' : '#FF6B00',
-                                    color: wasUpdated ? '#495057' : 'white',
-                                    border: 'none', borderRadius: '6px',
-                                    fontWeight: 700, fontSize: '0.72rem',
-                                    cursor: 'pointer', fontFamily: 'inherit',
-                                    marginRight: '4px', whiteSpace: 'nowrap'
-                                  }}
-                                >
-                                  {wasUpdated ? '✅ Status Updated' : '🔄 Update Status'}
-                                </button>
+                    return (
+                      <tr key={i} style={{ background: rowBg }}>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{renderModeCell(s)}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 140 }}>
+                          <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
+                        </td>
+                        <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 130 }}>{renderActualCell(s)}</td>
+                        <td style={{ ...TD_STYLE, width: 115 }}>
+                          {hasCost
+                            ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
+                            : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
+                        </td>
+                        <td style={{ ...TD_STYLE, width: 120 }}>
+                          <span style={{ background: pc.bg, color: pc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
+                        </td>
+                        <td style={{ ...TD_STYLE, width: 120 }}>{formatDate(s.bookedAt)}</td>
+                        <td style={{ ...TD_STYLE, width: 125 }}>
+                          <span style={{ color: '#FF6B00', fontWeight: 800 }}>
+                            {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
+                          </span>
+                        </td>
+                        <td style={{ ...TD_STYLE, width: 520 }}>
+                          {tab !== 'cancelled' && (
+                            <>
+                              <a
+                                href={'/api/pdf/booking/' + s.trackingNumber}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  padding: '5px 10px',
+                                  background: '#00A86B',
+                                  color: 'white',
+                                  borderRadius: '6px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  textDecoration: 'none',
+                                  marginRight: '4px',
+                                  whiteSpace: 'nowrap',
+                                  display: 'inline-block'
+                                }}
+                              >
+                                📄 Booking PDF
+                              </a>
 
-                                <button
-                                  onClick={() => openEditModal(s)}
-                                  style={{
-                                    padding: '5px 10px',
-                                    background: '#003366',
-                                    color: 'white',
-                                    border: 'none', borderRadius: '6px',
-                                    fontWeight: 700, fontSize: '0.72rem',
-                                    cursor: 'pointer', fontFamily: 'inherit',
-                                    marginRight: '4px', whiteSpace: 'nowrap'
-                                  }}
-                                >
-                                  ✏️ Edit Booking
-                                </button>
-                              </>
-                            )}
+                              {isActiveTab && (
+                                <>
+                                  <button
+                                    onClick={() => openStatusModal(s)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      background: wasUpdated ? '#E9ECEF' : '#FF6B00',
+                                      color: wasUpdated ? '#495057' : 'white',
+                                      border: 'none', borderRadius: '6px',
+                                      fontWeight: 700, fontSize: '0.72rem',
+                                      cursor: 'pointer', fontFamily: 'inherit',
+                                      marginRight: '4px', whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    {wasUpdated ? '✅ Status Updated' : '🔄 Update Status'}
+                                  </button>
 
-                            {rowHasFiles && (
-                              <button onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
-                            )}
+                                  <button
+                                    onClick={() => openEditModal(s)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      background: '#003366',
+                                      color: 'white',
+                                      border: 'none', borderRadius: '6px',
+                                      fontWeight: 700, fontSize: '0.72rem',
+                                      cursor: 'pointer', fontFamily: 'inherit',
+                                      marginRight: '4px', whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    ✏️ Edit Booking
+                                  </button>
+                                </>
+                              )}
 
-                            {showWarehouseBtn && (
-                              <>
-                                <button
-                                  onClick={() => openWarehouseModal(s)}
-                                  style={{
-                                    padding: '5px 10px',
-                                    background: whSent ? '#28A745' : '#DC3545',
-                                    color: 'white', border: 'none', borderRadius: '6px',
-                                    fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer',
-                                    fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap'
-                                  }}
-                                >
-                                  {whSent ? '✅ Warehouse Sent' : '📧 Send Warehouse'}
-                                </button>
-                                {whSent && (
+                              {rowHasFiles && (
+                                <button onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
+                              )}
+
+                              {showWarehouseBtn && (
+                                <>
                                   <button
                                     onClick={() => openWarehouseModal(s)}
                                     style={{
-                                      padding: '5px 8px', background: 'transparent', color: '#003366',
-                                      border: '1px solid #E9ECEF', borderRadius: '6px',
-                                      fontWeight: 600, fontSize: '0.68rem', cursor: 'pointer',
-                                      fontFamily: 'inherit', textDecoration: 'underline'
+                                      padding: '5px 10px',
+                                      background: whSent ? '#28A745' : '#DC3545',
+                                      color: 'white', border: 'none', borderRadius: '6px',
+                                      fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer',
+                                      fontFamily: 'inherit', marginRight: '4px', whiteSpace: 'nowrap'
                                     }}
                                   >
-                                    Resend
+                                    {whSent ? '✅ Warehouse Sent' : '📧 Send Warehouse'}
                                   </button>
-                                )}
-                              </>
-                            )}
-                          </>
-                        )}
-                        {tab === 'cancelled' && (
-                          <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                                  {whSent && (
+                                    <button
+                                      onClick={() => openWarehouseModal(s)}
+                                      style={{
+                                        padding: '5px 8px', background: 'transparent', color: '#003366',
+                                        border: '1px solid #E9ECEF', borderRadius: '6px',
+                                        fontWeight: 600, fontSize: '0.68rem', cursor: 'pointer',
+                                        fontFamily: 'inherit', textDecoration: 'underline'
+                                      }}
+                                    >
+                                      Resend
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </>
+                          )}
+                          {tab === 'cancelled' && (
+                            <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div style={{ marginTop: '12px', textAlign: 'right', fontSize: '0.85rem', color: '#6C757D' }}>
@@ -1901,7 +1953,6 @@ function ShippersPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <>
-          {/* Reverted — original behavior */}
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '900px', tableLayout: 'fixed' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
