@@ -96,7 +96,6 @@ function fmtDate(d) {
   } catch (e) { return String(d); }
 }
 
-// Short date: dd-MMM-yy (compact)
 function shortDate(d) {
   if (!d) return '-';
   try {
@@ -107,17 +106,13 @@ function shortDate(d) {
   } catch (e) { return String(d).slice(0, 10); }
 }
 
-// Truncate text with ellipsis if too long
 function clip(str, maxLen, font, size) {
   const v = sanitizeForPDF(String(str || ''));
   if (!v) return '';
-  // Rough character-count check, then also measure
   if (v.length > maxLen) {
     let cut = v.substring(0, maxLen - 1) + '.';
-    // Keep trimming until it fits
     let guard = 20;
     while (font.widthOfTextAtSize(cut, size) > 0 && guard-- > 0) {
-      // nothing extra; visual truncation via maxLen is adequate
       break;
     }
     return cut;
@@ -171,10 +166,12 @@ export async function GET(request) {
       return new NextResponse('DB error: ' + error.message, { status: 500 });
     }
 
+    // G.47 — match admin shipments API: only exact 'Cancelled' counts as cancelled,
+    // 'Cancellation Requested' stays in Active
     let filtered = (all || []).filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
-      const isCancelled = status === 'cancelled' || status.includes('cancellation');
+      const isCancelled = status === 'cancelled';
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
 
@@ -200,24 +197,20 @@ export async function GET(request) {
       );
     }
 
-    // ============ BUILD PDF ============
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    // Landscape A4: 842 x 595
     const PAGE_W = 842;
     const PAGE_H = 595;
     const MARGIN = 20;
 
-    // Font sizes
     const FONT_SMALL = 7;
     const FONT_HEADER = 7.5;
     const ROW_H = 14;
     const HEADER_H = 18;
     const BANNER_H = 32;
 
-    // Column widths — total = 842 - 40 = 802
     const cols = [
       { key: 'tracking', header: 'Tracking #', w: 110, align: 'left', maxChars: 18 },
       { key: 'mode', header: 'Mode', w: 55, align: 'left', maxChars: 9 },
@@ -233,7 +226,6 @@ export async function GET(request) {
       { key: 'eta', header: 'ETA', w: 62, align: 'left', maxChars: 10 },
     ];
 
-    // Auto-scale if needed
     const totalColsW = cols.reduce((sum, c) => sum + c.w, 0);
     const totalW = PAGE_W - MARGIN * 2;
     if (totalColsW !== totalW) {
@@ -244,7 +236,6 @@ export async function GET(request) {
     let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
     let y = PAGE_H - MARGIN;
 
-    // ===== Top banner =====
     function drawBanner(subtitle) {
       page.drawRectangle({ x: MARGIN, y: y - BANNER_H, width: totalW, height: BANNER_H, color: ORANGE });
       page.drawText('SUPER EXPRESS', { x: MARGIN + 10, y: y - 14, size: 11, font: fontBold, color: WHITE });
@@ -261,7 +252,6 @@ export async function GET(request) {
       y -= BANNER_H + 8;
     }
 
-    // ===== Table header =====
     function drawTableHeader() {
       page.drawRectangle({ x: MARGIN, y: y - HEADER_H, width: totalW, height: HEADER_H, color: NAVY });
       let x = MARGIN;
@@ -280,10 +270,8 @@ export async function GET(request) {
     drawBanner(tab.charAt(0).toUpperCase() + tab.slice(1) + ' Shipments');
     drawTableHeader();
 
-    // ===== Draw rows =====
     filtered.forEach((s, idx) => {
       if (y - ROW_H < MARGIN + 25) {
-        // New page
         page = pdfDoc.addPage([PAGE_W, PAGE_H]);
         y = PAGE_H - MARGIN;
         page.drawRectangle({ x: MARGIN, y: y - BANNER_H, width: totalW, height: BANNER_H, color: ORANGE });
@@ -324,7 +312,6 @@ export async function GET(request) {
         x += c.w;
       });
 
-      // Row separator
       page.drawLine({
         start: { x: MARGIN, y: y - ROW_H },
         end: { x: MARGIN + totalW, y: y - ROW_H },
@@ -335,7 +322,6 @@ export async function GET(request) {
       y -= ROW_H;
     });
 
-    // ===== Footer =====
     if (y > MARGIN + 10) {
       y -= 8;
       page.drawText('Generated on ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' GMT  |  (c) sXL - Super Express Logistics Center', {
