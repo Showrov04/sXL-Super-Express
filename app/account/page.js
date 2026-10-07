@@ -6,8 +6,6 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
-// Reusable password input with show/hide toggle
-// Defined OUTSIDE the main component to avoid Server Component issues
 function PasswordField({ label, value, onChange, show, setShow, labelStyle, passwordInputStyle }) {
   const stableId = 'pwd_' + String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
   return (
@@ -94,6 +92,7 @@ export default function AccountPage() {
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [showNewPwd2, setShowNewPwd2] = useState(false);
   const [pwdMsg, setPwdMsg] = useState('');
+  const [pwdMsgType, setPwdMsgType] = useState('info');
   const [pwdLoading, setPwdLoading] = useState(false);
 
   useEffect(() => {
@@ -297,18 +296,70 @@ export default function AccountPage() {
     }
   }
 
+  // G.34 — Real change password via API
   async function handlePasswordChange(e) {
     e.preventDefault();
     setPwdMsg('');
-    if (!curPwd || !newPwd || !newPwd2) { setPwdMsg('All password fields are required.'); return; }
-    if (newPwd !== newPwd2) { setPwdMsg('New passwords do not match.'); return; }
-    if (newPwd.length < 6) { setPwdMsg('Password must be at least 6 characters.'); return; }
+    setPwdMsgType('info');
+
+    if (!curPwd || !newPwd || !newPwd2) {
+      setPwdMsg('All password fields are required.');
+      setPwdMsgType('error');
+      return;
+    }
+    if (newPwd !== newPwd2) {
+      setPwdMsg('New passwords do not match.');
+      setPwdMsgType('error');
+      return;
+    }
+    if (newPwd.length < 6) {
+      setPwdMsg('Password must be at least 6 characters.');
+      setPwdMsgType('error');
+      return;
+    }
+    if (curPwd === newPwd) {
+      setPwdMsg('New password must be different from current password.');
+      setPwdMsgType('error');
+      return;
+    }
+
     setPwdLoading(true);
-    setTimeout(() => {
-      setPwdMsg('Password change coming soon. Please contact admin.');
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const res = await fetch('/api/customer/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+        },
+        body: JSON.stringify({
+          currentPassword: curPwd,
+          newPassword: newPwd,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        setPwdMsg(data.error || 'Failed to change password.');
+        setPwdMsgType('error');
+        setPwdLoading(false);
+        return;
+      }
+
+      setPwdMsg('✅ Password changed successfully.');
+      setPwdMsgType('success');
       setPwdLoading(false);
-      setCurPwd(''); setNewPwd(''); setNewPwd2('');
-    }, 800);
+      setCurPwd('');
+      setNewPwd('');
+      setNewPwd2('');
+      setTimeout(() => setPwdMsg(''), 6000);
+    } catch (err) {
+      setPwdMsg('Connection error. Please try again.');
+      setPwdMsgType('error');
+      setPwdLoading(false);
+    }
   }
 
   const inputStyle = {
@@ -729,10 +780,18 @@ export default function AccountPage() {
         <div style={{ background: 'white', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
           <div style={{ marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #F1F3F5' }}>
             <h2 style={{ color: '#003366', fontSize: '1.2rem', margin: 0 }}>🔒 Change Password</h2>
+            <p style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px', marginBottom: 0 }}>
+              Enter your current password and choose a new one (min 6 characters)
+            </p>
           </div>
 
           {pwdMsg && (
-            <div style={{ background: '#FFF3CD', color: '#856404', borderLeft: '4px solid #FFC107', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem' }}>
+            <div style={{
+              background: pwdMsgType === 'success' ? '#D4EDDA' : pwdMsgType === 'error' ? '#F8D7DA' : '#FFF3CD',
+              color: pwdMsgType === 'success' ? '#155724' : pwdMsgType === 'error' ? '#721C24' : '#856404',
+              borderLeft: '4px solid ' + (pwdMsgType === 'success' ? '#28A745' : pwdMsgType === 'error' ? '#DC3545' : '#FFC107'),
+              borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '0.9rem'
+            }}>
               {pwdMsg}
             </div>
           )}
