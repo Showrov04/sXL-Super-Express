@@ -37,18 +37,16 @@ function generateShortForm(name) {
   return short || 'SXL';
 }
 
-// G.22 — 8 random digits (10000000-99999999, never leading zero)
+// G.22 — 8 random digits
 function randomEightDigits() {
   return String(Math.floor(10000000 + Math.random() * 90000000));
 }
 
-// G.22 — build a TN: SHORT + 8 random digits + S/A
 function buildTrackingNumber(shortForm, shipMode) {
   const suffix = shipMode === 'SEA' ? 'S' : 'A';
   return shortForm + randomEightDigits() + suffix;
 }
 
-// G.22 — generate unique TN against the shipments table
 async function generateUniqueTrackingNumber(shortForm, shipMode) {
   const MAX_ATTEMPTS = 5;
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
@@ -58,11 +56,7 @@ async function generateUniqueTrackingNumber(shortForm, shipMode) {
       .select('tracking_number')
       .eq('tracking_number', candidate)
       .maybeSingle();
-
-    if (error) {
-      // DB error — fail this attempt, try again
-      continue;
-    }
+    if (error) continue;
     if (!existing) return candidate;
   }
   throw new Error('Could not generate a unique tracking number after 5 attempts. Please try again.');
@@ -74,12 +68,17 @@ function mapServiceType(shipMode) {
   return 'Courier';
 }
 
+// G.32 — Auto-lock rule: Document & Special Parcel → HS Code N/A, Value 0
+function isAutoLockedParcelType(parcelType) {
+  const p = String(parcelType || '').trim();
+  return p === 'Document' || p === 'Special Parcel';
+}
+
 export async function POST(request) {
   try {
     const session = await getSessionUser(request);
     if (!session) return NextResponse.json({ success: false, error: 'Session expired.' });
 
-    // Check user is active (not suspended)
     const { data: userRecord } = await serviceSupabase
       .from('users')
       .select('active, credit_approved, credit_limit')
@@ -99,9 +98,10 @@ export async function POST(request) {
     const body = await request.json();
     const shipMode = String(body.shipMode || '').toUpperCase();
     const seaLoadType = String(body.seaLoadType || '').trim().toUpperCase();
+    const parcelType = String(body.parcelType || '').trim();
     const shipper = body.shipper || {};
     const consignee = body.consignee || {};
-    const shipment = body.shipment || {};
+    const shipment = { ...(body.shipment || {}) };
     const paymentTerms = body.paymentTerms || '';
     const paymentMethod = body.paymentMethod || '';
     const freightBillTo = body.freightBillTo ? String(body.freightBillTo).trim() : null;
@@ -145,16 +145,37 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Please select who will handle delivery.' });
     }
 
+    // ============================================================
+    // G.32 — Enforce HS Code = 'N/A' and Total Value = 0 for
+    //        Document / Special Parcel, regardless of client input
+    // ============================================================
+    const autoLocked = isAutoLockedParcelType(parcelType);
+    let finalHsCode = shipment.hsCode ? String(shipment.hsCode).trim() : null;
+    let finalTotalValue = shipment.totalValue ? parseFloat(shipment.totalValue) : null;
+
+    if (autoLocked) {
+      finalHsCode = 'N/A';
+      finalTotalValue = 0;
+    } else {
+      // Non-locked parcel types: require HS Code and > 0 Total Value
+      if (!finalHsCode || !finalHsCode.trim()) {
+        return NextResponse.json({ success: false, error: 'HS Code is required.' });
+      }
+      if (!finalTotalValue || finalTotalValue <= 0) {
+        return NextResponse.json({ success: false, error: 'Total Customs Value is required.' });
+      }
+    }
+
     if (shipMode === 'AIR') {
-      if (!body.parcelType) {
+      if (!parcelType) {
         return NextResponse.json({ success: false, error: 'Parcel Type is required for AIR shipments.' });
       }
-      if (body.parcelType === 'Special Parcel' && (!shipment.deliveryTimeline || !String(shipment.deliveryTimeline).trim())) {
+      if (parcelType === 'Special Parcel' && (!shipment.deliveryTimeline || !String(shipment.deliveryTimeline).trim())) {
         return NextResponse.json({ success: false, error: 'Delivery Timeline is required for Special Parcel shipments.' });
       }
     }
 
-    const requiresBilling = !(shipMode === 'AIR' && body.parcelType === 'Special Parcel');
+    const requiresBilling = !(shipMode === 'AIR' && parcelType === 'Special Parcel');
     if (requiresBilling) {
       if (!freightBillTo) {
         return NextResponse.json({ success: false, error: 'Please select who pays the freight cost.' });
@@ -206,7 +227,7 @@ export async function POST(request) {
     const packagingType = String(shipment.packagingType || '').trim();
     const packagingTypeCustom = String(shipment.packagingTypeCustom || '').trim();
 
-    const deliveryTimeline = (shipMode === 'AIR' && body.parcelType === 'Special Parcel' && shipment.deliveryTimeline)
+    const deliveryTimeline = (shipMode === 'AIR' && parcelType === 'Special Parcel' && shipment.deliveryTimeline)
       ? String(shipment.deliveryTimeline).trim()
       : null;
 
@@ -218,9 +239,6 @@ export async function POST(request) {
       uploadedAt: new Date().toISOString(),
     };
 
-    // ============================================================
-    // G.22 — New tracking number: SHORT + 8 random digits + S/A
-    // ============================================================
     const shortForm = generateShortForm(shipper.name);
 
     let trackingNumber;
@@ -257,7 +275,7 @@ export async function POST(request) {
         ship_mode: shipMode,
         sea_load_type: shipMode === 'SEA' ? seaLoadType : null,
         service_type: mapServiceType(shipMode),
-        parcel_type: body.parcelType || null,
+        parcel_type: parcelType || null,
         parcel_type_custom: body.parcelTypeCustom || null,
         delivery_timeline: deliveryTimeline,
         status: 'Booked',
@@ -266,7 +284,8 @@ export async function POST(request) {
         description: shipment.description,
         packages: shipment.packages ? parseInt(shipment.packages, 10) : null,
         total_weight: parseFloat(shipment.totalWeight) || null,
-        total_value: shipment.totalValue ? parseFloat(shipment.totalValue) : null,
+        // G.32 — use enforced values
+        total_value: finalTotalValue,
         value_currency: shipment.valueCurrency || 'USD',
         special_instruction: shipment.specialInstruction || null,
         parcel_ready_date: shipment.parcelReadyDate || null,
@@ -290,7 +309,8 @@ export async function POST(request) {
         recipient_address: consignee.fullAddress || null,
         recipient_city: consignee.city || null,
         recipient_state: consignee.state || null,
-        hs_code: shipment.hsCode || null,
+        // G.32 — use enforced HS code
+        hs_code: finalHsCode,
         total_cbm: shipment.totalCbm ? parseFloat(shipment.totalCbm) : null,
         dimensions: dimensionsStr || null,
         dim_length: dimLength > 0 ? dimLength : null,
