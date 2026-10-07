@@ -51,7 +51,6 @@ function renderModeCell(s) {
     );
   }
 
-  // Fallback — plain text
   return s.shipmentType || s.shipMode || '-';
 }
 
@@ -60,7 +59,6 @@ export default function AdminPage() {
   const [user, setUser] = useState(null);
   const [adminTab, setAdminTab] = useState('shipments');
 
-  // G.45a — pending counts for top-tab red badges
   const [pendingCounts, setPendingCounts] = useState({ cancellations: 0, credits: 0 });
 
   const loadPendingCounts = useCallback(async () => {
@@ -78,7 +76,7 @@ export default function AdminPage() {
         credits: creditRes?.success && Array.isArray(creditRes.requests) ? creditRes.requests.length : 0,
       });
     } catch (e) {
-      // Silent — badge just stays at whatever it was
+      // Silent
     }
   }, []);
 
@@ -871,8 +869,9 @@ function ShipmentsPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <>
-          {/* G.55 — removed maxHeight: '70vh' so the page scrolls naturally */}
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', position: 'relative' }}>
+          {/* G.55-fix — overflow: 'visible' lets <thead sticky> attach to page scroll;
+              page scrolls naturally so horizontal scrollbar sits at bottom of page */}
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'visible', position: 'relative' }}>
             <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
@@ -1902,8 +1901,8 @@ function ShippersPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <>
-          {/* G.55 — removed maxHeight: '70vh' so the page scrolls naturally */}
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', position: 'relative' }}>
+          {/* G.55-fix — overflow: 'visible' for sticky header + page-level horizontal scroll */}
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'visible', position: 'relative' }}>
             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '900px', tableLayout: 'fixed' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
