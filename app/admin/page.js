@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../components/Header';
@@ -60,6 +60,28 @@ export default function AdminPage() {
   const [user, setUser] = useState(null);
   const [adminTab, setAdminTab] = useState('shipments');
 
+  // G.45a — pending counts for top-tab red badges
+  const [pendingCounts, setPendingCounts] = useState({ cancellations: 0, credits: 0 });
+
+  const loadPendingCounts = useCallback(async () => {
+    const token = localStorage.getItem('sxl_token');
+    if (!token) return;
+
+    try {
+      const [cancelRes, creditRes] = await Promise.all([
+        fetch('/api/admin/cancel', { headers: { Authorization: 'Bearer ' + token } }).then((r) => r.json()),
+        fetch('/api/admin/credit-requests', { headers: { Authorization: 'Bearer ' + token } }).then((r) => r.json()),
+      ]);
+
+      setPendingCounts({
+        cancellations: cancelRes?.success && Array.isArray(cancelRes.requests) ? cancelRes.requests.length : 0,
+        credits: creditRes?.success && Array.isArray(creditRes.requests) ? creditRes.requests.length : 0,
+      });
+    } catch (e) {
+      // Silent — badge just stays at whatever it was
+    }
+  }, []);
+
   useEffect(() => {
     const stored = localStorage.getItem('sxl_user');
     if (!stored) { router.push('/login'); return; }
@@ -67,8 +89,9 @@ export default function AdminPage() {
       const u = JSON.parse(stored);
       if (u.role !== 'admin' && u.role !== 'staff') { router.push('/dashboard'); return; }
       setUser(u);
+      loadPendingCounts();
     } catch (e) { router.push('/login'); }
-  }, [router]);
+  }, [router, loadPendingCounts]);
 
   if (!user) {
     return (
@@ -96,15 +119,25 @@ export default function AdminPage() {
           <TopTab active={adminTab === 'shipments'} onClick={() => setAdminTab('shipments')} label="📦 Management Shipment" />
           <TopTab active={adminTab === 'shippers'} onClick={() => setAdminTab('shippers')} label="🚚 Management Shipper" />
           <TopTab active={adminTab === 'billing'} onClick={() => setAdminTab('billing')} label="💰 Financial & Billing" />
-          <TopTab active={adminTab === 'cancellations'} onClick={() => setAdminTab('cancellations')} label="⚠️ Cancellation Requests" />
-          <TopTab active={adminTab === 'credit'} onClick={() => setAdminTab('credit')} label="💳 Credit Requests" />
+          <TopTab
+            active={adminTab === 'cancellations'}
+            onClick={() => setAdminTab('cancellations')}
+            label="⚠️ Cancellation Requests"
+            badgeCount={pendingCounts.cancellations}
+          />
+          <TopTab
+            active={adminTab === 'credit'}
+            onClick={() => setAdminTab('credit')}
+            label="💳 Credit Requests"
+            badgeCount={pendingCounts.credits}
+          />
         </div>
 
         {adminTab === 'shipments' && <ShipmentsPanel />}
         {adminTab === 'shippers' && <ShippersPanel />}
         {adminTab === 'billing' && <BillingPanel />}
-        {adminTab === 'cancellations' && <CancellationPanel />}
-        {adminTab === 'credit' && <CreditRequestsPanel />}
+        {adminTab === 'cancellations' && <CancellationPanel onActionComplete={loadPendingCounts} />}
+        {adminTab === 'credit' && <CreditRequestsPanel onActionComplete={loadPendingCounts} />}
       </div>
 
       <Footer />
@@ -112,16 +145,36 @@ export default function AdminPage() {
   );
 }
 
-function TopTab({ active, onClick, label }) {
+function TopTab({ active, onClick, label, badgeCount }) {
+  const showBadge = typeof badgeCount === 'number' && badgeCount > 0;
   return (
     <button onClick={onClick} style={{
       cursor: 'pointer', padding: '12px 22px', borderRadius: '10px 10px 0 0',
       fontWeight: 700, fontSize: '0.9rem', border: 'none',
       background: active ? '#FF6B00' : '#E9ECEF',
       color: active ? 'white' : '#003366',
-      fontFamily: 'inherit', whiteSpace: 'nowrap'
+      fontFamily: 'inherit', whiteSpace: 'nowrap',
+      display: 'inline-flex', alignItems: 'center', gap: '8px'
     }}>
-      {label}
+      <span>{label}</span>
+      {showBadge && (
+        <span style={{
+          background: '#DC3545',
+          color: 'white',
+          borderRadius: '12px',
+          minWidth: '22px',
+          height: '20px',
+          padding: '0 7px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '0.75rem',
+          fontWeight: 800,
+          lineHeight: 1
+        }}>
+          {badgeCount}
+        </span>
+      )}
     </button>
   );
 }
@@ -606,7 +659,7 @@ function ShipmentsPanel() {
   function statusClass(status) {
     const s = String(status || '').toLowerCase();
     if (s.includes('cancelled')) return { bg: '#E9ECEF', color: '#495057' };
-    if (s.includes('cancellation requested')) return { bg: '#FFE5B4', color: '#8B4500' };
+    if (s.includes('cancellation requested')) return { bg: '#F8D7DA', color: '#721C24' };
     if (s.includes('delivered')) return { bg: '#D4EDDA', color: '#155724' };
     if (s.includes('out for delivery')) return { bg: '#FFE5B4', color: '#8B4500' };
     if (s.includes('transit') || s.includes('picked')) return { bg: '#CCE5FF', color: '#004085' };
