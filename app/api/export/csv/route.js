@@ -82,7 +82,6 @@ async function getSessionUser(request) {
   return { userId: session.user_id, role: session.role };
 }
 
-// Escape a CSV field
 function csvField(val) {
   if (val === null || val === undefined) return '';
   const s = String(val);
@@ -109,19 +108,17 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const scope = searchParams.get('scope') || 'customer'; // 'customer' | 'admin'
+    const scope = searchParams.get('scope') || 'customer';
     const tab = searchParams.get('tab') || 'active';
     const shipperFilter = (searchParams.get('shipper') || '').trim();
     const search = (searchParams.get('search') || '').trim().toLowerCase();
 
-    // Admin check for admin scope
     if (scope === 'admin') {
       if (session.role !== 'admin' && session.role !== 'staff') {
         return new NextResponse('Permission denied.', { status: 403 });
       }
     }
 
-    // Fetch shipments
     let query = serviceSupabase.from('shipments').select('*');
 
     if (scope === 'customer') {
@@ -134,11 +131,11 @@ export async function GET(request) {
       return new NextResponse('DB error: ' + error.message, { status: 500 });
     }
 
-    // Filter by tab
+    // G.48 — match admin shipments API: only exact 'Cancelled' counts as cancelled
     let filtered = (all || []).filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
-      const isCancelled = status === 'cancelled' || status.includes('cancellation');
+      const isCancelled = status === 'cancelled';
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
 
@@ -151,13 +148,11 @@ export async function GET(request) {
       return true;
     });
 
-    // Shipper filter (admin)
     if (shipperFilter) {
       const sf = shipperFilter.toLowerCase();
       filtered = filtered.filter((s) => String(s.sender_name || '').toLowerCase() === sf);
     }
 
-    // Search
     if (search) {
       filtered = filtered.filter((s) =>
         String(s.tracking_number || '').toLowerCase().includes(search) ||
@@ -166,7 +161,6 @@ export async function GET(request) {
       );
     }
 
-    // Build CSV
     const headers = [
       'Tracking #', 'Mode', 'Route', 'Shipper', 'Recipient', 'Status',
       'Booking Wt', 'Actual Wt', 'Cost', 'Payment', 'Booked', 'ETA'
@@ -193,9 +187,8 @@ export async function GET(request) {
       rows.push(row.map(csvField).join(','));
     });
 
-    const csvContent = '\uFEFF' + rows.join('\r\n'); // BOM for Excel compatibility
+    const csvContent = '\uFEFF' + rows.join('\r\n');
 
-    // Filename
     const safeTab = tab.replace(/[^a-z]/gi, '-');
     const dateStr = new Date().toISOString().slice(0, 10);
     const filename = `sxl-${safeTab}-${dateStr}.csv`;
