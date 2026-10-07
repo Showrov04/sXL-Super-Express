@@ -869,9 +869,9 @@ function ShipmentsPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <>
-          {/* G.55-fix — overflow: 'visible' lets <thead sticky> attach to page scroll;
-              page scrolls naturally so horizontal scrollbar sits at bottom of page */}
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'visible', position: 'relative' }}>
+          {/* Reverted from G.55 / G.55-fix — original behavior: maxHeight + overflow auto,
+              table scrolls internally, header sticks inside the table box */}
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
             <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
@@ -1901,8 +1901,8 @@ function ShippersPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <>
-          {/* G.55-fix — overflow: 'visible' for sticky header + page-level horizontal scroll */}
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'visible', position: 'relative' }}>
+          {/* Reverted — original behavior */}
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '900px', tableLayout: 'fixed' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
