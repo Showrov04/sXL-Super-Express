@@ -23,7 +23,6 @@ function statusClass(s) {
 }
 
 // G.39b — Mode cell renderer
-// Uses `isSpecialParcel` flag from the billing API (billing API does not return parcelType)
 function renderModeCell(s) {
   const mode = String(s.shipMode || '').toUpperCase();
   const isSpecialParcel = s.isSpecialParcel === true;
@@ -45,7 +44,6 @@ function renderModeCell(s) {
     );
   }
 
-  // Fallback — plain text
   return s.shipmentType || s.shipMode || '—';
 }
 
@@ -75,6 +73,14 @@ const TD_STYLE = {
 };
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
+
+// S.4 — Top scrollbar styling (mirrors bottom horizontal scroll of the table)
+const TOP_SCROLLBAR_STYLE = {
+  overflowX: 'auto',
+  overflowY: 'hidden',
+  borderBottom: '1px solid #E9ECEF',
+  background: 'white',
+};
 
 const COL_W_SHIPPER_REF = 130;
 const COL_W_TRACKING = 170;
@@ -110,6 +116,11 @@ export default function BillingPanel() {
   const [openFilter, setOpenFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState('');
   const filterDropdownRef = useRef(null);
+
+  // S.4 — dual horizontal scrollbar refs
+  const topScrollRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const isSyncingRef = useRef(false);
 
   const [costModal, setCostModal] = useState(null);
   const [costTn, setCostTn] = useState('');
@@ -180,6 +191,33 @@ export default function BillingPanel() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // S.4 — sync top <-> table scrollbars
+  useEffect(() => {
+    const topEl = topScrollRef.current;
+    const tableEl = tableScrollRef.current;
+    if (!topEl || !tableEl) return;
+
+    function syncFromTop() {
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
+      tableEl.scrollLeft = topEl.scrollLeft;
+      isSyncingRef.current = false;
+    }
+    function syncFromTable() {
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
+      topEl.scrollLeft = tableEl.scrollLeft;
+      isSyncingRef.current = false;
+    }
+
+    topEl.addEventListener('scroll', syncFromTop);
+    tableEl.addEventListener('scroll', syncFromTable);
+    return () => {
+      topEl.removeEventListener('scroll', syncFromTop);
+      tableEl.removeEventListener('scroll', syncFromTable);
+    };
+  }, [loading, shipments.length, tab]);
 
   async function loadShipments() {
     setLoading(true);
@@ -732,6 +770,10 @@ export default function BillingPanel() {
   const isAllTab = tab === 'all';
   const isDueTab = tab === 'due';
 
+  // S.4 — ghost div width must match the current table's minWidth
+  // Due tab = 2600px, other tabs = 1700px
+  const tableMinWidth = isDueTab ? 2600 : 1700;
+
   return (
     <div>
       {toast && (
@@ -807,206 +849,218 @@ export default function BillingPanel() {
       )}
 
       {!loading && !error && filtered.length > 0 && (
-        <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-          <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: isDueTab ? '2600px' : '1700px', tableLayout: 'fixed', width: '100%' }}>
-            <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
-              <tr>
-                {showShipperRef && (
-                  <HeaderCell col="shipperRef" label="Shipper Ref" width={COL_W_SHIPPER_REF} frozenLeft={FROZEN_LEFT_REF} />
-                )}
-                <HeaderCell
-                  col="tracking"
-                  label="Tracking #"
-                  width={COL_W_TRACKING}
-                  frozenLeft={isAllTab ? FROZEN_LEFT_TRACKING_ALL : FROZEN_LEFT_TRACKING}
-                />
-                <HeaderCell
-                  col="mode"
-                  label="Mode"
-                  width={COL_W_MODE}
-                  frozenLeft={isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE}
-                />
-                <HeaderCell
-                  col="route"
-                  label="Route"
-                  width={COL_W_ROUTE}
-                  frozenLeft={isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE}
-                  hasShadow={true}
-                />
-                <HeaderCell col="shipper" label="Shipper" width={150} />
-                <HeaderCell col="recipient" label="Recipient" width={150} />
-                <HeaderCell col="status" label="Status" width={120} />
-                <HeaderCell col="none" label="Booking Wt" width={100} />
-                <HeaderCell col="none" label="Actual Wt" width={130} />
-                <HeaderCell col="none" label="Cost" width={110} />
-                <HeaderCell col="payment" label="Payment" width={110} />
-                <HeaderCell col="none" label="Booked" width={115} />
-                <HeaderCell col="none" label="ETA" width={115} />
-                {showInvoiceColumns && <HeaderCell col="none" label="Inv Date" width={115} />}
-                {showInvoiceColumns && <HeaderCell col="invNumber" label="Inv #" width={130} />}
-                {showInvoiceColumns && <HeaderCell col="none" label="Due" width={115} />}
-                <HeaderCell col="none" label="Actions" width={isDueTab ? COL_W_ACTIONS_DUE : COL_W_ACTIONS_OTHER} />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s, i) => {
-                const sc = statusClass(s.status);
-                const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
-                const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
-                const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
-                const wasCostSaved = !!s.costSavedAt;
-                const hasInvoice = !!s.latestInvoice;
-                const invSent = !!s.invoiceSentAt || (s.latestInvoice && !!s.latestInvoice.sentAt);
+        <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
+          {/* S.4 — Top horizontal scrollbar (mirrors the table's own scrollbar) */}
+          <div
+            ref={topScrollRef}
+            style={TOP_SCROLLBAR_STYLE}
+            aria-hidden="true"
+          >
+            {/* Ghost div — matches current tab's table minWidth so top scrollbar has correct width */}
+            <div style={{ width: tableMinWidth + 'px', height: '1px' }} />
+          </div>
 
-                return (
-                  <tr key={i} style={{ background: rowBg }}>
-                    {showShipperRef && (
-                      <td style={{ ...frozenTd, left: FROZEN_LEFT_REF, width: COL_W_SHIPPER_REF, minWidth: COL_W_SHIPPER_REF }}>{s.shipperRef || '—'}</td>
-                    )}
-                    <td style={{
-                      ...frozenTd,
-                      left: isAllTab ? FROZEN_LEFT_TRACKING_ALL : FROZEN_LEFT_TRACKING,
-                      width: COL_W_TRACKING, minWidth: COL_W_TRACKING,
-                      fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366'
-                    }}>{s.trackingNumber}</td>
-                    <td style={{
-                      ...frozenTd,
-                      left: isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE,
-                      width: COL_W_MODE, minWidth: COL_W_MODE
-                    }}>{renderModeCell(s)}</td>
-                    <td style={{
-                      ...frozenTd,
-                      left: isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE,
-                      width: COL_W_ROUTE, minWidth: COL_W_ROUTE,
-                      boxShadow: FROZEN_SHADOW
-                    }}>{s.origin || '—'} → {s.destination || '—'}</td>
-                    <td style={{ ...TD_STYLE, width: 150 }}>{s.shipperName || '—'}</td>
-                    <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '—'}</td>
-                    <td style={{ ...TD_STYLE, width: 120 }}>
-                      <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
-                    </td>
-                    <td style={{ ...TD_STYLE, width: 100 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '—'}</td>
-                    <td style={{ ...TD_STYLE, width: 130 }}>{renderActualCell(s)}</td>
-                    <td style={{ ...TD_STYLE, width: 110 }}>
-                      {hasCost
-                        ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
-                        : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
-                    </td>
-                    <td style={{ ...TD_STYLE, width: 110 }}>
-                      <span style={{ background: s.paymentStatus === 'Paid' ? '#D4EDDA' : '#FFF3CD', color: s.paymentStatus === 'Paid' ? '#155724' : '#856404', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
-                    </td>
-                    <td style={{ ...TD_STYLE, width: 115 }}>{formatDate(s.bookedAt)}</td>
-                    <td style={{ ...TD_STYLE, width: 115 }}>
-                      <span style={{ color: '#FF6B00', fontWeight: 800 }}>
-                        {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
-                      </span>
-                    </td>
+          <div ref={tableScrollRef} style={{ overflow: 'auto', maxHeight: '70vh' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: isDueTab ? '2600px' : '1700px', tableLayout: 'fixed', width: '100%' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
+                <tr>
+                  {showShipperRef && (
+                    <HeaderCell col="shipperRef" label="Shipper Ref" width={COL_W_SHIPPER_REF} frozenLeft={FROZEN_LEFT_REF} />
+                  )}
+                  <HeaderCell
+                    col="tracking"
+                    label="Tracking #"
+                    width={COL_W_TRACKING}
+                    frozenLeft={isAllTab ? FROZEN_LEFT_TRACKING_ALL : FROZEN_LEFT_TRACKING}
+                  />
+                  <HeaderCell
+                    col="mode"
+                    label="Mode"
+                    width={COL_W_MODE}
+                    frozenLeft={isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE}
+                  />
+                  <HeaderCell
+                    col="route"
+                    label="Route"
+                    width={COL_W_ROUTE}
+                    frozenLeft={isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE}
+                    hasShadow={true}
+                  />
+                  <HeaderCell col="shipper" label="Shipper" width={150} />
+                  <HeaderCell col="recipient" label="Recipient" width={150} />
+                  <HeaderCell col="status" label="Status" width={120} />
+                  <HeaderCell col="none" label="Booking Wt" width={100} />
+                  <HeaderCell col="none" label="Actual Wt" width={130} />
+                  <HeaderCell col="none" label="Cost" width={110} />
+                  <HeaderCell col="payment" label="Payment" width={110} />
+                  <HeaderCell col="none" label="Booked" width={115} />
+                  <HeaderCell col="none" label="ETA" width={115} />
+                  {showInvoiceColumns && <HeaderCell col="none" label="Inv Date" width={115} />}
+                  {showInvoiceColumns && <HeaderCell col="invNumber" label="Inv #" width={130} />}
+                  {showInvoiceColumns && <HeaderCell col="none" label="Due" width={115} />}
+                  <HeaderCell col="none" label="Actions" width={isDueTab ? COL_W_ACTIONS_DUE : COL_W_ACTIONS_OTHER} />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s, i) => {
+                  const sc = statusClass(s.status);
+                  const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+                  const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
+                  const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
+                  const wasCostSaved = !!s.costSavedAt;
+                  const hasInvoice = !!s.latestInvoice;
+                  const invSent = !!s.invoiceSentAt || (s.latestInvoice && !!s.latestInvoice.sentAt);
 
-                    {showInvoiceColumns && (
+                  return (
+                    <tr key={i} style={{ background: rowBg }}>
+                      {showShipperRef && (
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_REF, width: COL_W_SHIPPER_REF, minWidth: COL_W_SHIPPER_REF }}>{s.shipperRef || '—'}</td>
+                      )}
+                      <td style={{
+                        ...frozenTd,
+                        left: isAllTab ? FROZEN_LEFT_TRACKING_ALL : FROZEN_LEFT_TRACKING,
+                        width: COL_W_TRACKING, minWidth: COL_W_TRACKING,
+                        fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366'
+                      }}>{s.trackingNumber}</td>
+                      <td style={{
+                        ...frozenTd,
+                        left: isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE,
+                        width: COL_W_MODE, minWidth: COL_W_MODE
+                      }}>{renderModeCell(s)}</td>
+                      <td style={{
+                        ...frozenTd,
+                        left: isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE,
+                        width: COL_W_ROUTE, minWidth: COL_W_ROUTE,
+                        boxShadow: FROZEN_SHADOW
+                      }}>{s.origin || '—'} → {s.destination || '—'}</td>
+                      <td style={{ ...TD_STYLE, width: 150 }}>{s.shipperName || '—'}</td>
+                      <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '—'}</td>
+                      <td style={{ ...TD_STYLE, width: 120 }}>
+                        <span style={{ background: sc.bg, color: sc.color, padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.status}</span>
+                      </td>
+                      <td style={{ ...TD_STYLE, width: 100 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '—'}</td>
+                      <td style={{ ...TD_STYLE, width: 130 }}>{renderActualCell(s)}</td>
+                      <td style={{ ...TD_STYLE, width: 110 }}>
+                        {hasCost
+                          ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
+                          : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
+                      </td>
+                      <td style={{ ...TD_STYLE, width: 110 }}>
+                        <span style={{ background: s.paymentStatus === 'Paid' ? '#D4EDDA' : '#FFF3CD', color: s.paymentStatus === 'Paid' ? '#155724' : '#856404', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{s.paymentStatus || 'Unpaid'}</span>
+                      </td>
+                      <td style={{ ...TD_STYLE, width: 115 }}>{formatDate(s.bookedAt)}</td>
                       <td style={{ ...TD_STYLE, width: 115 }}>
-                        {hasInvoice && s.latestInvoice.issueDate ? formatDate(s.latestInvoice.issueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
+                        <span style={{ color: '#FF6B00', fontWeight: 800 }}>
+                          {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
+                        </span>
                       </td>
-                    )}
-                    {showInvoiceColumns && (
-                      <td style={{ ...TD_STYLE, width: 130, fontWeight: 700, color: '#003366' }}>
-                        {hasInvoice ? s.latestInvoice.invoiceNumber : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>}
-                      </td>
-                    )}
-                    {showInvoiceColumns && (
-                      <td style={{ ...TD_STYLE, width: 115 }}>
-                        {hasInvoice && s.latestInvoice.dueDate ? formatDate(s.latestInvoice.dueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
-                      </td>
-                    )}
 
-                    <td style={{
-                      ...TD_STYLE,
-                      whiteSpace: 'normal',
-                      overflow: 'visible',
-                      textOverflow: 'clip',
-                      width: isDueTab ? COL_W_ACTIONS_DUE : COL_W_ACTIONS_OTHER,
-                      padding: '8px 12px'
-                    }}>
-                      {isDueTab && (
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <a
-                            href={'/api/pdf/booking/' + s.trackingNumber}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              padding: '5px 10px',
-                              background: '#00A86B',
-                              color: 'white',
-                              borderRadius: '6px',
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              textDecoration: 'none',
-                              whiteSpace: 'nowrap',
-                              display: 'inline-block'
-                            }}
-                          >
-                            📄 Booking PDF
-                          </a>
-
-                          <button
-                            onClick={() => openCostModal(s)}
-                            style={{
-                              padding: '5px 10px',
-                              background: wasCostSaved ? '#E9ECEF' : '#FF6B00',
-                              color: wasCostSaved ? '#495057' : 'white',
-                              border: 'none', borderRadius: '6px',
-                              fontWeight: 700, fontSize: '0.72rem',
-                              cursor: 'pointer', fontFamily: 'inherit',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {wasCostSaved ? '✅ Cost Updated' : '🔄 Update Shipment Cost'}
-                          </button>
-
-                          {!hasInvoice ? (
-                            <button onClick={() => handleIssueInvoice(s)} style={{ padding: '5px 10px', background: '#0D6EFD', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>📄 Issue Invoice</button>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => handleIssueInvoice(s)}
-                                style={{
-                                  padding: '5px 10px',
-                                  background: '#E9ECEF',
-                                  color: '#155724',
-                                  border: 'none', borderRadius: '6px',
-                                  fontWeight: 700, fontSize: '0.72rem',
-                                  cursor: 'pointer', fontFamily: 'inherit',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                ✅ Invoice Issued
-                              </button>
-                              <button onClick={() => openEditInvModal(s)} style={{ padding: '5px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✏️ Edit Invoice</button>
-                              <a href={'/api/pdf/invoice/' + s.latestInvoice.invoiceId} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block' }}>📄 Inv PDF</a>
-                              {!invSent ? (
-                                <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>📤 Send Customer</button>
-                              ) : (
-                                <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#E9ECEF', color: '#155724', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✅ Sent</button>
-                              )}
-                            </>
-                          )}
-
-                          <button onClick={() => handleMarkPaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>💵 Mark Paid</button>
-                        </div>
+                      {showInvoiceColumns && (
+                        <td style={{ ...TD_STYLE, width: 115 }}>
+                          {hasInvoice && s.latestInvoice.issueDate ? formatDate(s.latestInvoice.issueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
+                        </td>
+                      )}
+                      {showInvoiceColumns && (
+                        <td style={{ ...TD_STYLE, width: 130, fontWeight: 700, color: '#003366' }}>
+                          {hasInvoice ? s.latestInvoice.invoiceNumber : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>}
+                        </td>
+                      )}
+                      {showInvoiceColumns && (
+                        <td style={{ ...TD_STYLE, width: 115 }}>
+                          {hasInvoice && s.latestInvoice.dueDate ? formatDate(s.latestInvoice.dueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
+                        </td>
                       )}
 
-                      {tab === 'all' && (
-                        <span style={{ color: '#ADB5BD' }}>—</span>
-                      )}
+                      <td style={{
+                        ...TD_STYLE,
+                        whiteSpace: 'normal',
+                        overflow: 'visible',
+                        textOverflow: 'clip',
+                        width: isDueTab ? COL_W_ACTIONS_DUE : COL_W_ACTIONS_OTHER,
+                        padding: '8px 12px'
+                      }}>
+                        {isDueTab && (
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <a
+                              href={'/api/pdf/booking/' + s.trackingNumber}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                padding: '5px 10px',
+                                background: '#00A86B',
+                                color: 'white',
+                                borderRadius: '6px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                whiteSpace: 'nowrap',
+                                display: 'inline-block'
+                              }}
+                            >
+                              📄 Booking PDF
+                            </a>
 
-                      {tab === 'paid' && (
-                        <button onClick={() => handleMarkUnpaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#FFC107', color: '#333', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit' }}>↩ Undo</button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                            <button
+                              onClick={() => openCostModal(s)}
+                              style={{
+                                padding: '5px 10px',
+                                background: wasCostSaved ? '#E9ECEF' : '#FF6B00',
+                                color: wasCostSaved ? '#495057' : 'white',
+                                border: 'none', borderRadius: '6px',
+                                fontWeight: 700, fontSize: '0.72rem',
+                                cursor: 'pointer', fontFamily: 'inherit',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {wasCostSaved ? '✅ Cost Updated' : '🔄 Update Shipment Cost'}
+                            </button>
+
+                            {!hasInvoice ? (
+                              <button onClick={() => handleIssueInvoice(s)} style={{ padding: '5px 10px', background: '#0D6EFD', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>📄 Issue Invoice</button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleIssueInvoice(s)}
+                                  style={{
+                                    padding: '5px 10px',
+                                    background: '#E9ECEF',
+                                    color: '#155724',
+                                    border: 'none', borderRadius: '6px',
+                                    fontWeight: 700, fontSize: '0.72rem',
+                                    cursor: 'pointer', fontFamily: 'inherit',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  ✅ Invoice Issued
+                                </button>
+                                <button onClick={() => openEditInvModal(s)} style={{ padding: '5px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✏️ Edit Invoice</button>
+                                <a href={'/api/pdf/invoice/' + s.latestInvoice.invoiceId} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block' }}>📄 Inv PDF</a>
+                                {!invSent ? (
+                                  <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>📤 Send Customer</button>
+                                ) : (
+                                  <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#E9ECEF', color: '#155724', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✅ Sent</button>
+                                )}
+                              </>
+                            )}
+
+                            <button onClick={() => handleMarkPaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>💵 Mark Paid</button>
+                          </div>
+                        )}
+
+                        {tab === 'all' && (
+                          <span style={{ color: '#ADB5BD' }}>—</span>
+                        )}
+
+                        {tab === 'paid' && (
+                          <button onClick={() => handleMarkUnpaid(s.trackingNumber)} style={{ padding: '5px 10px', background: '#FFC107', color: '#333', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit' }}>↩ Undo</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
