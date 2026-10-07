@@ -22,6 +22,33 @@ function statusClass(s) {
   return { bg: '#FFF3CD', color: '#856404' };
 }
 
+// G.39 — Mode cell renderer: AIR Special Parcel → red badge "AIR-SP"
+function renderModeCell(s) {
+  const mode = String(s.shipMode || '').toUpperCase();
+  const parcelType = String(s.parcelType || s.parcel_type || '').trim();
+  const isSpecialParcel = parcelType === 'Special Parcel';
+
+  if (isSpecialParcel && mode === 'AIR') {
+    return (
+      <span style={{
+        background: '#F8D7DA',
+        color: '#721C24',
+        padding: '4px 10px',
+        borderRadius: '12px',
+        fontWeight: 700,
+        fontSize: '0.72rem',
+        letterSpacing: '0.3px',
+        whiteSpace: 'nowrap'
+      }}>
+        AIR-SP
+      </span>
+    );
+  }
+
+  // Fallback
+  return s.shipmentType || s.shipMode || '—';
+}
+
 const TH_STYLE = {
   padding: 0,
   textAlign: 'left',
@@ -51,7 +78,7 @@ const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
 const COL_W_SHIPPER_REF = 130;
 const COL_W_TRACKING = 170;
-const COL_W_MODE = 105;
+const COL_W_MODE = 130;
 const COL_W_ROUTE = 170;
 const FROZEN_LEFT_REF = 0;
 const FROZEN_LEFT_TRACKING = COL_W_SHIPPER_REF;
@@ -846,7 +873,7 @@ export default function BillingPanel() {
                       ...frozenTd,
                       left: isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE,
                       width: COL_W_MODE, minWidth: COL_W_MODE
-                    }}>{s.shipmentType || s.shipMode || '—'}</td>
+                    }}>{renderModeCell(s)}</td>
                     <td style={{
                       ...frozenTd,
                       left: isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE,
@@ -901,7 +928,6 @@ export default function BillingPanel() {
                     }}>
                       {isDueTab && (
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-                          {/* G.21 — Booking PDF button */}
                           <a
                             href={'/api/pdf/booking/' + s.trackingNumber}
                             target="_blank"
