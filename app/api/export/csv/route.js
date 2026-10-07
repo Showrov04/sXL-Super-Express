@@ -58,9 +58,9 @@ function countryName(code) {
 }
 
 /* ============================================================
- *  G.48b — buildShipmentType
- *  AIR + parcel_type === 'Special Parcel' → 'AIR-SP'
- *  (matches the on-screen badge in admin & customer tables)
+ *  G.48b-fix — buildShipmentType (CSV export)
+ *  Only Special Parcel gets the '-SP' tag. All other AIR
+ *  parcel types collapse to plain 'AIR'. SEA unchanged.
  * ============================================================ */
 function buildShipmentType(shipment) {
   const mode = String(shipment.ship_mode || '').toUpperCase();
@@ -72,7 +72,6 @@ function buildShipmentType(shipment) {
   }
   if (mode === 'AIR') {
     if (pType === 'Special Parcel') return 'AIR-SP';
-    if (pType) return 'AIR - ' + pType;
     return 'AIR';
   }
   return mode || '-';
@@ -144,7 +143,6 @@ export async function GET(request) {
       return new NextResponse('DB error: ' + error.message, { status: 500 });
     }
 
-    // G.48 — match admin shipments API: only exact 'Cancelled' counts as cancelled
     let filtered = (all || []).filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
