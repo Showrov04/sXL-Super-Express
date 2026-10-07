@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../components/Header';
@@ -54,6 +54,9 @@ function countryName(code) {
   return COUNTRY_NAMES[upper] || code;
 }
 
+const DRAFT_KEY = 'sxl_booking_draft';
+const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 const FIELD_ERROR_STYLE = {
   borderColor: '#DC3545',
   borderWidth: '2px',
@@ -79,8 +82,13 @@ export default function BookPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
 
-  // G.28 — per-field error map (key → message)
   const [fieldErrors, setFieldErrors] = useState({});
+
+  // G.29 — Draft state
+  const [draftFound, setDraftFound] = useState(null); // { savedAt, data }
+  const [draftSavedToast, setDraftSavedToast] = useState(false);
+  const saveTimeoutRef = useRef(null);
+  const initialLoadDoneRef = useRef(false);
 
   const [savedShippers, setSavedShippers] = useState([]);
   const [savedConsignees, setSavedConsignees] = useState([]);
@@ -133,6 +141,9 @@ export default function BookPage() {
     if (!stored) { router.push('/login'); return; }
     try { setUser(JSON.parse(stored)); } catch (e) { router.push('/login'); }
 
+    // G.29 — Check for existing draft
+    checkForDraft();
+
     fetch('/api/countries')
       .then((r) => r.json())
       .then((d) => setCountries(d.countries || []))
@@ -140,7 +151,111 @@ export default function BookPage() {
 
     loadAddresses();
     loadCreditStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  // ============ G.29 — Draft management ============
+
+  function checkForDraft() {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.savedAt || !parsed.data) return;
+      const age = Date.now() - new Date(parsed.savedAt).getTime();
+      if (age > DRAFT_MAX_AGE_MS) {
+        // expired → clear
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      setDraftFound(parsed);
+    } catch (e) {
+      // corrupted → clear
+      localStorage.removeItem(DRAFT_KEY);
+    }
+  }
+
+  function saveDraft(snapshot) {
+    try {
+      const payload = {
+        savedAt: new Date().toISOString(),
+        data: snapshot,
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+      setDraftSavedToast(true);
+      setTimeout(() => setDraftSavedToast(false), 2000);
+    } catch (e) {
+      // silent fail (quota exceeded, etc.)
+    }
+  }
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch (e) { /* silent */ }
+  }
+
+  function restoreDraft() {
+    if (!draftFound || !draftFound.data) return;
+    const d = draftFound.data;
+    if (typeof d.step === 'number') setStep(d.step);
+    if (d.shipMode !== undefined) setShipMode(d.shipMode || '');
+    if (d.seaLoadType !== undefined) setSeaLoadType(d.seaLoadType || '');
+    if (d.parcelType !== undefined) setParcelType(d.parcelType || '');
+    if (d.parcelTypeCustom !== undefined) setParcelTypeCustom(d.parcelTypeCustom || '');
+    if (d.shipper) setShipper(d.shipper);
+    if (d.consignee) setConsignee(d.consignee);
+    if (d.shipment) setShipment(d.shipment);
+    if (d.paymentTerms !== undefined) setPaymentTerms(d.paymentTerms || '');
+    if (d.paymentMethod !== undefined) setPaymentMethod(d.paymentMethod || '');
+    if (d.freightBillTo !== undefined) setFreightBillTo(d.freightBillTo || '');
+    if (d.dutyTaxBillTo !== undefined) setDutyTaxBillTo(d.dutyTaxBillTo || '');
+    if (d.customService !== undefined) setCustomService(d.customService || 'sxl');
+    if (d.deliveryService !== undefined) setDeliveryService(d.deliveryService || 'sxl');
+    setDraftFound(null);
+  }
+
+  function dismissDraftAndStartFresh() {
+    clearDraft();
+    setDraftFound(null);
+  }
+
+  // Auto-save draft — debounced. Runs whenever wizard state changes.
+  useEffect(() => {
+    // Don't save during initial mount — only after the user has actually interacted
+    if (!initialLoadDoneRef.current) {
+      initialLoadDoneRef.current = true;
+      return;
+    }
+    // Don't save if success screen is showing
+    if (success) return;
+    // Don't save if draft modal is open
+    if (draftFound) return;
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      const snapshot = {
+        step,
+        shipMode, seaLoadType, parcelType, parcelTypeCustom,
+        shipper, consignee, shipment,
+        paymentTerms, paymentMethod, freightBillTo, dutyTaxBillTo,
+        customService, deliveryService,
+      };
+      saveDraft(snapshot);
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    step, shipMode, seaLoadType, parcelType, parcelTypeCustom,
+    shipper, consignee, shipment,
+    paymentTerms, paymentMethod, freightBillTo, dutyTaxBillTo,
+    customService, deliveryService, success, draftFound
+  ]);
+
+  // ============ end draft management ============
 
   async function loadAddresses() {
     const token = localStorage.getItem('sxl_token');
@@ -188,7 +303,6 @@ export default function BookPage() {
     }
   }
 
-  // ===== G.28 — field error helpers =====
   function clearFieldError(key) {
     setFieldErrors((prev) => {
       if (!prev[key]) return prev;
@@ -270,7 +384,6 @@ export default function BookPage() {
     return current - 1;
   }
 
-  // ===== Validation — returns { message, fields } =====
   function validateStep1() {
     const errs = {};
     if (!shipMode) errs.shipMode = 'Please select a ship mode';
@@ -383,7 +496,6 @@ export default function BookPage() {
     else if ((step === 7 && isSea) || (step === 8 && !isSea)) result = validatePayment();
 
     if (result) {
-      // G.28 — show inline errors on each missing field + scroll to top
       setFieldErrors(result.fields);
       setError('⚠ Please fix the highlighted fields before continuing.');
       if (typeof window !== 'undefined') {
@@ -521,6 +633,9 @@ export default function BookPage() {
         return;
       }
 
+      // G.29 — clear draft on successful submission
+      clearDraft();
+
       setSuccess({ trackingNumber: data.trackingNumber, invoiceUrls, packingListUrls });
       setLoading(false);
     } catch (err) {
@@ -528,6 +643,72 @@ export default function BookPage() {
       setLoading(false);
     }
   }
+
+  // ============ G.29 — Draft restore modal ============
+  const draftModal = draftFound ? (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 99999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+    }}>
+      <div style={{
+        background: 'white', maxWidth: '460px', width: '100%',
+        borderRadius: '16px', padding: '30px',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)', textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '2.5rem', marginBottom: '15px' }}>📝</div>
+        <h2 style={{ color: '#003366', fontSize: '1.35rem', margin: '0 0 10px' }}>
+          Unfinished Booking Found
+        </h2>
+        <p style={{ color: '#6C757D', fontSize: '0.95rem', marginBottom: '8px' }}>
+          You have an unfinished booking from:
+        </p>
+        <div style={{
+          background: '#FFF5EB', border: '2px solid #FF6B00', borderRadius: '10px',
+          padding: '14px', marginBottom: '18px', fontWeight: 700, color: '#8B4500', fontSize: '1rem'
+        }}>
+          {new Date(draftFound.savedAt).toLocaleString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+          })}
+        </div>
+        <div style={{
+          background: '#FFF3CD', borderLeft: '4px solid #FFC107',
+          borderRadius: '8px', padding: '10px 14px', marginBottom: '22px',
+          fontSize: '0.82rem', color: '#856404', textAlign: 'left'
+        }}>
+          💡 Note: uploaded Invoice and Packing List files will need to be re-attached.
+        </div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={dismissDraftAndStartFresh}
+            style={{
+              flex: 1, minWidth: '140px',
+              padding: '14px 20px', background: 'transparent', color: '#003366',
+              border: '2px solid #E9ECEF', borderRadius: '8px',
+              fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', fontFamily: 'inherit'
+            }}
+          >
+            Start Fresh
+          </button>
+          <button
+            type="button"
+            onClick={restoreDraft}
+            style={{
+              flex: 1, minWidth: '140px',
+              padding: '14px 20px', background: '#FF6B00', color: 'white',
+              border: 'none', borderRadius: '8px',
+              fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', fontFamily: 'inherit'
+            }}
+          >
+            ✅ Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  // ============ end draft modal ============
 
   if (!user) {
     return (
@@ -606,6 +787,21 @@ export default function BookPage() {
   return (
     <>
       <Header />
+
+      {/* G.29 — Draft restore modal */}
+      {draftModal}
+
+      {/* G.29 — Draft saved toast */}
+      {draftSavedToast && (
+        <div style={{
+          position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999,
+          background: '#003366', color: 'white', padding: '10px 18px',
+          borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+        }}>
+          💾 Draft saved
+        </div>
+      )}
 
       <div style={{ maxWidth: '1000px', margin: '30px auto', padding: '0 20px 60px' }}>
 
@@ -1022,7 +1218,6 @@ export default function BookPage() {
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '18px' }}>
                     {['Shipper', 'Consignee', 'Third Party'].map((t) => (
                       <button key={t} type="button" onClick={() => {
-                        // G.28 — toggle off if already selected
                         const next = freightBillTo === t ? '' : t;
                         setFreightBillTo(next);
                         if (next) clearFieldError('freightBillTo');
@@ -1041,7 +1236,6 @@ export default function BookPage() {
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     {['Shipper', 'Consignee', 'Third Party'].map((t) => (
                       <button key={t} type="button" onClick={() => {
-                        // G.28 — toggle off if already selected
                         const next = dutyTaxBillTo === t ? '' : t;
                         setDutyTaxBillTo(next);
                         if (next) clearFieldError('dutyTaxBillTo');
@@ -1177,7 +1371,6 @@ export default function BookPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    // G.28 — toggle off if already selected
                     const next = customService === 'sxl' ? '' : 'sxl';
                     setCustomService(next);
                     if (next) clearFieldError('customService');
