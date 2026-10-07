@@ -7,7 +7,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 
 const COL_W_TRACKING = 170;
-const COL_W_MODE = 105;
+const COL_W_MODE = 130;
 const COL_W_ROUTE = 170;
 const FROZEN_LEFT_TRACKING = 0;
 const FROZEN_LEFT_MODE = COL_W_TRACKING;
@@ -25,10 +25,36 @@ const TD_STYLE = {
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
-// G.30 — draft reminder constants
 const DRAFT_KEY = 'sxl_booking_draft';
-const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const DRAFT_DISMISS_KEY = 'sxl_booking_draft_dismissed_at';
+
+// G.40 — Mode cell renderer: AIR Special Parcel → red badge "AIR-SP"
+function renderModeCell(s) {
+  const mode = String(s.shipMode || '').toUpperCase();
+  const parcelType = String(s.parcelType || '').trim();
+  const isSpecialParcel = parcelType === 'Special Parcel';
+
+  if (isSpecialParcel && mode === 'AIR') {
+    return (
+      <span style={{
+        background: '#F8D7DA',
+        color: '#721C24',
+        padding: '4px 10px',
+        borderRadius: '12px',
+        fontWeight: 700,
+        fontSize: '0.72rem',
+        letterSpacing: '0.3px',
+        whiteSpace: 'nowrap'
+      }}>
+        AIR-SP
+      </span>
+    );
+  }
+
+  // Fallback — plain text
+  return s.shipmentType || s.shipMode || '-';
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -45,8 +71,7 @@ export default function DashboardPage() {
   });
   const [error, setError] = useState('');
 
-  // G.30 — draft banner state
-  const [draftBanner, setDraftBanner] = useState(null); // { savedAt }
+  const [draftBanner, setDraftBanner] = useState(null);
 
   const [colFilters, setColFilters] = useState({
     tracking: [], mode: [], shipper: [], route: [], status: [], payment: [],
@@ -76,7 +101,6 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  // ============ G.30 — Draft banner check ============
   function checkForDraftBanner() {
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
@@ -88,14 +112,12 @@ export default function DashboardPage() {
         localStorage.removeItem(DRAFT_KEY);
         return;
       }
-      // Already dismissed for this draft?
       const dismissedAt = localStorage.getItem(DRAFT_DISMISS_KEY);
       if (dismissedAt && new Date(dismissedAt).getTime() >= new Date(parsed.savedAt).getTime()) {
         return;
       }
       setDraftBanner({ savedAt: parsed.savedAt });
     } catch (e) {
-      // Corrupted → clear silently
       localStorage.removeItem(DRAFT_KEY);
     }
   }
@@ -106,7 +128,6 @@ export default function DashboardPage() {
     } catch (e) { /* silent */ }
     setDraftBanner(null);
   }
-  // ============ end draft banner ============
 
   async function loadCompanyName() {
     const token = localStorage.getItem('sxl_token');
@@ -449,7 +470,6 @@ export default function DashboardPage() {
 
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '40px 20px', minHeight: '60vh' }}>
 
-        {/* G.30 — Draft reminder banner */}
         {draftBanner && (
           <div style={{
             background: '#FFF5EB',
@@ -651,7 +671,7 @@ export default function DashboardPage() {
                     return (
                       <tr key={i} style={{ background: rowBg }}>
                         <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                        <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{s.shipmentType || s.shipMode || '-'}</td>
+                        <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{renderModeCell(s)}</td>
                         <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
                         <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
                         <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
@@ -661,7 +681,8 @@ export default function DashboardPage() {
                         <td style={{ ...TD_STYLE, width: 110 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '-'}</td>
                         <td style={{ ...TD_STYLE, width: 105 }}>{s.actualWeight ? s.actualWeight + ' kg' : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>TBA</span>}</td>
                         <td style={{ ...TD_STYLE, width: 115 }}>
-                          {hasCost                            ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
+                          {hasCost
+                            ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
                             : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                         </td>
                         <td style={{ ...TD_STYLE, width: 120 }}>
