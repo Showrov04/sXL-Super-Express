@@ -78,11 +78,23 @@ function countryName(code) {
   return COUNTRY_NAMES[upper] || code;
 }
 
+/* ============================================================
+ *  G.48c — buildShipmentType (PDF export)
+ *  Only Special Parcel gets the '-SP' tag. All other AIR
+ *  parcel types collapse to plain 'AIR'. SEA unchanged.
+ * ============================================================ */
 function buildShipmentType(shipment) {
   const mode = String(shipment.ship_mode || '').toUpperCase();
   const load = String(shipment.sea_load_type || '').toUpperCase();
-  if (mode === 'SEA') return load ? ('SEA - ' + load) : 'SEA';
-  if (mode === 'AIR') return 'AIR';
+  const pType = String(shipment.parcel_type || '').trim();
+
+  if (mode === 'SEA') {
+    return load ? ('SEA - ' + load) : 'SEA';
+  }
+  if (mode === 'AIR') {
+    if (pType === 'Special Parcel') return 'AIR-SP';
+    return 'AIR';
+  }
   return mode || '-';
 }
 
@@ -166,8 +178,6 @@ export async function GET(request) {
       return new NextResponse('DB error: ' + error.message, { status: 500 });
     }
 
-    // G.47 — match admin shipments API: only exact 'Cancelled' counts as cancelled,
-    // 'Cancellation Requested' stays in Active
     let filtered = (all || []).filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
