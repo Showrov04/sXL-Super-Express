@@ -36,7 +36,7 @@ export async function GET(request, { params }) {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="Booking_${tn}.pdf"`,
+        'Content-Disposition': `inline; filename="sXL_Booking_${tn}.pdf"`,
       },
     });
   } catch (err) {
