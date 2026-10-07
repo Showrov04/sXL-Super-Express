@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 const serviceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -86,13 +88,23 @@ function buildShipmentType(shipment) {
   return mode || '—';
 }
 
+// T.2 — standard no-cache headers
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+};
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const tn = (searchParams.get('tn') || '').trim().toUpperCase();
 
     if (!tn) {
-      return NextResponse.json({ success: false, error: 'Tracking number required.' });
+      return NextResponse.json(
+        { success: false, error: 'Tracking number required.' },
+        { headers: NO_CACHE_HEADERS }
+      );
     }
 
     const { data: shipment, error: shipErr } = await serviceSupabase
@@ -102,10 +114,16 @@ export async function GET(request) {
       .maybeSingle();
 
     if (shipErr) {
-      return NextResponse.json({ success: false, error: shipErr.message });
+      return NextResponse.json(
+        { success: false, error: shipErr.message },
+        { headers: NO_CACHE_HEADERS }
+      );
     }
     if (!shipment) {
-      return NextResponse.json({ success: false, error: 'Tracking number not found.' });
+      return NextResponse.json(
+        { success: false, error: 'Tracking number not found.' },
+        { headers: NO_CACHE_HEADERS }
+      );
     }
 
     const { data: history } = await serviceSupabase
@@ -134,43 +152,44 @@ export async function GET(request) {
       ? String(shipment.delivery_timeline).trim()
       : null;
 
-    // ============================================================
     // G.23 — public response: only non-private fields
-    // Removed: shipperName, shipperPhone, shipperEmail,
-    //          recipientName, recipientPhone, recipientEmail,
-    //          recipientBIN, description
-    // ============================================================
-    return NextResponse.json({
-      success: true,
-      shipment: {
-        trackingNumber: shipment.tracking_number,
-        serviceType: shipment.service_type,
-        shipMode: shipment.ship_mode,
-        seaLoadType: shipment.sea_load_type || null,
-        shipmentType: shipmentType,
-        parcelType: shipment.parcel_type || '',
-        deliveryTimeline: deliveryTimeline,
-        status: shipment.status,
-        origin: getCountryName(shipment.origin),
-        destination: getCountryName(shipment.destination),
-        weight: shipment.total_weight,
-        packages: shipment.packages,
-        estimatedDelivery: shipment.estimated_delivery,
-        lastUpdate: shipment.last_update,
-        bookedAt: shipment.booked_at,
+    return NextResponse.json(
+      {
+        success: true,
+        shipment: {
+          trackingNumber: shipment.tracking_number,
+          serviceType: shipment.service_type,
+          shipMode: shipment.ship_mode,
+          seaLoadType: shipment.sea_load_type || null,
+          shipmentType: shipmentType,
+          parcelType: shipment.parcel_type || '',
+          deliveryTimeline: deliveryTimeline,
+          status: shipment.status,
+          origin: getCountryName(shipment.origin),
+          destination: getCountryName(shipment.destination),
+          weight: shipment.total_weight,
+          packages: shipment.packages,
+          estimatedDelivery: shipment.estimated_delivery,
+          lastUpdate: shipment.last_update,
+          bookedAt: shipment.booked_at,
+        },
+        stepper,
+        isException,
+        history: (history || []).map((h) => ({
+          status: h.status,
+          location: h.location,
+          timestamp: h.timestamp,
+          notes: h.notes,
+          updatedBy: h.updated_by,
+        })),
       },
-      stepper,
-      isException,
-      history: (history || []).map((h) => ({
-        status: h.status,
-        location: h.location,
-        timestamp: h.timestamp,
-        notes: h.notes,
-        updatedBy: h.updated_by,
-      })),
-    });
+      { headers: NO_CACHE_HEADERS }
+    );
 
   } catch (err) {
-    return NextResponse.json({ success: false, error: err.message });
+    return NextResponse.json(
+      { success: false, error: err.message },
+      { headers: NO_CACHE_HEADERS }
+    );
   }
 }
