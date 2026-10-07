@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +8,12 @@ const serviceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+const SALT = 'sXL_Super_Express_2025_salt';
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password + SALT).digest('hex');
+}
 
 async function getSessionUser(request) {
   const authHeader = request.headers.get('authorization') || '';
@@ -26,9 +33,6 @@ async function getSessionUser(request) {
   return { userId: session.user_id, role: session.role };
 }
 
-/* ============================================================
- *  GET — Fetch current profile + credit status
- * ============================================================ */
 export async function GET(request) {
   try {
     const session = await getSessionUser(request);
@@ -58,13 +62,11 @@ export async function GET(request) {
         companyState: user.company_state || '',
         companyCountry: user.company_country || '',
         companyBin: user.company_bin || '',
-        // Credit status
         creditApproved: user.credit_approved === true,
         creditLimit: user.credit_limit || 0,
         creditTermsDays: user.credit_terms_days || 30,
         creditStatus: user.credit_request_status || null,
         creditNote: user.credit_request_note || '',
-        // Bank info
         bankName: user.bank_name || '',
         bankAccountName: user.bank_account_name || '',
         bankAccountNumber: user.bank_account_number || '',
@@ -78,10 +80,6 @@ export async function GET(request) {
   }
 }
 
-/* ============================================================
- *  POST — Save shipper info OR submit credit request
- *  body.action = 'saveInfo' | 'submitCredit'
- * ============================================================ */
 export async function POST(request) {
   try {
     const session = await getSessionUser(request);
@@ -98,6 +96,9 @@ export async function POST(request) {
     if (action === 'submitCredit') {
       return await submitCreditRequest(session, body);
     }
+    if (action === 'changePassword') {
+      return await changePassword(session, body);
+    }
     return NextResponse.json({ success: false, error: 'Unknown action.' });
 
   } catch (err) {
@@ -105,9 +106,6 @@ export async function POST(request) {
   }
 }
 
-/* ============================================================
- *  Save Shipper Information
- * ============================================================ */
 async function saveShipperInfo(session, body) {
   const updateData = {
     company_name: String(body.companyName || '').trim() || null,
@@ -120,7 +118,6 @@ async function saveShipperInfo(session, body) {
     company_bin: String(body.companyBin || '').trim() || null,
   };
 
-  // Also update 'name' to match contact_person
   if (updateData.contact_person) {
     updateData.name = updateData.contact_person;
   }
@@ -135,11 +132,7 @@ async function saveShipperInfo(session, body) {
   return NextResponse.json({ success: true, message: 'Profile updated.' });
 }
 
-/* ============================================================
- *  Submit Credit Account Request
- * ============================================================ */
 async function submitCreditRequest(session, body) {
-  // Validate required fields
   const companyName = String(body.companyName || '').trim();
   const companyAddress = String(body.companyAddress || '').trim();
   const companyCountry = String(body.companyCountry || '').trim();
@@ -156,7 +149,6 @@ async function submitCreditRequest(session, body) {
   if (!bankAccountName) return NextResponse.json({ success: false, error: 'Account holder name is required.' });
   if (!bankAccountNumber) return NextResponse.json({ success: false, error: 'Account number is required.' });
 
-  // Check existing status
   const { data: user } = await serviceSupabase
     .from('users')
     .select('credit_request_status, credit_approved')
@@ -171,7 +163,6 @@ async function submitCreditRequest(session, body) {
     return NextResponse.json({ success: false, error: 'You already have a pending credit request.' });
   }
 
-  // Save all data + set status to pending
   const { error } = await serviceSupabase
     .from('users')
     .update({
@@ -198,4 +189,49 @@ async function submitCreditRequest(session, body) {
     success: true,
     message: 'Credit account request submitted. Our team will review and respond within 1-2 business days.',
   });
+}
+
+async function changePassword(session, body) {
+  const currentPassword = String(body.currentPassword || '');
+  const newPassword = String(body.newPassword || '');
+
+  if (!currentPassword || !newPassword) {
+    return NextResponse.json({ success: false, error: 'Current password and new password are required.' });
+  }
+  if (newPassword.length < 6) {
+    return NextResponse.json({ success: false, error: 'New password must be at least 6 characters.' });
+  }
+  if (currentPassword === newPassword) {
+    return NextResponse.json({ success: false, error: 'New password must be different from current password.' });
+  }
+
+  const { data: user, error: fetchErr } = await serviceSupabase
+    .from('users')
+    .select('user_id, password_hash')
+    .eq('user_id', session.userId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    return NextResponse.json({ success: false, error: fetchErr.message });
+  }
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'User not found.' });
+  }
+
+  const currentHash = hashPassword(currentPassword);
+  if (currentHash !== user.password_hash) {
+    return NextResponse.json({ success: false, error: 'Current password is incorrect.' });
+  }
+
+  const newHash = hashPassword(newPassword);
+  const { error: updateErr } = await serviceSupabase
+    .from('users')
+    .update({ password_hash: newHash })
+    .eq('user_id', session.userId);
+
+  if (updateErr) {
+    return NextResponse.json({ success: false, error: updateErr.message });
+  }
+
+  return NextResponse.json({ success: true, message: 'Password changed successfully.' });
 }
