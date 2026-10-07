@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { sendAdminCreditRequestAlert } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,9 @@ async function getSessionUser(request) {
   return { userId: session.user_id, role: session.role };
 }
 
+/* ============================================================
+ *  GET — Fetch current profile + credit status
+ * ============================================================ */
 export async function GET(request) {
   try {
     const session = await getSessionUser(request);
@@ -80,6 +84,12 @@ export async function GET(request) {
   }
 }
 
+/* ============================================================
+ *  POST — handle actions:
+ *    - saveInfo       (shipper profile)
+ *    - submitCredit   (credit application)
+ *    - changePassword (moved from separate endpoint in G.35)
+ * ============================================================ */
 export async function POST(request) {
   try {
     const session = await getSessionUser(request);
@@ -106,6 +116,9 @@ export async function POST(request) {
   }
 }
 
+/* ============================================================
+ *  Save Shipper Information
+ * ============================================================ */
 async function saveShipperInfo(session, body) {
   const updateData = {
     company_name: String(body.companyName || '').trim() || null,
@@ -132,6 +145,9 @@ async function saveShipperInfo(session, body) {
   return NextResponse.json({ success: true, message: 'Profile updated.' });
 }
 
+/* ============================================================
+ *  Submit Credit Account Request  (G.44 — now sends admin alert)
+ * ============================================================ */
 async function submitCreditRequest(session, body) {
   const companyName = String(body.companyName || '').trim();
   const companyAddress = String(body.companyAddress || '').trim();
@@ -151,7 +167,7 @@ async function submitCreditRequest(session, body) {
 
   const { data: user } = await serviceSupabase
     .from('users')
-    .select('credit_request_status, credit_approved')
+    .select('*')
     .eq('user_id', session.userId)
     .maybeSingle();
 
@@ -185,12 +201,38 @@ async function submitCreditRequest(session, body) {
 
   if (error) return NextResponse.json({ success: false, error: error.message });
 
+  // G.44 — Notify admin by email (uses the freshly saved data)
+  try {
+    const updatedUser = {
+      ...(user || {}),
+      company_name: companyName,
+      company_address: companyAddress,
+      company_city: String(body.companyCity || '').trim() || null,
+      company_state: String(body.companyState || '').trim() || null,
+      company_country: companyCountry,
+      company_bin: companyBin,
+      bank_name: bankName,
+      bank_account_name: bankAccountName,
+      bank_account_number: bankAccountNumber,
+      bank_swift: String(body.bankSwift || '').trim() || null,
+      bank_branch: String(body.bankBranch || '').trim() || null,
+    };
+
+    const result = await sendAdminCreditRequestAlert(updatedUser);
+    console.log('[Credit Request Email] Admin alert:', result.success ? 'sent' : 'failed', result.error || '');
+  } catch (emailErr) {
+    console.error('[Credit Request Email] Exception:', emailErr.message);
+  }
+
   return NextResponse.json({
     success: true,
     message: 'Credit account request submitted. Our team will review and respond within 1-2 business days.',
   });
 }
 
+/* ============================================================
+ *  Change Password
+ * ============================================================ */
 async function changePassword(session, body) {
   const currentPassword = String(body.currentPassword || '');
   const newPassword = String(body.newPassword || '');
