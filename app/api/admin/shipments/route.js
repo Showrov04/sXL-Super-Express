@@ -64,6 +64,69 @@ function buildShipmentType(shipment) {
   return mode || '—';
 }
 
+/* ============================================================
+ *  G.52 — Status-based sort for the Active tab (and customer side)
+ *
+ *  Primary key:   status rank (Booked → Picked Up → In Transit →
+ *                 Out for Delivery → Cancellation Requested → Exception)
+ *  Secondary key: mode rank  (AIR-SP → AIR → SEA)
+ *  Tiebreaker:    booked_at DESC (newest first)
+ * ============================================================ */
+const STATUS_RANK = {
+  'booked': 1,
+  'picked up': 2,
+  'in transit': 3,
+  'out for delivery': 4,
+  'cancellation requested': 5,
+  'exception': 6,
+};
+
+const MODE_RANK = {
+  'AIR-SP': 1,   // Special Parcel
+  'AIR': 2,
+  'SEA': 3,
+};
+
+function getStatusRank(status) {
+  const s = String(status || '').toLowerCase().trim();
+  if (STATUS_RANK[s] !== undefined) return STATUS_RANK[s];
+  // Unknown status → push to end
+  return 99;
+}
+
+function getModeRank(shipment) {
+  const mode = String(shipment.ship_mode || '').toUpperCase();
+  const pType = String(shipment.parcel_type || '').trim();
+  if (mode === 'AIR' && pType === 'Special Parcel') return MODE_RANK['AIR-SP'];
+  if (mode === 'AIR') return MODE_RANK['AIR'];
+  if (mode === 'SEA') return MODE_RANK['SEA'];
+  return 99;
+}
+
+function sortByStatusThenModeThenBooked(list) {
+  return list.slice().sort((a, b) => {
+    const srA = getStatusRank(a.status);
+    const srB = getStatusRank(b.status);
+    if (srA !== srB) return srA - srB;
+
+    const mrA = getModeRank(a);
+    const mrB = getModeRank(b);
+    if (mrA !== mrB) return mrA - mrB;
+
+    const da = new Date(a.booked_at || 0).getTime() || 0;
+    const db = new Date(b.booked_at || 0).getTime() || 0;
+    return db - da;
+  });
+}
+
+function sortByBookedDesc(list) {
+  return list.slice().sort((a, b) => {
+    const da = new Date(a.booked_at || 0).getTime() || 0;
+    const db = new Date(b.booked_at || 0).getTime() || 0;
+    return db - da;
+  });
+}
+
 async function requireAdmin(request) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.replace('Bearer ', '').trim();
@@ -86,26 +149,9 @@ async function requireAdmin(request) {
 }
 
 /* ============================================================
- *  G.46 — Status classifier
- *  A shipment is "truly cancelled" only when status === 'Cancelled'.
- *  'Cancellation Requested' stays in Active until admin decides.
- * ============================================================ */
-function isTrulyCancelled(status) {
-  return String(status || '').toLowerCase() === 'cancelled';
-}
-
-function isCancellationPending(status) {
-  return String(status || '').toLowerCase().includes('cancellation');
-}
-
-/* ============================================================
  *  G.16 — Field metadata for editBooking diffing
- *  Each entry: formKey -> { dbKey, label, public, kind }
- *  kind: 'text' | 'int' | 'float' | 'date' | 'time'
- *  public: true -> visible to customer on tracking page
  * ============================================================ */
 const EDITABLE_FIELDS = {
-  // Reference & Mode
   shipperRef:         { dbKey: 'shipper_ref',            label: 'Shipper Reference',      public: false, kind: 'text' },
   shipmentDate:       { dbKey: 'shipment_date',          label: 'Shipment Date',          public: false, kind: 'date' },
   parcelType:         { dbKey: 'parcel_type',            label: 'Parcel Type',            public: true,  kind: 'text' },
@@ -113,12 +159,10 @@ const EDITABLE_FIELDS = {
   deliveryTimeline:   { dbKey: 'delivery_timeline',      label: 'Delivery Timeline',      public: true,  kind: 'text' },
   originCountry:      { dbKey: 'origin_country',         label: 'Country of Origin',      public: true,  kind: 'text' },
 
-  // Sender
   senderName:         { dbKey: 'sender_name',            label: 'Sender Name',            public: true,  kind: 'text' },
   senderPhone:        { dbKey: 'sender_phone',           label: 'Sender Phone',           public: true,  kind: 'text' },
   senderEmail:        { dbKey: 'sender_email',           label: 'Sender Email',           public: true,  kind: 'text' },
 
-  // Recipient
   recipientName:      { dbKey: 'recipient_name',         label: 'Recipient Name',         public: true,  kind: 'text' },
   recipientPhone:     { dbKey: 'recipient_phone',        label: 'Recipient Phone',        public: true,  kind: 'text' },
   recipientEmail:     { dbKey: 'recipient_email',        label: 'Recipient Email',        public: true,  kind: 'text' },
@@ -127,7 +171,6 @@ const EDITABLE_FIELDS = {
   recipientCity:      { dbKey: 'recipient_city',         label: 'Recipient City',         public: true,  kind: 'text' },
   recipientState:     { dbKey: 'recipient_state',        label: 'Recipient State',        public: true,  kind: 'text' },
 
-  // Shipment Details
   description:        { dbKey: 'description',            label: 'Description',            public: true,  kind: 'text' },
   packages:           { dbKey: 'packages',               label: 'Packages',               public: true,  kind: 'int' },
   totalWeight:        { dbKey: 'total_weight',           label: 'Weight (kg)',            public: true,  kind: 'float' },
@@ -141,7 +184,6 @@ const EDITABLE_FIELDS = {
   totalValue:         { dbKey: 'total_value',            label: 'Declared Value',         public: true,  kind: 'float' },
   valueCurrency:      { dbKey: 'value_currency',         label: 'Value Currency',         public: true,  kind: 'text' },
 
-  // Pickup
   pickupAddress:      { dbKey: 'pickup_address',         label: 'Pickup Address',         public: true,  kind: 'text' },
   pickupCity:         { dbKey: 'pickup_city',            label: 'Pickup City',            public: true,  kind: 'text' },
   pickupState:        { dbKey: 'pickup_state',           label: 'Pickup State',           public: true,  kind: 'text' },
@@ -149,13 +191,11 @@ const EDITABLE_FIELDS = {
   parcelReadyDate:    { dbKey: 'parcel_ready_date',      label: 'Parcel Ready Date',      public: true,  kind: 'date' },
   parcelReadyTime:    { dbKey: 'parcel_ready_time',      label: 'Parcel Ready Time',      public: true,  kind: 'time' },
 
-  // Payment & Billing — internal only
   paymentTerms:       { dbKey: 'payment_terms',          label: 'Payment Terms',          public: false, kind: 'text' },
   paymentMethod:      { dbKey: 'payment_method',         label: 'Payment Method',         public: false, kind: 'text' },
   freightBillTo:      { dbKey: 'freight_bill_to',        label: 'Freight Bill To',        public: false, kind: 'text' },
   dutyTaxBillTo:      { dbKey: 'duty_tax_bill_to',       label: 'Duty & Tax Bill To',     public: false, kind: 'text' },
 
-  // Services & Notes
   customService:      { dbKey: 'custom_service',         label: 'Customs Clearance',      public: true,  kind: 'text' },
   deliveryService:    { dbKey: 'delivery_service',       label: 'Delivery Service',       public: true,  kind: 'text' },
   specialInstruction: { dbKey: 'special_instruction',    label: 'Special Instructions',   public: true,  kind: 'text' },
@@ -237,7 +277,7 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: error.message });
     }
 
-    // G.46 — counts: 'Cancellation Requested' counts as Active (pending decision),
+    // Counts — 'Cancellation Requested' counts as Active (pending decision),
     // only 'Cancelled' counts toward cancelled.
     const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: all.length };
     all.forEach((s) => {
@@ -249,7 +289,7 @@ export async function GET(request) {
       const isPaid = payment === 'paid';
 
       if (isCancelled) { counts.cancelled++; return; }
-      if (isPendingCancel) { counts.active++; return; }  // G.46 — pending stays active
+      if (isPendingCancel) { counts.active++; return; }
       if (!isDelivered) counts.active++;
       else if (!isPaid) counts.awaiting++;
       else counts.paid++;
@@ -259,14 +299,13 @@ export async function GET(request) {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
       const isCancelled = status === 'cancelled';
-      const isPendingCancel = status.includes('cancellation');
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
 
-      if (tab === 'cancelled') return isCancelled;   // G.46 — only truly Cancelled
+      if (tab === 'cancelled') return isCancelled;
       if (isCancelled) return false;
 
-      if (tab === 'active') return !isDelivered;     // G.46 — pending cancel is still !delivered, so stays
+      if (tab === 'active') return !isDelivered;
       if (tab === 'awaiting') return isDelivered && !isPaid;
       if (tab === 'paid') return isDelivered && isPaid;
       return true;
@@ -286,6 +325,17 @@ export async function GET(request) {
           String(s.sender_email || '').toLowerCase().includes(search)
         );
       });
+    }
+
+    // ============================================================
+    //  G.52 — Sort
+    //  Active tab → status → mode → booked_at DESC
+    //  Other tabs → booked_at DESC (unchanged)
+    // ============================================================
+    if (tab === 'active') {
+      filtered = sortByStatusThenModeThenBooked(filtered);
+    } else {
+      filtered = sortByBookedDesc(filtered);
     }
 
     const shipments = filtered.map((s) => {
@@ -444,7 +494,7 @@ export async function POST(request) {
       return NextResponse.json({ success: true });
     }
 
-    // ---- Edit Booking action (G.16 — real diff + human-readable note) ----
+    // ---- Edit Booking action ----
     if (body.action === 'editBooking') {
       const { trackingNumber, fields, changeReason } = body;
       if (!trackingNumber || !fields || typeof fields !== 'object') {
