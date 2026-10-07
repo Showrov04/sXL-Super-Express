@@ -54,6 +54,22 @@ function countryName(code) {
   return COUNTRY_NAMES[upper] || code;
 }
 
+const FIELD_ERROR_STYLE = {
+  borderColor: '#DC3545',
+  borderWidth: '2px',
+  borderStyle: 'solid',
+  background: '#FFF5F5',
+};
+
+function FieldError({ message }) {
+  if (!message) return null;
+  return (
+    <div style={{ fontSize: '0.75rem', color: '#DC3545', marginTop: '4px', fontWeight: 600 }}>
+      ⚠ {message}
+    </div>
+  );
+}
+
 export default function BookPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -62,6 +78,9 @@ export default function BookPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
+
+  // G.28 — per-field error map (key → message)
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [savedShippers, setSavedShippers] = useState([]);
   const [savedConsignees, setSavedConsignees] = useState([]);
@@ -169,9 +188,41 @@ export default function BookPage() {
     }
   }
 
-  function setShipperField(k, v) { setShipper((s) => ({ ...s, [k]: v })); }
-  function setConsigneeField(k, v) { setConsignee((s) => ({ ...s, [k]: v })); }
-  function setShipmentField(k, v) { setShipment((s) => ({ ...s, [k]: v })); }
+  // ===== G.28 — field error helpers =====
+  function clearFieldError(key) {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function clearFields(keys) {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      keys.forEach((k) => { if (next[k]) { delete next[k]; changed = true; } });
+      return changed ? next : prev;
+    });
+  }
+
+  function fieldErrProps(key) {
+    return fieldErrors[key] ? FIELD_ERROR_STYLE : {};
+  }
+
+  function setShipperField(k, v) {
+    setShipper((s) => ({ ...s, [k]: v }));
+    clearFieldError('shipper.' + k);
+  }
+  function setConsigneeField(k, v) {
+    setConsignee((s) => ({ ...s, [k]: v }));
+    clearFieldError('consignee.' + k);
+  }
+  function setShipmentField(k, v) {
+    setShipment((s) => ({ ...s, [k]: v }));
+    clearFieldError('shipment.' + k);
+  }
 
   function pickShipper(id) {
     setSelectedShipper(id);
@@ -181,6 +232,7 @@ export default function BookPage() {
       name: a.name || '', fullAddress: a.fullAddress || '', city: a.city || '',
       state: a.state || '', country: a.country || '', email: a.email || '', phone: a.phone || '',
     });
+    clearFields(['shipper.name', 'shipper.fullAddress', 'shipper.country', 'shipper.email', 'shipper.phone']);
   }
 
   function pickConsignee(id) {
@@ -192,10 +244,12 @@ export default function BookPage() {
       state: a.state || '', country: a.country || '', email: a.email || '',
       phone: a.phone || '', bin: a.bin || '',
     });
+    clearFields(['consignee.name', 'consignee.fullAddress', 'consignee.country', 'consignee.email', 'consignee.phone', 'consignee.bin']);
   }
 
   function pickParcelType(p) {
     setParcelType(p);
+    clearFields(['parcelType', 'parcelTypeCustom', 'shipment.deliveryTimeline']);
     if (p !== 'Others') setParcelTypeCustom('');
     if (p !== 'Special Parcel') {
       setShipmentField('deliveryTimeline', '');
@@ -216,99 +270,131 @@ export default function BookPage() {
     return current - 1;
   }
 
+  // ===== Validation — returns { message, fields } =====
   function validateStep1() {
-    if (!shipMode) return 'Please select a ship mode.';
-    if (shipMode === 'SEA' && !seaLoadType) return 'Please select LCL or FCL for SEA shipments.';
-    return null;
+    const errs = {};
+    if (!shipMode) errs.shipMode = 'Please select a ship mode';
+    if (shipMode === 'SEA' && !seaLoadType) errs.seaLoadType = 'Please select LCL or FCL';
+    const count = Object.keys(errs).length;
+    return count === 0 ? null : { message: count + ' field(s) need attention', fields: errs };
   }
   function validateParcel() {
-    if (!parcelType) return 'Please select a parcel type.';
-    if (parcelType === 'Others' && !parcelTypeCustom.trim()) return 'Please specify the parcel type.';
+    const errs = {};
+    if (!parcelType) errs.parcelType = 'Please select a parcel type';
+    if (parcelType === 'Others' && !parcelTypeCustom.trim()) errs.parcelTypeCustom = 'Please specify the parcel type';
     if (parcelType === 'Special Parcel' && !shipment.deliveryTimeline.trim()) {
-      return 'Please select a Delivery Timeline for Special Parcel.';
+      errs['shipment.deliveryTimeline'] = 'Please select a Delivery Timeline';
     }
-    return null;
+    const count = Object.keys(errs).length;
+    return count === 0 ? null : { message: count + ' field(s) need attention', fields: errs };
   }
   function validateParties() {
-    if (!shipper.name || !shipper.fullAddress || !shipper.country || !shipper.email || !shipper.phone) {
-      return 'Shipper: Name, Full Address, Country, Email and Phone are required.';
-    }
-    if (!consignee.name || !consignee.fullAddress || !consignee.country || !consignee.email || !consignee.phone || !consignee.bin) {
-      return 'Consignee: Name, Full Address, Country, Email, Phone and BIN are required.';
-    }
-    return null;
+    const errs = {};
+    if (!shipper.name) errs['shipper.name'] = 'Required';
+    if (!shipper.fullAddress) errs['shipper.fullAddress'] = 'Required';
+    if (!shipper.country) errs['shipper.country'] = 'Required';
+    if (!shipper.email) errs['shipper.email'] = 'Required';
+    if (!shipper.phone) errs['shipper.phone'] = 'Required';
+    if (!consignee.name) errs['consignee.name'] = 'Required';
+    if (!consignee.fullAddress) errs['consignee.fullAddress'] = 'Required';
+    if (!consignee.country) errs['consignee.country'] = 'Required';
+    if (!consignee.email) errs['consignee.email'] = 'Required';
+    if (!consignee.phone) errs['consignee.phone'] = 'Required';
+    if (!consignee.bin) errs['consignee.bin'] = 'Required';
+    const count = Object.keys(errs).length;
+    return count === 0 ? null : { message: count + ' field(s) need attention', fields: errs };
   }
   function validateShipment() {
-    if (!shipment.description.trim()) return 'Description of goods is required.';
-    if (!shipment.hsCode.trim()) return 'HS Code is required.';
-    if (!shipment.originCountry) return 'Country of Origin is required.';
-    return null;
+    const errs = {};
+    if (!shipment.description.trim()) errs['shipment.description'] = 'Required';
+    if (!shipment.hsCode.trim()) errs['shipment.hsCode'] = 'Required';
+    if (!shipment.originCountry) errs['shipment.originCountry'] = 'Required';
+    const count = Object.keys(errs).length;
+    return count === 0 ? null : { message: count + ' field(s) need attention', fields: errs };
   }
   function validatePackaging() {
-    if (!shipment.packagingType) return 'Please select a packaging type.';
+    const errs = {};
+    if (!shipment.packagingType) errs['shipment.packagingType'] = 'Required';
     if (shipment.packagingType === 'Others' && !shipment.packagingTypeCustom.trim()) {
-      return 'Please specify the packaging type.';
+      errs['shipment.packagingTypeCustom'] = 'Required';
     }
-    if (!shipment.dimLength || parseFloat(shipment.dimLength) <= 0) return 'Length is required.';
-    if (!shipment.dimWidth || parseFloat(shipment.dimWidth) <= 0) return 'Width is required.';
-    if (!shipment.dimHeight || parseFloat(shipment.dimHeight) <= 0) return 'Height is required.';
-    if (!shipment.packages || parseInt(shipment.packages, 10) <= 0) return 'No. of Packages is required.';
-    if (!shipment.totalWeight || parseFloat(shipment.totalWeight) <= 0) return 'Enter a valid weight.';
+    if (!shipment.dimLength || parseFloat(shipment.dimLength) <= 0) errs['shipment.dimLength'] = 'Required';
+    if (!shipment.dimWidth || parseFloat(shipment.dimWidth) <= 0) errs['shipment.dimWidth'] = 'Required';
+    if (!shipment.dimHeight || parseFloat(shipment.dimHeight) <= 0) errs['shipment.dimHeight'] = 'Required';
+    if (!shipment.packages || parseInt(shipment.packages, 10) <= 0) errs['shipment.packages'] = 'Required';
+    if (!shipment.totalWeight || parseFloat(shipment.totalWeight) <= 0) errs['shipment.totalWeight'] = 'Required';
     if (isSea) {
-      if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) return 'Total CBM is required.';
+      if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) errs['shipment.totalCbm'] = 'Required';
     }
     if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
-      return 'Total Customs Value is required.';
+      errs['shipment.totalValue'] = 'Required';
     }
     if (showBillingParty) {
-      if (!freightBillTo) return 'Please select who pays the freight cost.';
-      if (!dutyTaxBillTo) return 'Please select who pays the duty & taxes.';
+      if (!freightBillTo) errs.freightBillTo = 'Please select';
+      if (!dutyTaxBillTo) errs.dutyTaxBillTo = 'Please select';
     }
-    return null;
+    const count = Object.keys(errs).length;
+    return count === 0 ? null : { message: count + ' field(s) need attention', fields: errs };
   }
   function validatePickup() {
+    const errs = {};
     if (shipment.pickupService && !shipment.pickupSameAsShipper) {
-      if (!shipment.pickupAddress.trim()) return 'Pickup Address is required.';
-      if (!shipment.pickupCity.trim()) return 'Pickup City is required.';
-      if (!shipment.pickupCountry.trim()) return 'Pickup Country is required.';
+      if (!shipment.pickupAddress.trim()) errs['shipment.pickupAddress'] = 'Required';
+      if (!shipment.pickupCity.trim()) errs['shipment.pickupCity'] = 'Required';
+      if (!shipment.pickupCountry.trim()) errs['shipment.pickupCountry'] = 'Required';
     }
-    if (!shipment.parcelReadyDate) return 'Goods Ready Date is required.';
-    if (!shipment.parcelReadyTime) return 'Goods Ready Time is required.';
-    return null;
+    if (!shipment.parcelReadyDate) errs['shipment.parcelReadyDate'] = 'Required';
+    if (!shipment.parcelReadyTime) errs['shipment.parcelReadyTime'] = 'Required';
+    const count = Object.keys(errs).length;
+    return count === 0 ? null : { message: count + ' field(s) need attention', fields: errs };
   }
   function validateCustomDelivery() {
-    if (!customService) return 'Please select who will handle Customs.';
-    if (!deliveryService) return 'Please select who will handle Delivery.';
-    return null;
+    const errs = {};
+    if (!customService) errs.customService = 'Please select';
+    if (!deliveryService) errs.deliveryService = 'Please select';
+    const count = Object.keys(errs).length;
+    return count === 0 ? null : { message: count + ' field(s) need attention', fields: errs };
   }
   function validatePayment() {
-    if (!paymentTerms) return 'Please select a payment type.';
-    if (!paymentMethod) return 'Please select a payment method.';
+    const errs = {};
+    if (!paymentTerms) errs.paymentTerms = 'Please select';
+    if (!paymentMethod) errs.paymentMethod = 'Please select';
     if (paymentTerms === 'Credit Account' && !creditApproved) {
-      return 'Credit Account is not available. Please choose Prepaid or Collect.';
+      errs.paymentTerms = 'Credit Account is not available';
     }
-    if (invoiceFiles.length === 0) return 'Please upload at least one Invoice file.';
-    if (packingListFiles.length === 0) return 'Please upload at least one Packing List file.';
-    return null;
+    if (invoiceFiles.length === 0) errs.invoiceFiles = 'Please upload at least one Invoice file';
+    if (packingListFiles.length === 0) errs.packingListFiles = 'Please upload at least one Packing List file';
+    const count = Object.keys(errs).length;
+    return count === 0 ? null : { message: count + ' field(s) need attention', fields: errs };
   }
 
   function goNext() {
     setError('');
-    let err = null;
-    if (step === 1) err = validateStep1();
-    else if (step === 2 && !isSea) err = validateParcel();
-    else if ((step === 2 && isSea) || (step === 3 && !isSea)) err = validateParties();
-    else if ((step === 3 && isSea) || (step === 4 && !isSea)) err = validateShipment();
-    else if ((step === 4 && isSea) || (step === 5 && !isSea)) err = validatePackaging();
-    else if ((step === 5 && isSea) || (step === 6 && !isSea)) err = validatePickup();
-    else if ((step === 6 && isSea) || (step === 7 && !isSea)) err = validateCustomDelivery();
-    else if ((step === 7 && isSea) || (step === 8 && !isSea)) err = validatePayment();
+    setFieldErrors({});
 
-    if (err) { setError(err); return; }
+    let result = null;
+    if (step === 1) result = validateStep1();
+    else if (step === 2 && !isSea) result = validateParcel();
+    else if ((step === 2 && isSea) || (step === 3 && !isSea)) result = validateParties();
+    else if ((step === 3 && isSea) || (step === 4 && !isSea)) result = validateShipment();
+    else if ((step === 4 && isSea) || (step === 5 && !isSea)) result = validatePackaging();
+    else if ((step === 5 && isSea) || (step === 6 && !isSea)) result = validatePickup();
+    else if ((step === 6 && isSea) || (step === 7 && !isSea)) result = validateCustomDelivery();
+    else if ((step === 7 && isSea) || (step === 8 && !isSea)) result = validatePayment();
+
+    if (result) {
+      // G.28 — show inline errors on each missing field + scroll to top
+      setFieldErrors(result.fields);
+      setError('⚠ Please fix the highlighted fields before continuing.');
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      return;
+    }
     setStep(getNextStep(step));
   }
 
-  function goPrev() { setError(''); setStep(getPrevStep(step)); }
+  function goPrev() { setError(''); setFieldErrors({}); setStep(getPrevStep(step)); }
 
   async function uploadFileToSupabase(file, kind) {
     const token = localStorage.getItem('sxl_token');
@@ -345,8 +431,13 @@ export default function BookPage() {
     if (validFiles.length !== files.length) {
       setError('Some files exceed the 10 MB limit and were skipped.');
     }
-    if (kind === 'invoice') setInvoiceFiles((prev) => [...prev, ...validFiles]);
-    else setPackingListFiles((prev) => [...prev, ...validFiles]);
+    if (kind === 'invoice') {
+      setInvoiceFiles((prev) => [...prev, ...validFiles]);
+      clearFieldError('invoiceFiles');
+    } else {
+      setPackingListFiles((prev) => [...prev, ...validFiles]);
+      clearFieldError('packingListFiles');
+    }
   }
 
   function removeFile(kind, index) {
@@ -568,7 +659,7 @@ export default function BookPage() {
         </div>
 
         {error && (
-          <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>
+          <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px', fontWeight: 600 }}>
             {error}
           </div>
         )}
@@ -584,10 +675,12 @@ export default function BookPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
                 {[{ value: 'SEA', icon: '🚢', label: 'SEA Freight', sub: 'Cost-effective ocean shipping' },
                   { value: 'AIR', icon: '✈️', label: 'AIR Freight', sub: 'Fast air delivery' }].map((m) => (
-                  <button key={m.value} onClick={() => { setShipMode(m.value); if (m.value !== 'SEA') setSeaLoadType(''); }} style={{
-                    padding: '25px 15px', border: '3px solid ' + (shipMode === m.value ? '#FF6B00' : '#E9ECEF'),
+                  <button key={m.value} onClick={() => { setShipMode(m.value); clearFieldError('shipMode'); if (m.value !== 'SEA') setSeaLoadType(''); }} style={{
+                    padding: '25px 15px',
+                    border: '3px solid ' + (shipMode === m.value ? '#FF6B00' : (fieldErrors.shipMode ? '#DC3545' : '#E9ECEF')),
                     borderRadius: '12px', textAlign: 'center', cursor: 'pointer',
-                    background: shipMode === m.value ? '#FFF5EB' : 'white', fontFamily: 'inherit'
+                    background: shipMode === m.value ? '#FFF5EB' : (fieldErrors.shipMode ? '#FFF5F5' : 'white'),
+                    fontFamily: 'inherit'
                   }}>
                     <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '8px' }}>{m.icon}</span>
                     <div style={{ fontWeight: 800, color: '#003366', fontSize: '1.05rem' }}>{m.label}</div>
@@ -595,6 +688,7 @@ export default function BookPage() {
                   </button>
                 ))}
               </div>
+              <FieldError message={fieldErrors.shipMode} />
 
               {shipMode === 'SEA' && (
                 <div style={{
@@ -610,10 +704,10 @@ export default function BookPage() {
                       { value: 'LCL', label: 'LCL', sub: 'Less than Container Load' },
                       { value: 'FCL', label: 'FCL', sub: 'Full Container Load' },
                     ].map((opt) => (
-                      <button key={opt.value} type="button" onClick={() => setSeaLoadType(opt.value)} style={{
+                      <button key={opt.value} type="button" onClick={() => { setSeaLoadType(opt.value); clearFieldError('seaLoadType'); }} style={{
                         flex: 1, minWidth: '180px', padding: '14px 18px',
-                        border: '3px solid ' + (seaLoadType === opt.value ? '#003366' : '#E9ECEF'),
-                        background: seaLoadType === opt.value ? '#E0EDFF' : 'white',
+                        border: '3px solid ' + (seaLoadType === opt.value ? '#003366' : (fieldErrors.seaLoadType ? '#DC3545' : '#E9ECEF')),
+                        background: seaLoadType === opt.value ? '#E0EDFF' : (fieldErrors.seaLoadType ? '#FFF5F5' : 'white'),
                         borderRadius: '10px', cursor: 'pointer',
                         fontFamily: 'inherit', textAlign: 'left'
                       }}>
@@ -626,12 +720,13 @@ export default function BookPage() {
                       </button>
                     ))}
                   </div>
+                  <FieldError message={fieldErrors.seaLoadType} />
                 </div>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <Link href="/dashboard" style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, textDecoration: 'none' }}>Cancel</Link>
-                <button onClick={goNext} disabled={!shipMode} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: shipMode ? 'pointer' : 'not-allowed', opacity: shipMode ? 1 : 0.5, fontFamily: 'inherit' }}>Next</button>
+                <button onClick={goNext} style={{ padding: '14px 26px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Next</button>
               </div>
             </>
           )}
@@ -647,20 +742,22 @@ export default function BookPage() {
                 {['Document', 'No-Document (Sample)', 'Special Parcel', 'Others'].map((p) => (
                   <button key={p} onClick={() => pickParcelType(p)} style={{
                     padding: '10px 20px', borderRadius: '30px',
-                    border: '2px solid ' + (parcelType === p ? '#FF6B00' : '#E9ECEF'),
-                    background: parcelType === p ? '#FF6B00' : 'white',
+                    border: '2px solid ' + (parcelType === p ? '#FF6B00' : (fieldErrors.parcelType ? '#DC3545' : '#E9ECEF')),
+                    background: parcelType === p ? '#FF6B00' : (fieldErrors.parcelType ? '#FFF5F5' : 'white'),
                     color: parcelType === p ? 'white' : '#343A40',
                     fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
                   }}>{p}</button>
                 ))}
               </div>
+              <FieldError message={fieldErrors.parcelType} />
 
               {parcelType === 'Others' && (
                 <div style={{ marginTop: '10px', marginBottom: '15px' }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>Please specify *</label>
-                  <input type="text" value={parcelTypeCustom} onChange={(e) => setParcelTypeCustom(e.target.value)}
+                  <input type="text" value={parcelTypeCustom} onChange={(e) => { setParcelTypeCustom(e.target.value); clearFieldError('parcelTypeCustom'); }}
                     placeholder="e.g., Fragile equipment, Perishable goods"
-                    style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', ...fieldErrProps('parcelTypeCustom') }} />
+                  <FieldError message={fieldErrors.parcelTypeCustom} />
                 </div>
               )}
 
@@ -678,7 +775,8 @@ export default function BookPage() {
                     onChange={(e) => setShipmentField('deliveryTimeline', e.target.value)}
                     style={{
                       width: '100%', padding: '13px 15px', fontSize: '0.95rem',
-                      border: '2px solid #FF6B00', borderRadius: '8px', outline: 'none',
+                      border: '2px solid ' + (fieldErrors['shipment.deliveryTimeline'] ? '#DC3545' : '#FF6B00'),
+                      borderRadius: '8px', outline: 'none',
                       background: 'white', fontFamily: 'inherit', boxSizing: 'border-box'
                     }}>
                     <option value="">-- Select Delivery Timeline --</option>
@@ -689,6 +787,7 @@ export default function BookPage() {
                   <div style={{ fontSize: '0.8rem', color: '#8B4500', marginTop: '8px', fontStyle: 'italic' }}>
                     💡 Choose the delivery speed that matches your route
                   </div>
+                  <FieldError message={fieldErrors['shipment.deliveryTimeline']} />
                 </div>
               )}
 
@@ -732,15 +831,15 @@ export default function BookPage() {
                     </div>
                   )}
 
-                  <Field label="Name *" value={shipper.name} onChange={(v) => setShipperField('name', v)} />
-                  <Field label="Full Address *" value={shipper.fullAddress} onChange={(v) => setShipperField('fullAddress', v)} textarea />
+                  <Field label="Name *" value={shipper.name} onChange={(v) => setShipperField('name', v)} error={fieldErrors['shipper.name']} />
+                  <Field label="Full Address *" value={shipper.fullAddress} onChange={(v) => setShipperField('fullAddress', v)} textarea error={fieldErrors['shipper.fullAddress']} />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <Field label="City" value={shipper.city} onChange={(v) => setShipperField('city', v)} />
                     <Field label="State" value={shipper.state} onChange={(v) => setShipperField('state', v)} />
                   </div>
-                  <SelectField label="Country *" value={shipper.country} onChange={(v) => setShipperField('country', v)} countries={countries} />
-                  <Field label="Email *" value={shipper.email} onChange={(v) => setShipperField('email', v)} type="email" />
-                  <Field label="Phone *" value={shipper.phone} onChange={(v) => setShipperField('phone', v)} type="tel" />
+                  <SelectField label="Country *" value={shipper.country} onChange={(v) => setShipperField('country', v)} countries={countries} error={fieldErrors['shipper.country']} />
+                  <Field label="Email *" value={shipper.email} onChange={(v) => setShipperField('email', v)} type="email" error={fieldErrors['shipper.email']} />
+                  <Field label="Phone *" value={shipper.phone} onChange={(v) => setShipperField('phone', v)} type="tel" error={fieldErrors['shipper.phone']} />
 
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer', marginTop: '5px' }}>
                     <input type="checkbox" checked={saveShipper} onChange={(e) => setSaveShipper(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#FF6B00', cursor: 'pointer' }} />
@@ -771,16 +870,16 @@ export default function BookPage() {
                     </div>
                   )}
 
-                  <Field label="Name *" value={consignee.name} onChange={(v) => setConsigneeField('name', v)} />
-                  <Field label="Full Address *" value={consignee.fullAddress} onChange={(v) => setConsigneeField('fullAddress', v)} textarea />
+                  <Field label="Name *" value={consignee.name} onChange={(v) => setConsigneeField('name', v)} error={fieldErrors['consignee.name']} />
+                  <Field label="Full Address *" value={consignee.fullAddress} onChange={(v) => setConsigneeField('fullAddress', v)} textarea error={fieldErrors['consignee.fullAddress']} />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <Field label="City" value={consignee.city} onChange={(v) => setConsigneeField('city', v)} />
                     <Field label="State" value={consignee.state} onChange={(v) => setConsigneeField('state', v)} />
                   </div>
-                  <SelectField label="Country *" value={consignee.country} onChange={(v) => setConsigneeField('country', v)} countries={countries} />
-                  <Field label="Email *" value={consignee.email} onChange={(v) => setConsigneeField('email', v)} type="email" />
-                  <Field label="Phone *" value={consignee.phone} onChange={(v) => setConsigneeField('phone', v)} type="tel" />
-                  <Field label="BIN *" value={consignee.bin} onChange={(v) => setConsigneeField('bin', v)} placeholder="Business Identification Number" />
+                  <SelectField label="Country *" value={consignee.country} onChange={(v) => setConsigneeField('country', v)} countries={countries} error={fieldErrors['consignee.country']} />
+                  <Field label="Email *" value={consignee.email} onChange={(v) => setConsigneeField('email', v)} type="email" error={fieldErrors['consignee.email']} />
+                  <Field label="Phone *" value={consignee.phone} onChange={(v) => setConsigneeField('phone', v)} type="tel" error={fieldErrors['consignee.phone']} />
+                  <Field label="BIN *" value={consignee.bin} onChange={(v) => setConsigneeField('bin', v)} placeholder="Business Identification Number" error={fieldErrors['consignee.bin']} />
 
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer', marginTop: '5px' }}>
                     <input type="checkbox" checked={saveConsignee} onChange={(e) => setSaveConsignee(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#FF6B00', cursor: 'pointer' }} />
@@ -809,10 +908,10 @@ export default function BookPage() {
                 <Field label="Shipper Reference Number" value={shipment.shipperRef} onChange={(v) => setShipmentField('shipperRef', v)} />
                 <Field label="Shipment Date" type="date" value={shipment.shipmentDate} onChange={(v) => setShipmentField('shipmentDate', v)} />
               </div>
-              <Field label="Description of Goods *" value={shipment.description} onChange={(v) => setShipmentField('description', v)} textarea />
+              <Field label="Description of Goods *" value={shipment.description} onChange={(v) => setShipmentField('description', v)} textarea error={fieldErrors['shipment.description']} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <Field label="HS Code *" value={shipment.hsCode} onChange={(v) => setShipmentField('hsCode', v)} placeholder="Harmonized System Code" />
-                <SelectField label="Country of Origin *" value={shipment.originCountry} onChange={(v) => setShipmentField('originCountry', v)} countries={countries} />
+                <Field label="HS Code *" value={shipment.hsCode} onChange={(v) => setShipmentField('hsCode', v)} placeholder="Harmonized System Code" error={fieldErrors['shipment.hsCode']} />
+                <SelectField label="Country of Origin *" value={shipment.originCountry} onChange={(v) => setShipmentField('originCountry', v)} countries={countries} error={fieldErrors['shipment.originCountry']} />
               </div>
               <Field label="Special Instruction" value={shipment.specialInstruction} onChange={(v) => setShipmentField('specialInstruction', v)} textarea />
 
@@ -842,7 +941,7 @@ export default function BookPage() {
                   style={{
                     width: '100%', padding: '13px 15px', fontSize: '0.95rem',
                     border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none',
-                    background: 'white', fontFamily: 'inherit', boxSizing: 'border-box'
+                    background: 'white', fontFamily: 'inherit', boxSizing: 'border-box', ...fieldErrProps('shipment.packagingType')
                   }}>
                   <option value="">-- Select Packaging Type --</option>
                   <option value="Carton">Carton</option>
@@ -852,6 +951,7 @@ export default function BookPage() {
                   <option value="Bag / Sack">Bag / Sack</option>
                   <option value="Others">Others (specify)</option>
                 </select>
+                <FieldError message={fieldErrors['shipment.packagingType']} />
                 {shipment.packagingType === 'Others' && (
                   <input
                     type="text"
@@ -861,10 +961,11 @@ export default function BookPage() {
                     style={{
                       width: '100%', padding: '13px 15px', fontSize: '0.95rem',
                       border: '2px solid #FF6B00', borderRadius: '8px', outline: 'none',
-                      fontFamily: 'inherit', boxSizing: 'border-box', marginTop: '10px'
+                      fontFamily: 'inherit', boxSizing: 'border-box', marginTop: '10px', ...fieldErrProps('shipment.packagingTypeCustom')
                     }}
                   />
                 )}
+                {shipment.packagingType === 'Others' && <FieldError message={fieldErrors['shipment.packagingTypeCustom']} />}
               </div>
 
               <div style={{ marginBottom: '15px' }}>
@@ -875,35 +976,38 @@ export default function BookPage() {
                   <div>
                     <input type="number" step="0.01" min="0" placeholder="Length"
                       value={shipment.dimLength} onChange={(e) => setShipmentField('dimLength', e.target.value)}
-                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', ...fieldErrProps('shipment.dimLength') }} />
                     <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px', textAlign: 'center' }}>Length</div>
+                    <FieldError message={fieldErrors['shipment.dimLength']} />
                   </div>
                   <div>
                     <input type="number" step="0.01" min="0" placeholder="Width"
                       value={shipment.dimWidth} onChange={(e) => setShipmentField('dimWidth', e.target.value)}
-                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', ...fieldErrProps('shipment.dimWidth') }} />
                     <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px', textAlign: 'center' }}>Width</div>
+                    <FieldError message={fieldErrors['shipment.dimWidth']} />
                   </div>
                   <div>
                     <input type="number" step="0.01" min="0" placeholder="Height"
                       value={shipment.dimHeight} onChange={(e) => setShipmentField('dimHeight', e.target.value)}
-                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '13px 15px', fontSize: '0.95rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', ...fieldErrProps('shipment.dimHeight') }} />
                     <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px', textAlign: 'center' }}>Height</div>
+                    <FieldError message={fieldErrors['shipment.dimHeight']} />
                   </div>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <Field label="No. of Packages *" type="number" value={shipment.packages} onChange={(v) => setShipmentField('packages', v)} />
-                <Field label="Total Weight (kg) *" type="number" value={shipment.totalWeight} onChange={(v) => setShipmentField('totalWeight', v)} />
+                <Field label="No. of Packages *" type="number" value={shipment.packages} onChange={(v) => setShipmentField('packages', v)} error={fieldErrors['shipment.packages']} />
+                <Field label="Total Weight (kg) *" type="number" value={shipment.totalWeight} onChange={(v) => setShipmentField('totalWeight', v)} error={fieldErrors['shipment.totalWeight']} />
               </div>
 
               {isSea && (
-                <Field label="Total CBM *" type="number" value={shipment.totalCbm} onChange={(v) => setShipmentField('totalCbm', v)} />
+                <Field label="Total CBM *" type="number" value={shipment.totalCbm} onChange={(v) => setShipmentField('totalCbm', v)} error={fieldErrors['shipment.totalCbm']} />
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
-                <Field label="Total Customs Value *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} />
+                <Field label="Total Customs Value *" type="number" value={shipment.totalValue} onChange={(v) => setShipmentField('totalValue', v)} error={fieldErrors['shipment.totalValue']} />
                 <SelectField label="Currency" value={shipment.valueCurrency} onChange={(v) => setShipmentField('valueCurrency', v)} options={['USD', 'HKD', 'CNY', 'BDT']} />
               </div>
 
@@ -917,28 +1021,40 @@ export default function BookPage() {
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px' }}>Who pays Freight Cost? *</label>
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '18px' }}>
                     {['Shipper', 'Consignee', 'Third Party'].map((t) => (
-                      <button key={t} type="button" onClick={() => setFreightBillTo(t)} style={{
+                      <button key={t} type="button" onClick={() => {
+                        // G.28 — toggle off if already selected
+                        const next = freightBillTo === t ? '' : t;
+                        setFreightBillTo(next);
+                        if (next) clearFieldError('freightBillTo');
+                      }} style={{
                         padding: '10px 20px', borderRadius: '30px',
-                        border: '2px solid ' + (freightBillTo === t ? '#FF6B00' : '#E9ECEF'),
-                        background: freightBillTo === t ? '#FF6B00' : 'white',
+                        border: '2px solid ' + (freightBillTo === t ? '#FF6B00' : (fieldErrors.freightBillTo ? '#DC3545' : '#E9ECEF')),
+                        background: freightBillTo === t ? '#FF6B00' : (fieldErrors.freightBillTo ? '#FFF5F5' : 'white'),
                         color: freightBillTo === t ? 'white' : '#343A40',
                         fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
                       }}>{t}</button>
                     ))}
                   </div>
+                  <FieldError message={fieldErrors.freightBillTo} />
 
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px' }}>Who pays Duty & Taxes? *</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '8px', marginTop: '15px' }}>Who pays Duty & Taxes? *</label>
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     {['Shipper', 'Consignee', 'Third Party'].map((t) => (
-                      <button key={t} type="button" onClick={() => setDutyTaxBillTo(t)} style={{
+                      <button key={t} type="button" onClick={() => {
+                        // G.28 — toggle off if already selected
+                        const next = dutyTaxBillTo === t ? '' : t;
+                        setDutyTaxBillTo(next);
+                        if (next) clearFieldError('dutyTaxBillTo');
+                      }} style={{
                         padding: '10px 20px', borderRadius: '30px',
-                        border: '2px solid ' + (dutyTaxBillTo === t ? '#FF6B00' : '#E9ECEF'),
-                        background: dutyTaxBillTo === t ? '#FF6B00' : 'white',
+                        border: '2px solid ' + (dutyTaxBillTo === t ? '#FF6B00' : (fieldErrors.dutyTaxBillTo ? '#DC3545' : '#E9ECEF')),
+                        background: dutyTaxBillTo === t ? '#FF6B00' : (fieldErrors.dutyTaxBillTo ? '#FFF5F5' : 'white'),
                         color: dutyTaxBillTo === t ? 'white' : '#343A40',
                         fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
                       }}>{t}</button>
                     ))}
                   </div>
+                  <FieldError message={fieldErrors.dutyTaxBillTo} />
                 </div>
               )}
 
@@ -1010,12 +1126,12 @@ export default function BookPage() {
 
                   {!shipment.pickupSameAsShipper && (
                     <div style={{ marginTop: '15px' }}>
-                      <Field label="Pickup Address *" value={shipment.pickupAddress} onChange={(v) => setShipmentField('pickupAddress', v)} textarea />
+                      <Field label="Pickup Address *" value={shipment.pickupAddress} onChange={(v) => setShipmentField('pickupAddress', v)} textarea error={fieldErrors['shipment.pickupAddress']} />
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                        <Field label="City *" value={shipment.pickupCity} onChange={(v) => setShipmentField('pickupCity', v)} />
+                        <Field label="City *" value={shipment.pickupCity} onChange={(v) => setShipmentField('pickupCity', v)} error={fieldErrors['shipment.pickupCity']} />
                         <Field label="State" value={shipment.pickupState} onChange={(v) => setShipmentField('pickupState', v)} />
                       </div>
-                      <SelectField label="Country *" value={shipment.pickupCountry} onChange={(v) => setShipmentField('pickupCountry', v)} countries={countries} />
+                      <SelectField label="Country *" value={shipment.pickupCountry} onChange={(v) => setShipmentField('pickupCountry', v)} countries={countries} error={fieldErrors['shipment.pickupCountry']} />
                     </div>
                   )}
                 </>
@@ -1032,8 +1148,8 @@ export default function BookPage() {
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '20px' }}>
-                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Date *'} type="date" value={shipment.parcelReadyDate} onChange={(v) => setShipmentField('parcelReadyDate', v)} />
-                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Time *'} type="time" value={shipment.parcelReadyTime} onChange={(v) => setShipmentField('parcelReadyTime', v)} />
+                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Date *'} type="date" value={shipment.parcelReadyDate} onChange={(v) => setShipmentField('parcelReadyDate', v)} error={fieldErrors['shipment.parcelReadyDate']} />
+                <Field label={(isSea ? 'Goods' : 'Parcel') + ' Ready Time *'} type="time" value={shipment.parcelReadyTime} onChange={(v) => setShipmentField('parcelReadyTime', v)} error={fieldErrors['shipment.parcelReadyTime']} />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
@@ -1060,11 +1176,16 @@ export default function BookPage() {
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '28px' }}>
                 <button
                   type="button"
-                  onClick={() => setCustomService('sxl')}
+                  onClick={() => {
+                    // G.28 — toggle off if already selected
+                    const next = customService === 'sxl' ? '' : 'sxl';
+                    setCustomService(next);
+                    if (next) clearFieldError('customService');
+                  }}
                   style={{
                     flex: 1, minWidth: '200px', padding: '18px 20px',
-                    border: '3px solid ' + (customService === 'sxl' ? '#28A745' : '#E9ECEF'),
-                    background: customService === 'sxl' ? '#E8F7EF' : 'white',
+                    border: '3px solid ' + (customService === 'sxl' ? '#28A745' : (fieldErrors.customService ? '#DC3545' : '#E9ECEF')),
+                    background: customService === 'sxl' ? '#E8F7EF' : (fieldErrors.customService ? '#FFF5F5' : 'white'),
                     borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
                     textAlign: 'left'
                   }}>
@@ -1078,11 +1199,15 @@ export default function BookPage() {
 
                 <button
                   type="button"
-                  onClick={() => setCustomService('consignee')}
+                  onClick={() => {
+                    const next = customService === 'consignee' ? '' : 'consignee';
+                    setCustomService(next);
+                    if (next) clearFieldError('customService');
+                  }}
                   style={{
                     flex: 1, minWidth: '200px', padding: '18px 20px',
-                    border: '3px solid ' + (customService === 'consignee' ? '#FF6B00' : '#E9ECEF'),
-                    background: customService === 'consignee' ? '#FFF5EB' : 'white',
+                    border: '3px solid ' + (customService === 'consignee' ? '#FF6B00' : (fieldErrors.customService ? '#DC3545' : '#E9ECEF')),
+                    background: customService === 'consignee' ? '#FFF5EB' : (fieldErrors.customService ? '#FFF5F5' : 'white'),
                     borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
                     textAlign: 'left'
                   }}>
@@ -1094,8 +1219,9 @@ export default function BookPage() {
                   </div>
                 </button>
               </div>
+              <FieldError message={fieldErrors.customService} />
 
-              <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>📦 Delivery Service</h4>
+              <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem', marginTop: '10px' }}>📦 Delivery Service</h4>
               <p style={{ color: '#6C757D', fontSize: '0.85rem', marginBottom: '15px' }}>
                 Who will handle the final delivery to the consignee?
               </p>
@@ -1103,11 +1229,15 @@ export default function BookPage() {
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '18px' }}>
                 <button
                   type="button"
-                  onClick={() => setDeliveryService('sxl')}
+                  onClick={() => {
+                    const next = deliveryService === 'sxl' ? '' : 'sxl';
+                    setDeliveryService(next);
+                    if (next) clearFieldError('deliveryService');
+                  }}
                   style={{
                     flex: 1, minWidth: '200px', padding: '18px 20px',
-                    border: '3px solid ' + (deliveryService === 'sxl' ? '#28A745' : '#E9ECEF'),
-                    background: deliveryService === 'sxl' ? '#E8F7EF' : 'white',
+                    border: '3px solid ' + (deliveryService === 'sxl' ? '#28A745' : (fieldErrors.deliveryService ? '#DC3545' : '#E9ECEF')),
+                    background: deliveryService === 'sxl' ? '#E8F7EF' : (fieldErrors.deliveryService ? '#FFF5F5' : 'white'),
                     borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
                     textAlign: 'left'
                   }}>
@@ -1121,11 +1251,15 @@ export default function BookPage() {
 
                 <button
                   type="button"
-                  onClick={() => setDeliveryService('consignee')}
+                  onClick={() => {
+                    const next = deliveryService === 'consignee' ? '' : 'consignee';
+                    setDeliveryService(next);
+                    if (next) clearFieldError('deliveryService');
+                  }}
                   style={{
                     flex: 1, minWidth: '200px', padding: '18px 20px',
-                    border: '3px solid ' + (deliveryService === 'consignee' ? '#FF6B00' : '#E9ECEF'),
-                    background: deliveryService === 'consignee' ? '#FFF5EB' : 'white',
+                    border: '3px solid ' + (deliveryService === 'consignee' ? '#FF6B00' : (fieldErrors.deliveryService ? '#DC3545' : '#E9ECEF')),
+                    background: deliveryService === 'consignee' ? '#FFF5EB' : (fieldErrors.deliveryService ? '#FFF5F5' : 'white'),
                     borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
                     textAlign: 'left'
                   }}>
@@ -1137,6 +1271,7 @@ export default function BookPage() {
                   </div>
                 </button>
               </div>
+              <FieldError message={fieldErrors.deliveryService} />
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px', gap: '10px', flexWrap: 'wrap' }}>
                 <button onClick={goPrev} style={{ padding: '14px 26px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
@@ -1157,20 +1292,20 @@ export default function BookPage() {
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px' }}>Payment Type *</label>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
                 {['Prepaid', 'Collect'].map((t) => (
-                  <button key={t} onClick={() => setPaymentTerms(t)} style={{
+                  <button key={t} onClick={() => { setPaymentTerms(t); clearFieldError('paymentTerms'); }} style={{
                     padding: '10px 20px', borderRadius: '30px',
-                    border: '2px solid ' + (paymentTerms === t ? '#FF6B00' : '#E9ECEF'),
-                    background: paymentTerms === t ? '#FF6B00' : 'white',
+                    border: '2px solid ' + (paymentTerms === t ? '#FF6B00' : (fieldErrors.paymentTerms ? '#DC3545' : '#E9ECEF')),
+                    background: paymentTerms === t ? '#FF6B00' : (fieldErrors.paymentTerms ? '#FFF5F5' : 'white'),
                     color: paymentTerms === t ? 'white' : '#343A40',
                     fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
                   }}>{t}</button>
                 ))}
 
                 {creditApproved ? (
-                  <button onClick={() => setPaymentTerms('Credit Account')} style={{
+                  <button onClick={() => { setPaymentTerms('Credit Account'); clearFieldError('paymentTerms'); }} style={{
                     padding: '10px 20px', borderRadius: '30px',
-                    border: '2px solid ' + (paymentTerms === 'Credit Account' ? '#FF6B00' : '#E9ECEF'),
-                    background: paymentTerms === 'Credit Account' ? '#FF6B00' : 'white',
+                    border: '2px solid ' + (paymentTerms === 'Credit Account' ? '#FF6B00' : (fieldErrors.paymentTerms ? '#DC3545' : '#E9ECEF')),
+                    background: paymentTerms === 'Credit Account' ? '#FF6B00' : (fieldErrors.paymentTerms ? '#FFF5F5' : 'white'),
                     color: paymentTerms === 'Credit Account' ? 'white' : '#343A40',
                     fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
                   }}>Credit Account</button>
@@ -1185,16 +1320,17 @@ export default function BookPage() {
                   </button>
                 )}
               </div>
+              <FieldError message={fieldErrors.paymentTerms} />
 
               {!creditApproved && (
-                <div style={{ background: '#FFF5EB', borderLeft: '3px solid #FF6B00', borderRadius: '6px', padding: '10px 14px', marginBottom: '20px', fontSize: '0.82rem', color: '#8B4500' }}>
+                <div style={{ background: '#FFF5EB', borderLeft: '3px solid #FF6B00', borderRadius: '6px', padding: '10px 14px', marginBottom: '20px', marginTop: '10px', fontSize: '0.82rem', color: '#8B4500' }}>
                   💡 Credit Account is available only to approved customers.{' '}
                   <Link href="/account" style={{ color: '#FF6B00', fontWeight: 700 }}>Apply in My Account →</Link>
                 </div>
               )}
 
               {creditApproved && (
-                <div style={{ background: '#E8F7EF', borderLeft: '3px solid #28A745', borderRadius: '6px', padding: '10px 14px', marginBottom: '20px', fontSize: '0.82rem', color: '#155724' }}>
+                <div style={{ background: '#E8F7EF', borderLeft: '3px solid #28A745', borderRadius: '6px', padding: '10px 14px', marginBottom: '20px', marginTop: '10px', fontSize: '0.82rem', color: '#155724' }}>
                   ✅ You&apos;re approved for Credit Account. Limit: <b>USD {Number(creditLimit).toFixed(2)}</b> • Net {creditTermsDays} days.
                 </div>
               )}
@@ -1202,9 +1338,10 @@ export default function BookPage() {
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px', marginTop: '20px' }}>Payment Method *</label>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
                 {['Bank Transfer', 'Cash'].map((m) => (
-                  <button key={m} onClick={() => setPaymentMethod(m)} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (paymentMethod === m ? '#FF6B00' : '#E9ECEF'), background: paymentMethod === m ? '#FF6B00' : 'white', color: paymentMethod === m ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>{m}</button>
+                  <button key={m} onClick={() => { setPaymentMethod(m); clearFieldError('paymentMethod'); }} style={{ padding: '10px 20px', borderRadius: '30px', border: '2px solid ' + (paymentMethod === m ? '#FF6B00' : (fieldErrors.paymentMethod ? '#DC3545' : '#E9ECEF')), background: paymentMethod === m ? '#FF6B00' : (fieldErrors.paymentMethod ? '#FFF5F5' : 'white'), color: paymentMethod === m ? 'white' : '#343A40', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>{m}</button>
                 ))}
               </div>
+              <FieldError message={fieldErrors.paymentMethod} />
 
               <div style={{ marginTop: '25px', paddingTop: '20px', borderTop: '2px solid #F1F3F5' }}>
                 <h4 style={{ marginBottom: '6px', color: '#003366', fontSize: '1.05rem' }}>📎 Upload Documents *</h4>
@@ -1221,8 +1358,8 @@ export default function BookPage() {
                     onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                     onDrop={(e) => handleFileDrop(e, 'invoice')}
                     style={{
-                      border: '2px dashed ' + (invoiceFiles.length > 0 ? '#00A86B' : '#FF6B00'),
-                      background: invoiceFiles.length > 0 ? '#E8F7EF' : '#FFF5EB',
+                      border: '2px dashed ' + (fieldErrors.invoiceFiles ? '#DC3545' : (invoiceFiles.length > 0 ? '#00A86B' : '#FF6B00')),
+                      background: fieldErrors.invoiceFiles ? '#FFF5F5' : (invoiceFiles.length > 0 ? '#E8F7EF' : '#FFF5EB'),
                       borderRadius: '10px', padding: '25px 20px', textAlign: 'center',
                       cursor: 'pointer', position: 'relative'
                     }}
@@ -1235,6 +1372,7 @@ export default function BookPage() {
                     </div>
                     <div style={{ fontSize: '0.78rem', color: '#6C757D' }}>PDF, XLSX, XLS, DOC, DOCX, JPG, PNG · Max 10 MB each</div>
                   </div>
+                  <FieldError message={fieldErrors.invoiceFiles} />
 
                   {invoiceFiles.length > 0 && (
                     <div style={{ marginTop: '10px' }}>
@@ -1256,8 +1394,8 @@ export default function BookPage() {
                     onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                     onDrop={(e) => handleFileDrop(e, 'packingList')}
                     style={{
-                      border: '2px dashed ' + (packingListFiles.length > 0 ? '#00A86B' : '#FF6B00'),
-                      background: packingListFiles.length > 0 ? '#E8F7EF' : '#FFF5EB',
+                      border: '2px dashed ' + (fieldErrors.packingListFiles ? '#DC3545' : (packingListFiles.length > 0 ? '#00A86B' : '#FF6B00')),
+                      background: fieldErrors.packingListFiles ? '#FFF5F5' : (packingListFiles.length > 0 ? '#E8F7EF' : '#FFF5EB'),
                       borderRadius: '10px', padding: '25px 20px', textAlign: 'center',
                       cursor: 'pointer', position: 'relative'
                     }}
@@ -1270,6 +1408,7 @@ export default function BookPage() {
                     </div>
                     <div style={{ fontSize: '0.78rem', color: '#6C757D' }}>PDF, XLSX, XLS, DOC, DOCX, JPG, PNG · Max 10 MB each</div>
                   </div>
+                  <FieldError message={fieldErrors.packingListFiles} />
 
                   {packingListFiles.length > 0 && (
                     <div style={{ marginTop: '10px' }}>
@@ -1424,36 +1563,40 @@ export default function BookPage() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder = '', textarea = false }) {
+function Field({ label, value, onChange, type = 'text', placeholder = '', textarea = false, error }) {
   const baseStyle = {
     width: '100%', padding: '13px 15px', fontSize: '0.95rem',
     border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box'
   };
+  const errStyle = error ? { borderColor: '#DC3545', background: '#FFF5F5' } : {};
   return (
     <div style={{ marginBottom: '15px' }}>
       <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>{label}</label>
       {textarea ? (
-        <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ ...baseStyle, minHeight: '80px', resize: 'vertical' }} />
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ ...baseStyle, ...errStyle, minHeight: '80px', resize: 'vertical' }} />
       ) : (
-        <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={baseStyle} />
+        <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ ...baseStyle, ...errStyle }} />
       )}
+      <FieldError message={error} />
     </div>
   );
 }
 
-function SelectField({ label, value, onChange, countries, options }) {
+function SelectField({ label, value, onChange, countries, options, error }) {
+  const errStyle = error ? { borderColor: '#DC3545', background: '#FFF5F5' } : {};
   return (
     <div style={{ marginBottom: '15px' }}>
       <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>{label}</label>
       <select value={value} onChange={(e) => onChange(e.target.value)} style={{
         width: '100%', padding: '13px 15px', fontSize: '0.95rem',
         border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none',
-        background: 'white', fontFamily: 'inherit', boxSizing: 'border-box'
+        background: 'white', fontFamily: 'inherit', boxSizing: 'border-box', ...errStyle
       }}>
         <option value="">-- Select --</option>
         {countries && countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
         {options && options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
+      <FieldError message={error} />
     </div>
   );
 }
