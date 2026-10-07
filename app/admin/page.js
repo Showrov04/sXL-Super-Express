@@ -28,7 +28,7 @@ const TD_STYLE = {
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
-// S.1 — Top scrollbar styling
+// Shared top-scrollbar styling for dual horizontal scroll
 const TOP_SCROLLBAR_STYLE = {
   overflowX: 'auto',
   overflowY: 'hidden',
@@ -207,7 +207,7 @@ function ShipmentsPanel() {
   const downloadMenuRef = useRef(null);
   const filterDropdownRef = useRef(null);
 
-  // S.1 — refs for dual horizontal scrollbar sync
+  // Dual horizontal scrollbar refs
   const topScrollRef = useRef(null);
   const tableScrollRef = useRef(null);
   const isSyncingRef = useRef(false);
@@ -282,9 +282,7 @@ function ShipmentsPanel() {
     return () => { document.body.style.overflow = ''; };
   }, [statusModal, whModal, filesModal, editModal]);
 
-  // S.1 — Sync top scrollbar <-> table scrollbar
-  // The top scrollbar is a mirror: it has the same content width, so dragging
-  // it moves the table's scrollLeft, and vice versa.
+  // Sync top <-> table scrollbars
   useEffect(() => {
     const topEl = topScrollRef.current;
     const tableEl = tableScrollRef.current;
@@ -911,17 +909,15 @@ function ShipmentsPanel() {
       {!loading && !error && filtered.length > 0 && (
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
-            {/* S.1 — TOP horizontal scrollbar (mirrors the table's own scrollbar) */}
+            {/* Top horizontal scrollbar (mirrors the table's own scrollbar) */}
             <div
               ref={topScrollRef}
               style={TOP_SCROLLBAR_STYLE}
               aria-hidden="true"
             >
-              {/* Ghost div with the same width as the table so the top scrollbar has room to drag */}
               <div style={{ width: '1650px', height: '1px' }} />
             </div>
 
-            {/* Table with its own internal scroll (frozen header + frozen left cols) */}
             <div ref={tableScrollRef} style={{ overflow: 'auto', maxHeight: '70vh' }}>
               <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
@@ -1751,6 +1747,11 @@ function ShippersPanel() {
   const [filterSearch, setFilterSearch] = useState('');
   const filterDropdownRef = useRef(null);
 
+  // S.3 — dual horizontal scrollbar refs
+  const topScrollRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const isSyncingRef = useRef(false);
+
   useEffect(() => { loadShippers(); }, []);
 
   useEffect(() => {
@@ -1763,6 +1764,33 @@ function ShippersPanel() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // S.3 — sync top <-> table scrollbars
+  useEffect(() => {
+    const topEl = topScrollRef.current;
+    const tableEl = tableScrollRef.current;
+    if (!topEl || !tableEl) return;
+
+    function syncFromTop() {
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
+      tableEl.scrollLeft = topEl.scrollLeft;
+      isSyncingRef.current = false;
+    }
+    function syncFromTable() {
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
+      topEl.scrollLeft = tableEl.scrollLeft;
+      isSyncingRef.current = false;
+    }
+
+    topEl.addEventListener('scroll', syncFromTop);
+    tableEl.addEventListener('scroll', syncFromTable);
+    return () => {
+      topEl.removeEventListener('scroll', syncFromTop);
+      tableEl.removeEventListener('scroll', syncFromTable);
+    };
+  }, [loading, shippers.length]);
 
   async function loadShippers() {
     setLoading(true);
@@ -1953,47 +1981,58 @@ function ShippersPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <>
-          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'auto', maxHeight: '70vh', position: 'relative' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '900px', tableLayout: 'fixed' }}>
-              <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
-                <tr>
-                  <FilterHeaderCell col="none" label="Short Form" width={110} />
-                  <FilterHeaderCell col="name" label="Name" width={200} />
-                  <FilterHeaderCell col="contact" label="Contact" width={160} />
-                  <FilterHeaderCell col="email" label="Email" width={220} />
-                  <FilterHeaderCell col="phone" label="Phone" width={150} />
-                  <FilterHeaderCell col="none" label="Country" width={100} />
-                  <FilterHeaderCell col="status" label="Status" width={130} />
-                  <FilterHeaderCell col="none" label="Actions" width={140} />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s, i) => {
-                  const isActive = s.status === 'Active';
-                  const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
-                  return (
-                    <tr key={i} style={{ background: rowBg }}>
-                      <td style={{ ...TD_STYLE, width: 110, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.shortForm || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 200 }}>{s.name || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 160 }}>{s.contactPerson || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 220 }}>{s.email || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 150 }}>{s.phone || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 100 }}>{s.country || '-'}</td>
-                      <td style={{ ...TD_STYLE, width: 130 }}>
-                        <span style={{ background: isActive ? '#D4EDDA' : '#F8D7DA', color: isActive ? '#155724' : '#721C24', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem' }}>{s.status}</span>
-                      </td>
-                      <td style={{ ...TD_STYLE, width: 140, whiteSpace: 'nowrap' }}>
-                        {isActive ? (
-                          <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Suspended')} style={{ padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>🚫 Suspend</button>
-                        ) : (
-                          <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Active')} style={{ padding: '6px 12px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>✅ Activate</button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
+            {/* S.3 — Top horizontal scrollbar */}
+            <div
+              ref={topScrollRef}
+              style={TOP_SCROLLBAR_STYLE}
+              aria-hidden="true"
+            >
+              <div style={{ width: '900px', height: '1px' }} />
+            </div>
+
+            <div ref={tableScrollRef} style={{ overflow: 'auto', maxHeight: '70vh' }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '900px', tableLayout: 'fixed' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
+                  <tr>
+                    <FilterHeaderCell col="none" label="Short Form" width={110} />
+                    <FilterHeaderCell col="name" label="Name" width={200} />
+                    <FilterHeaderCell col="contact" label="Contact" width={160} />
+                    <FilterHeaderCell col="email" label="Email" width={220} />
+                    <FilterHeaderCell col="phone" label="Phone" width={150} />
+                    <FilterHeaderCell col="none" label="Country" width={100} />
+                    <FilterHeaderCell col="status" label="Status" width={130} />
+                    <FilterHeaderCell col="none" label="Actions" width={140} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((s, i) => {
+                    const isActive = s.status === 'Active';
+                    const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+                    return (
+                      <tr key={i} style={{ background: rowBg }}>
+                        <td style={{ ...TD_STYLE, width: 110, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.shortForm || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 200 }}>{s.name || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 160 }}>{s.contactPerson || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 220 }}>{s.email || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 150 }}>{s.phone || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 100 }}>{s.country || '-'}</td>
+                        <td style={{ ...TD_STYLE, width: 130 }}>
+                          <span style={{ background: isActive ? '#D4EDDA' : '#F8D7DA', color: isActive ? '#155724' : '#721C24', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem' }}>{s.status}</span>
+                        </td>
+                        <td style={{ ...TD_STYLE, width: 140, whiteSpace: 'nowrap' }}>
+                          {isActive ? (
+                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Suspended')} style={{ padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>🚫 Suspend</button>
+                          ) : (
+                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Active')} style={{ padding: '6px 12px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>✅ Activate</button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div style={{ marginTop: '12px', textAlign: 'right', fontSize: '0.85rem', color: '#6C757D' }}>
