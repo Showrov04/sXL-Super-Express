@@ -127,14 +127,19 @@ export async function GET(request) {
       return db - da;
     });
 
+    // G.49 — match admin: only exact 'Cancelled' counts as cancelled,
+    // 'Cancellation Requested' stays in Active until admin decides
     const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: shipments.length };
     shipments.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
-      const isCancelled = status === 'cancelled' || status.includes('cancellation');
+      const isCancelled = status === 'cancelled';
+      const isPendingCancel = status.includes('cancellation');
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
+
       if (isCancelled) { counts.cancelled++; return; }
+      if (isPendingCancel) { counts.active++; return; }   // G.49 — pending stays active
       if (!isDelivered) counts.active++;
       else if (!isPaid) counts.awaiting++;
       else counts.paid++;
@@ -143,14 +148,14 @@ export async function GET(request) {
     const filtered = shipments.filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
-      const isCancelled = status === 'cancelled' || status.includes('cancellation');
+      const isCancelled = status === 'cancelled';
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
 
-      if (tab === 'cancelled') return isCancelled;
+      if (tab === 'cancelled') return isCancelled;   // G.49 — only truly Cancelled
       if (isCancelled) return false;
 
-      if (tab === 'active') return !isDelivered;
+      if (tab === 'active') return !isDelivered;     // G.49 — pending cancel is !delivered, so stays
       if (tab === 'awaiting') return isDelivered && !isPaid;
       if (tab === 'paid') return isDelivered && isPaid;
       return true;
@@ -163,7 +168,6 @@ export async function GET(request) {
         shipMode: s.ship_mode,
         seaLoadType: s.sea_load_type || null,
         shipmentType: buildShipmentType(s),
-        // G.40c — also expose raw parcel type for the badge
         parcelType: s.parcel_type || null,
         serviceType: s.service_type,
         status: s.status,
