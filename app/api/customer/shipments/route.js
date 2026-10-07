@@ -58,7 +58,7 @@ function countryName(code) {
   return COUNTRY_NAMES[upper] || code;
 }
 
-// G.40c — Include parcel type in the mode string (matches admin API behavior)
+// G.40c — Include parcel type in the mode string
 function buildShipmentType(shipment) {
   const mode = String(shipment.ship_mode || '').toUpperCase();
   const load = String(shipment.sea_load_type || '').toUpperCase();
@@ -74,6 +74,63 @@ function buildShipmentType(shipment) {
     return p ? ('AIR - ' + p) : 'AIR';
   }
   return mode || '—';
+}
+
+/* ============================================================
+ *  G.53 — Status-based sort (matches admin G.52)
+ * ============================================================ */
+const STATUS_RANK = {
+  'booked': 1,
+  'picked up': 2,
+  'in transit': 3,
+  'out for delivery': 4,
+  'cancellation requested': 5,
+  'exception': 6,
+};
+
+const MODE_RANK = {
+  'AIR-SP': 1,
+  'AIR': 2,
+  'SEA': 3,
+};
+
+function getStatusRank(status) {
+  const s = String(status || '').toLowerCase().trim();
+  if (STATUS_RANK[s] !== undefined) return STATUS_RANK[s];
+  return 99;
+}
+
+function getModeRank(shipment) {
+  const mode = String(shipment.ship_mode || '').toUpperCase();
+  const pType = String(shipment.parcel_type || '').trim();
+  if (mode === 'AIR' && pType === 'Special Parcel') return MODE_RANK['AIR-SP'];
+  if (mode === 'AIR') return MODE_RANK['AIR'];
+  if (mode === 'SEA') return MODE_RANK['SEA'];
+  return 99;
+}
+
+function sortByStatusThenModeThenBooked(list) {
+  return list.slice().sort((a, b) => {
+    const srA = getStatusRank(a.status);
+    const srB = getStatusRank(b.status);
+    if (srA !== srB) return srA - srB;
+
+    const mrA = getModeRank(a);
+    const mrB = getModeRank(b);
+    if (mrA !== mrB) return mrA - mrB;
+
+    const da = new Date(a.booked_at || 0).getTime() || 0;
+    const db = new Date(b.booked_at || 0).getTime() || 0;
+    return db - da;
+  });
+}
+
+function sortByBookedDesc(list) {
+  return list.slice().sort((a, b) => {
+    const da = new Date(a.booked_at || 0).getTime() || 0;
+    const db = new Date(b.booked_at || 0).getTime() || 0;
+    return db - da;
+  });
 }
 
 async function getSessionUser(request) {
@@ -121,14 +178,7 @@ export async function GET(request) {
 
     const shipments = all || [];
 
-    shipments.sort((a, b) => {
-      const da = new Date(a.booked_at || 0).getTime() || 0;
-      const db = new Date(b.booked_at || 0).getTime() || 0;
-      return db - da;
-    });
-
-    // G.49 — match admin: only exact 'Cancelled' counts as cancelled,
-    // 'Cancellation Requested' stays in Active until admin decides
+    // Counts (already aligned with admin)
     const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: shipments.length };
     shipments.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
@@ -139,27 +189,38 @@ export async function GET(request) {
       const isPaid = payment === 'paid';
 
       if (isCancelled) { counts.cancelled++; return; }
-      if (isPendingCancel) { counts.active++; return; }   // G.49 — pending stays active
+      if (isPendingCancel) { counts.active++; return; }
       if (!isDelivered) counts.active++;
       else if (!isPaid) counts.awaiting++;
       else counts.paid++;
     });
 
-    const filtered = shipments.filter((s) => {
+    let filtered = shipments.filter((s) => {
       const status = String(s.status || '').toLowerCase();
       const payment = String(s.payment_status || '').toLowerCase();
       const isCancelled = status === 'cancelled';
       const isDelivered = status === 'delivered';
       const isPaid = payment === 'paid';
 
-      if (tab === 'cancelled') return isCancelled;   // G.49 — only truly Cancelled
+      if (tab === 'cancelled') return isCancelled;
       if (isCancelled) return false;
 
-      if (tab === 'active') return !isDelivered;     // G.49 — pending cancel is !delivered, so stays
+      if (tab === 'active') return !isDelivered;
       if (tab === 'awaiting') return isDelivered && !isPaid;
       if (tab === 'paid') return isDelivered && isPaid;
       return true;
     });
+
+    // ============================================================
+    //  G.53 — Sort
+    //  Active tab → status → mode → booked_at DESC
+    //  Other tabs → booked_at DESC
+    // ============================================================
+    if (tab === 'active') {
+      filtered = sortByStatusThenModeThenBooked(filtered);
+    } else {
+      filtered = sortByBookedDesc(filtered);
+    }
 
     const list = filtered.map((s) => {
       const cost = parseFloat(s.shipping_cost) || 0;
