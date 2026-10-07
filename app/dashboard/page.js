@@ -52,7 +52,6 @@ function renderModeCell(s) {
     );
   }
 
-  // Fallback — plain text
   return s.shipmentType || s.shipMode || '-';
 }
 
@@ -350,7 +349,8 @@ export default function DashboardPage() {
 
   function statusClass(status) {
     const s = String(status || '').toLowerCase();
-    if (s.includes('cancellation requested')) return { bg: '#FFE5B4', color: '#8B4500' };
+    // G.50 — pending cancel now shows in red (matches admin)
+    if (s.includes('cancellation requested')) return { bg: '#F8D7DA', color: '#721C24' };
     if (s.includes('cancelled')) return { bg: '#E9ECEF', color: '#495057' };
     if (s.includes('delivered')) return { bg: '#D4EDDA', color: '#155724' };
     if (s.includes('out for delivery')) return { bg: '#FFE5B4', color: '#8B4500' };
@@ -704,7 +704,7 @@ export default function DashboardPage() {
                             <button onClick={() => { setCancelModal({ trackingNumber: s.trackingNumber }); setCancelReason(''); setCancelError(''); }} style={{ padding: '5px 10px', background: 'transparent', color: '#DC3545', border: '2px solid #DC3545', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
                           )}
                           {isCancellationPending && (
-                            <span style={{ padding: '5px 10px', background: '#FFE5B4', color: '#8B4500', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic' }}>Pending</span>
+                            <span style={{ padding: '5px 10px', background: '#F8D7DA', color: '#721C24', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic' }}>Pending</span>
                           )}
                           {isCancelled && (
                             <span style={{ padding: '5px 10px', background: '#E9ECEF', color: '#495057', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic' }}>Cancelled</span>
