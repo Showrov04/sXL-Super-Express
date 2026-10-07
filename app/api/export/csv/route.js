@@ -57,11 +57,24 @@ function countryName(code) {
   return COUNTRY_NAMES[upper] || code;
 }
 
+/* ============================================================
+ *  G.48b — buildShipmentType
+ *  AIR + parcel_type === 'Special Parcel' → 'AIR-SP'
+ *  (matches the on-screen badge in admin & customer tables)
+ * ============================================================ */
 function buildShipmentType(shipment) {
   const mode = String(shipment.ship_mode || '').toUpperCase();
   const load = String(shipment.sea_load_type || '').toUpperCase();
-  if (mode === 'SEA') return load ? ('SEA - ' + load) : 'SEA';
-  if (mode === 'AIR') return 'AIR';
+  const pType = String(shipment.parcel_type || '').trim();
+
+  if (mode === 'SEA') {
+    return load ? ('SEA - ' + load) : 'SEA';
+  }
+  if (mode === 'AIR') {
+    if (pType === 'Special Parcel') return 'AIR-SP';
+    if (pType) return 'AIR - ' + pType;
+    return 'AIR';
+  }
   return mode || '-';
 }
 
