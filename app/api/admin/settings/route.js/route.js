@@ -10,7 +10,12 @@ const serviceSupabase = createClient(
 
 const SETTING_KEY = 'special_parcel_enabled';
 
-async function requireAdmin(request) {
+/* ============================================================
+ *  F.1b — two session checkers
+ *    requireSession  → any valid logged-in user (customer / staff / admin)
+ *    requireAdmin    → admin or staff only (for POST)
+ * ============================================================ */
+async function requireSession(request) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.replace('Bearer ', '').trim();
   if (!token) return null;
@@ -26,9 +31,14 @@ async function requireAdmin(request) {
   const expiresAt = new Date(session.expires_at).getTime();
   if (isNaN(expiresAt) || expiresAt < Date.now()) return null;
 
-  if (session.role !== 'admin' && session.role !== 'staff') return null;
-
   return { userId: session.user_id, role: session.role };
+}
+
+async function requireAdmin(request) {
+  const session = await requireSession(request);
+  if (!session) return null;
+  if (session.role !== 'admin' && session.role !== 'staff') return null;
+  return session;
 }
 
 function parseBool(v, fallback = true) {
@@ -40,14 +50,16 @@ function parseBool(v, fallback = true) {
 }
 
 /* ============================================================
- *  F.1 — Admin settings API
- *  Only setting for now: special_parcel_enabled (default: true)
+ *  GET /api/admin/settings
+ *  Any logged-in user can read (customer booking wizard needs
+ *  this to know whether Special Parcel is available).
+ *  Returns a harmless boolean — no sensitive data.
  * ============================================================ */
 export async function GET(request) {
   try {
-    const session = await requireAdmin(request);
+    const session = await requireSession(request);
     if (!session) {
-      return NextResponse.json({ success: false, error: 'Permission denied.' });
+      return NextResponse.json({ success: false, error: 'Please log in.' });
     }
 
     const { data: row } = await serviceSupabase
@@ -56,7 +68,6 @@ export async function GET(request) {
       .eq('key', SETTING_KEY)
       .maybeSingle();
 
-    // Default: enabled if no row exists
     const specialParcelEnabled = row ? parseBool(row.value, true) : true;
 
     return NextResponse.json({
@@ -71,6 +82,9 @@ export async function GET(request) {
   }
 }
 
+/* ============================================================
+ *  POST /api/admin/settings — admin / staff only
+ * ============================================================ */
 export async function POST(request) {
   try {
     const session = await requireAdmin(request);
@@ -86,7 +100,6 @@ export async function POST(request) {
 
     const newValue = body.specialParcelEnabled === true ? 'true' : 'false';
 
-    // Check if the row already exists
     const { data: existing } = await serviceSupabase
       .from('settings')
       .select('key')
