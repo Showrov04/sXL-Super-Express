@@ -74,6 +74,18 @@ function isAutoLockedParcelType(parcelType) {
   return p === 'Document' || p === 'Special Parcel';
 }
 
+// F.4 — is Special Parcel service currently enabled by admin?
+async function isSpecialParcelEnabled() {
+  const { data: row } = await serviceSupabase
+    .from('settings')
+    .select('value')
+    .eq('key', 'special_parcel_enabled')
+    .maybeSingle();
+
+  if (!row) return true; // default: enabled
+  return String(row.value).toLowerCase() !== 'false';
+}
+
 export async function POST(request) {
   try {
     const session = await getSessionUser(request);
@@ -172,6 +184,20 @@ export async function POST(request) {
       }
       if (parcelType === 'Special Parcel' && (!shipment.deliveryTimeline || !String(shipment.deliveryTimeline).trim())) {
         return NextResponse.json({ success: false, error: 'Delivery Timeline is required for Special Parcel shipments.' });
+      }
+    }
+
+    // ============================================================
+    // F.4 — Block Special Parcel if admin has disabled it
+    // (server-side source of truth — protects against direct API calls)
+    // ============================================================
+    if (parcelType === 'Special Parcel') {
+      const enabled = await isSpecialParcelEnabled();
+      if (!enabled) {
+        return NextResponse.json({
+          success: false,
+          error: 'Special Parcel service is currently unavailable. Please choose another parcel type.',
+        });
       }
     }
 
@@ -284,7 +310,6 @@ export async function POST(request) {
         description: shipment.description,
         packages: shipment.packages ? parseInt(shipment.packages, 10) : null,
         total_weight: parseFloat(shipment.totalWeight) || null,
-        // G.32 — use enforced values
         total_value: finalTotalValue,
         value_currency: shipment.valueCurrency || 'USD',
         special_instruction: shipment.specialInstruction || null,
@@ -309,7 +334,6 @@ export async function POST(request) {
         recipient_address: consignee.fullAddress || null,
         recipient_city: consignee.city || null,
         recipient_state: consignee.state || null,
-        // G.32 — use enforced HS code
         hs_code: finalHsCode,
         total_cbm: shipment.totalCbm ? parseFloat(shipment.totalCbm) : null,
         dimensions: dimensionsStr || null,
