@@ -55,7 +55,7 @@ function countryName(code) {
 }
 
 const DRAFT_KEY = 'sxl_booking_draft';
-const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const FIELD_ERROR_STYLE = {
   borderColor: '#DC3545',
@@ -90,7 +90,6 @@ export default function BookPage() {
 
   const [fieldErrors, setFieldErrors] = useState({});
 
-  // G.29 — Draft state
   const [draftFound, setDraftFound] = useState(null);
   const [draftSavedToast, setDraftSavedToast] = useState(false);
   const saveTimeoutRef = useRef(null);
@@ -107,6 +106,10 @@ export default function BookPage() {
 
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [profileChecked, setProfileChecked] = useState(false);
+
+  // F.3 — Special Parcel availability (admin controlled)
+  const [specialParcelEnabled, setSpecialParcelEnabled] = useState(true);
+  const [specialParcelNotice, setSpecialParcelNotice] = useState('');
 
   const [shipMode, setShipMode] = useState('');
   const [seaLoadType, setSeaLoadType] = useState('');
@@ -156,8 +159,40 @@ export default function BookPage() {
 
     loadAddresses();
     loadCreditStatus();
+    loadSpecialParcelFlag();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  // F.3 — load Special Parcel availability flag from admin settings
+  async function loadSpecialParcelFlag() {
+    const token = localStorage.getItem('sxl_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/settings', {
+        headers: { Authorization: 'Bearer ' + token },
+        cache: 'no-store',
+      });
+      const data = await res.json();
+      if (data.success && data.settings) {
+        const enabled = data.settings.specialParcelEnabled !== false;
+        setSpecialParcelEnabled(enabled);
+
+        // If a stale draft had Special Parcel selected and admin just disabled it,
+        // auto-clear and show a notice.
+        if (!enabled) {
+          setParcelType((current) => {
+            if (current === 'Special Parcel') {
+              setSpecialParcelNotice(
+                'Special Parcel is not available right now. Please choose another parcel type.'
+              );
+              return '';
+            }
+            return current;
+          });
+        }
+      }
+    } catch (e) { /* silent — default stays enabled */ }
+  }
 
   // ============ Draft management ============
   function checkForDraft() {
@@ -196,7 +231,18 @@ export default function BookPage() {
     if (typeof d.step === 'number') setStep(d.step);
     if (d.shipMode !== undefined) setShipMode(d.shipMode || '');
     if (d.seaLoadType !== undefined) setSeaLoadType(d.seaLoadType || '');
-    if (d.parcelType !== undefined) setParcelType(d.parcelType || '');
+    if (d.parcelType !== undefined) {
+      // F.3 — never restore Special Parcel if disabled
+      const restoredParcel = d.parcelType || '';
+      if (restoredParcel === 'Special Parcel' && !specialParcelEnabled) {
+        setParcelType('');
+        setSpecialParcelNotice(
+          'Special Parcel is not available right now. Please choose another parcel type.'
+        );
+      } else {
+        setParcelType(restoredParcel);
+      }
+    }
     if (d.parcelTypeCustom !== undefined) setParcelTypeCustom(d.parcelTypeCustom || '');
     if (d.shipper) setShipper(d.shipper);
     if (d.consignee) setConsignee(d.consignee);
@@ -351,7 +397,13 @@ export default function BookPage() {
   }
 
   // G.31 — parcel type setter with auto-fill logic
+  // F.3 — blocks Special Parcel if admin disabled it
   function pickParcelType(p) {
+    if (p === 'Special Parcel' && !specialParcelEnabled) {
+      setSpecialParcelNotice('Special Parcel is not available right now.');
+      return;
+    }
+    setSpecialParcelNotice('');
     setParcelType(p);
     clearFields(['parcelType', 'parcelTypeCustom', 'shipment.deliveryTimeline', 'shipment.hsCode', 'shipment.totalValue']);
 
@@ -373,7 +425,6 @@ export default function BookPage() {
   const isSpecialParcel = parcelType === 'Special Parcel';
   const showBillingParty = !(!isSea && isSpecialParcel);
 
-  // G.31 — is the current parcel type auto-locked (N/A)?
   const isAutoLocked = parcelType === 'Document' || parcelType === 'Special Parcel';
 
   const steps = isSea
@@ -422,7 +473,6 @@ export default function BookPage() {
   function validateShipment() {
     const errs = {};
     if (!shipment.description.trim()) errs['shipment.description'] = 'Required';
-    // G.31 — skip HS Code validation if auto-locked (N/A)
     if (!isAutoLocked && !shipment.hsCode.trim()) errs['shipment.hsCode'] = 'Required';
     if (!shipment.originCountry) errs['shipment.originCountry'] = 'Required';
     const count = Object.keys(errs).length;
@@ -442,7 +492,6 @@ export default function BookPage() {
     if (isSea) {
       if (!shipment.totalCbm || parseFloat(shipment.totalCbm) <= 0) errs['shipment.totalCbm'] = 'Required';
     }
-    // G.31 — skip Customs Value validation if auto-locked (0)
     if (!isAutoLocked) {
       if (!shipment.totalValue || parseFloat(shipment.totalValue) <= 0) {
         errs['shipment.totalValue'] = 'Required';
@@ -583,6 +632,14 @@ export default function BookPage() {
 
   async function handleSubmit() {
     setError('');
+
+    // F.3 — client-side guard (server will reject too)
+    if (parcelType === 'Special Parcel' && !specialParcelEnabled) {
+      setError('Special Parcel is not available right now. Please go back and choose another parcel type.');
+      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     setLoading(true);
 
     const token = localStorage.getItem('sxl_token');
@@ -934,16 +991,68 @@ export default function BookPage() {
                 <button onClick={goPrev} style={{ padding: '6px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit' }}>◀ Back</button>
               </div>
 
+              {/* F.3 — notice when Special Parcel is disabled and user tried to select it */}
+              {specialParcelNotice && (
+                <div style={{
+                  background: '#FFF3CD',
+                  border: '2px solid #FFC107',
+                  borderLeft: '4px solid #FF6B00',
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  marginBottom: '15px',
+                  fontSize: '0.88rem',
+                  color: '#856404',
+                  fontWeight: 600
+                }}>
+                  ⚠️ {specialParcelNotice}
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>
-                {['Document', 'No-Document (Sample)', 'Special Parcel', 'Others'].map((p) => (
-                  <button key={p} onClick={() => pickParcelType(p)} style={{
-                    padding: '10px 20px', borderRadius: '30px',
-                    border: '2px solid ' + (parcelType === p ? '#FF6B00' : (fieldErrors.parcelType ? '#DC3545' : '#E9ECEF')),
-                    background: parcelType === p ? '#FF6B00' : (fieldErrors.parcelType ? '#FFF5F5' : 'white'),
-                    color: parcelType === p ? 'white' : '#343A40',
-                    fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
-                  }}>{p}</button>
-                ))}
+                {['Document', 'No-Document (Sample)', 'Special Parcel', 'Others'].map((p) => {
+                  const isSpecial = p === 'Special Parcel';
+                  const isBlocked = isSpecial && !specialParcelEnabled;
+                  const isSelected = parcelType === p;
+
+                  if (isBlocked) {
+                    return (
+                      <div
+                        key={p}
+                        aria-disabled="true"
+                        title="This service is not available at the moment"
+                        style={{
+                          padding: '10px 20px',
+                          borderRadius: '30px',
+                          border: '2px dashed #D0D6DB',
+                          background: '#F8F9FA',
+                          color: '#ADB5BD',
+                          fontWeight: 600,
+                          fontSize: '0.9rem',
+                          cursor: 'not-allowed',
+                          fontFamily: 'inherit',
+                          textAlign: 'center',
+                          minWidth: '130px',
+                          lineHeight: 1.3
+                        }}
+                      >
+                        <div>{p}</div>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>
+                          Not available
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button key={p} onClick={() => pickParcelType(p)} style={{
+                      padding: '10px 20px', borderRadius: '30px',
+                      border: '2px solid ' + (isSelected ? '#FF6B00' : (fieldErrors.parcelType ? '#DC3545' : '#E9ECEF')),
+                      background: isSelected ? '#FF6B00' : (fieldErrors.parcelType ? '#FFF5F5' : 'white'),
+                      color: isSelected ? 'white' : '#343A40',
+                      fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit'
+                    }}>{p}</button>
+                  );
+                })}
               </div>
               <FieldError message={fieldErrors.parcelType} />
 
@@ -1116,7 +1225,6 @@ export default function BookPage() {
               </div>
               <Field label="Description of Goods *" value={shipment.description} onChange={(v) => setShipmentField('description', v)} textarea error={fieldErrors['shipment.description']} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                {/* G.31 — HS Code auto-locked for Document / Special Parcel */}
                 {isAutoLocked ? (
                   <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
@@ -1224,7 +1332,6 @@ export default function BookPage() {
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
-                {/* G.31 — Customs Value auto-locked for Document / Special Parcel */}
                 {isAutoLocked ? (
                   <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#343A40', marginBottom: '6px' }}>
