@@ -32,7 +32,10 @@ const TOP_SCROLLBAR_STYLE = {
   overflowX: 'auto',
   overflowY: 'hidden',
   borderBottom: '1px solid #E9ECEF',
-  background: 'white',
+  background: '#F8F9FA',
+  height: '14px',
+  scrollbarWidth: 'thin',
+  scrollbarColor: '#ADB5BD #F1F3F5',
 };
 
 function renderModeCell(s) {
