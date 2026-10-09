@@ -30,11 +30,15 @@ const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const DRAFT_DISMISS_KEY = 'sxl_booking_draft_dismissed_at';
 
 // S.2 — Top scrollbar styling (mirrors bottom horizontal scroll of the table)
+// G.56 — make the scrollbar strip visibly tall so it renders on all OSes
 const TOP_SCROLLBAR_STYLE = {
   overflowX: 'auto',
   overflowY: 'hidden',
   borderBottom: '1px solid #E9ECEF',
-  background: 'white',
+  background: '#F8F9FA',
+  height: '14px',
+  scrollbarWidth: 'thin',
+  scrollbarColor: '#ADB5BD #F1F3F5',
 };
 
 function renderModeCell(s) {
@@ -674,7 +678,8 @@ export default function DashboardPage() {
         {!loading && !error && filtered.length > 0 && (
           <>
             <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
-              {/* S.2 — TOP horizontal scrollbar (mirrors the table's own scrollbar) */}
+                  {/* S.2 — TOP horizontal scrollbar (mirrors the table's own scrollbar)
+                  G.56 — ghost div height matches the strip height so the scrollbar has room */}
               <div
                 ref={topScrollRef}
                 style={TOP_SCROLLBAR_STYLE}
