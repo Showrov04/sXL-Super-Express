@@ -28,7 +28,6 @@ const TD_STYLE = {
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
-// Shared top-scrollbar styling for dual horizontal scroll
 const TOP_SCROLLBAR_STYLE = {
   overflowX: 'auto',
   overflowY: 'hidden',
@@ -136,6 +135,7 @@ export default function AdminPage() {
             label="💳 Credit Requests"
             badgeCount={pendingCounts.credits}
           />
+          <TopTab active={adminTab === 'settings'} onClick={() => setAdminTab('settings')} label="⚙️ Settings" />
         </div>
 
         {adminTab === 'shipments' && <ShipmentsPanel />}
@@ -143,6 +143,7 @@ export default function AdminPage() {
         {adminTab === 'billing' && <BillingPanel />}
         {adminTab === 'cancellations' && <CancellationPanel onActionComplete={loadPendingCounts} />}
         {adminTab === 'credit' && <CreditRequestsPanel onActionComplete={loadPendingCounts} />}
+        {adminTab === 'settings' && <SettingsPanel />}
       </div>
 
       <Footer />
@@ -185,6 +186,209 @@ function TopTab({ active, onClick, label, badgeCount }) {
 }
 
 /* ============================================================
+   F.2 — SETTINGS PANEL
+   ============================================================ */
+function SettingsPanel() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [toast, setToast] = useState('');
+  const [specialParcelEnabled, setSpecialParcelEnabled] = useState(true);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 3500);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
+
+  async function loadSettings() {
+    setLoading(true);
+    setError('');
+    const token = localStorage.getItem('sxl_token');
+    if (!token) { setLoading(false); return; }
+
+    try {
+      const res = await fetch('/api/admin/settings', {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setError(data.error || 'Failed to load settings.');
+        setLoading(false);
+        return;
+      }
+      setSpecialParcelEnabled(data.settings?.specialParcelEnabled !== false);
+      setLoading(false);
+    } catch (err) {
+      setError('Connection error.');
+      setLoading(false);
+    }
+  }
+
+  async function toggleSpecialParcel(nextValue) {
+    setSaving(true);
+    setError('');
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ specialParcelEnabled: nextValue }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setError(data.error || 'Failed to save.');
+        setSaving(false);
+        return;
+      }
+
+      setSpecialParcelEnabled(data.settings?.specialParcelEnabled === true);
+      setSaving(false);
+      setToast(nextValue
+        ? '✅ Special Parcel service enabled'
+        : '🚫 Special Parcel service disabled');
+    } catch (err) {
+      setError('Connection error: ' + err.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      {toast && (
+        <div style={{
+          position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
+          background: '#003366', color: 'white', borderRadius: '10px',
+          padding: '14px 24px', fontWeight: 700, boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+          zIndex: 99999, maxWidth: '90%', textAlign: 'center',
+        }}>
+          {toast}
+        </div>
+      )}
+
+      <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginBottom: '20px' }}>
+        ⚙️ System Settings
+      </h2>
+
+      {error && (
+        <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>
+          ❌ {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ width: '45px', height: '45px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 15px' }} />
+          <p style={{ color: '#6C757D' }}>Loading settings...</p>
+        </div>
+      ) : (
+        <>
+          <div style={{
+            background: 'white', borderRadius: '12px', padding: '24px 28px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+            borderLeft: '5px solid #FF6B00',
+            marginBottom: '20px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+              <div style={{ flex: 1, minWidth: '280px' }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#003366', marginBottom: '6px' }}>
+                  🚀 Special Parcel Service
+                </div>
+                <div style={{ color: '#6C757D', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                  When <b>enabled</b>, customers can select <b>Special Parcel</b> as their parcel type during booking.
+                  When <b>disabled</b>, the option appears greyed out with a "Not available" label, and any submit attempt is rejected server-side.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <span style={{
+                  fontSize: '0.8rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
+                  color: specialParcelEnabled ? '#155724' : '#721C24'
+                }}>
+                  {specialParcelEnabled ? 'ENABLED' : 'DISABLED'}
+                </span>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={specialParcelEnabled}
+                  onClick={() => toggleSpecialParcel(!specialParcelEnabled)}
+                  disabled={saving}
+                  style={{
+                    width: '70px',
+                    height: '38px',
+                    borderRadius: '20px',
+                    border: 'none',
+                    background: specialParcelEnabled ? '#28A745' : '#ADB5BD',
+                    position: 'relative',
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    opacity: saving ? 0.6 : 1,
+                    transition: 'background 0.2s',
+                    padding: 0
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute',
+                    top: '4px',
+                    left: specialParcelEnabled ? '36px' : '4px',
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    background: 'white',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+                    transition: 'left 0.2s'
+                  }} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {!specialParcelEnabled && (
+            <div style={{
+              background: '#FFF3CD',
+              border: '2px solid #FFC107',
+              borderLeft: '6px solid #DC3545',
+              borderRadius: '12px',
+              padding: '16px 20px',
+              marginBottom: '20px',
+              fontSize: '0.9rem',
+              color: '#856404'
+            }}>
+              <div style={{ fontWeight: 800, marginBottom: '6px' }}>
+                ⚠️ Special Parcel is currently OFF for customers
+              </div>
+              Customers attempting to book a Special Parcel will see the option greyed out and receive the message "This service is not available at the moment." Server-side booking creation will also be rejected until you re-enable it.
+            </div>
+          )}
+
+          <div style={{
+            background: '#F8F9FA',
+            borderRadius: '10px',
+            padding: '16px 20px',
+            fontSize: '0.85rem',
+            color: '#6C757D',
+            borderLeft: '4px solid #003366'
+          }}>
+            ℹ️ More settings will appear here as they are added. This panel is admin-only.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
    SHIPMENTS PANEL
    ============================================================ */
 function ShipmentsPanel() {
@@ -207,7 +411,6 @@ function ShipmentsPanel() {
   const downloadMenuRef = useRef(null);
   const filterDropdownRef = useRef(null);
 
-  // Dual horizontal scrollbar refs
   const topScrollRef = useRef(null);
   const tableScrollRef = useRef(null);
   const isSyncingRef = useRef(false);
@@ -282,7 +485,6 @@ function ShipmentsPanel() {
     return () => { document.body.style.overflow = ''; };
   }, [statusModal, whModal, filesModal, editModal]);
 
-  // Sync top <-> table scrollbars
   useEffect(() => {
     const topEl = topScrollRef.current;
     const tableEl = tableScrollRef.current;
@@ -909,12 +1111,7 @@ function ShipmentsPanel() {
       {!loading && !error && filtered.length > 0 && (
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
-            {/* Top horizontal scrollbar (mirrors the table's own scrollbar) */}
-            <div
-              ref={topScrollRef}
-              style={TOP_SCROLLBAR_STYLE}
-              aria-hidden="true"
-            >
+            <div ref={topScrollRef} style={TOP_SCROLLBAR_STYLE} aria-hidden="true">
               <div style={{ width: '1650px', height: '1px' }} />
             </div>
 
@@ -1747,7 +1944,6 @@ function ShippersPanel() {
   const [filterSearch, setFilterSearch] = useState('');
   const filterDropdownRef = useRef(null);
 
-  // S.3 — dual horizontal scrollbar refs
   const topScrollRef = useRef(null);
   const tableScrollRef = useRef(null);
   const isSyncingRef = useRef(false);
@@ -1765,7 +1961,6 @@ function ShippersPanel() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // S.3 — sync top <-> table scrollbars
   useEffect(() => {
     const topEl = topScrollRef.current;
     const tableEl = tableScrollRef.current;
@@ -1982,12 +2177,7 @@ function ShippersPanel() {
       {!loading && !error && filtered.length > 0 && (
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
-            {/* S.3 — Top horizontal scrollbar */}
-            <div
-              ref={topScrollRef}
-              style={TOP_SCROLLBAR_STYLE}
-              aria-hidden="true"
-            >
+            <div ref={topScrollRef} style={TOP_SCROLLBAR_STYLE} aria-hidden="true">
               <div style={{ width: '900px', height: '1px' }} />
             </div>
 
