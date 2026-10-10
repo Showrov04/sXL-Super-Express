@@ -1938,7 +1938,15 @@ function ShippersPanel() {
   const [shippers, setShippers] = useState([]);
   const [counts, setCounts] = useState({ total: 0, active: 0, suspended: 0 });
   const [error, setError] = useState('');
-  const [actionLoading, setActionLoading] = useState('');
+    const [actionLoading, setActionLoading] = useState('');
+
+  // P.2 — Edit Profile modal state
+  const [editShipperModal, setEditShipperModal] = useState(null);
+  const [editShipperFields, setEditShipperFields] = useState({});
+  const [editShipperPassword, setEditShipperPassword] = useState('');
+  const [editShipperShowPwd, setEditShipperShowPwd] = useState(false);
+  const [editShipperSaving, setEditShipperSaving] = useState(false);
+  const [editShipperError, setEditShipperError] = useState('');
 
   const [colFilters, setColFilters] = useState({
     name: [], contact: [], email: [], phone: [], status: [],
