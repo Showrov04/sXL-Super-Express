@@ -52,11 +52,15 @@ export default function Header() {
               <Link href="/track">Track</Link>
               {isAdmin && <Link href="/admin">Admin</Link>}
               <Link href="/account">Account</Link>
+              <Link href="/#services">Services</Link>
+              <Link href="/#contact">Contact</Link>
               <button onClick={logout}>Logout</button>
             </>
           ) : (
             <>
               <Link href="/">Home</Link>
+              <Link href="/#services">Services</Link>
+              <Link href="/#contact">Contact</Link>
               <Link href="/track">Track</Link>
               <Link href="/login">Login</Link>
               <Link href="/register" className="btn-primary">Sign Up</Link>
