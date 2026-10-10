@@ -611,6 +611,7 @@ function SettingsPanel() {
 
 /* ============================================================
    SHIPMENTS PANEL
+   Task 18 — Only "Active" and "Cancelled" tabs remain.
    ============================================================ */
 function ShipmentsPanel() {
   const [tab, setTab] = useState('active');
@@ -812,15 +813,6 @@ function ShipmentsPanel() {
   }
 
   const hasAnyFilter = Object.values(colFilters).some((arr) => arr.length > 0);
-
-  const summaryAmount = useMemo(() => {
-    if (tab === 'active' || tab === 'cancelled') return null;
-    let total = 0;
-    filtered.forEach((s) => {
-      total += parseFloat(s.shippingCost) || 0;
-    });
-    return Math.round(total * 100) / 100;
-  }, [filtered, tab]);
 
   async function handleDownload(format) {
     setShowDownloadMenu(false);
@@ -1261,27 +1253,6 @@ function ShipmentsPanel() {
         <StatCard num={counts.cancelled || 0} label="Cancelled" color="#E9ECEF" />
       </div>
 
-      {summaryAmount !== null && !loading && !error && (
-        <div style={{
-          background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-          padding: '20px 25px', marginBottom: '20px', borderLeft: '5px solid #FF6B00',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px'
-        }}>
-          <div>
-            <div style={{ fontWeight: 800, color: '#003366', fontSize: '1.1rem' }}>
-              {tab === 'awaiting' ? '💵 Accounts Receivable' : '✅ Collected Revenue'}
-            </div>
-            <div style={{ color: '#6C757D', fontSize: '0.85rem' }}>
-              {filtered.length} shipment{filtered.length !== 1 ? 's' : ''}
-              {shipperFilter ? ` for ${shipperFilter}` : ''}
-            </div>
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FF6B00' }}>
-            USD {Number(summaryAmount).toFixed(2)}
-          </div>
-        </div>
-      )}
-
       <div style={{ background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '15px', marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={shipperFilter} onChange={(e) => setShipperFilter(e.target.value)} style={{ padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', minWidth: '180px' }}>
           <option value="">All Shippers</option>
@@ -1307,10 +1278,9 @@ function ShipmentsPanel() {
         </div>
       </div>
 
+      {/* Task 18 — Only Active Shipment and Cancelled tabs remain */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
-        <TabButton active={tab === 'awaiting'} onClick={() => setTab('awaiting')} label="🟡 Awaiting Payment" count={counts.awaiting} badgeBg="#FFE5B4" badgeColor="#8B4500" />
-        <TabButton active={tab === 'paid'} onClick={() => setTab('paid')} label="🟢 Paid & Completed" count={counts.paid} badgeBg="#D4EDDA" badgeColor="#155724" />
         <TabButton active={tab === 'cancelled'} onClick={() => setTab('cancelled')} label="⚫ Cancelled" count={counts.cancelled || 0} badgeBg="#E9ECEF" badgeColor="#495057" />
       </div>
 
