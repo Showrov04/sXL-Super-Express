@@ -2012,7 +2012,7 @@ function ShippersPanel() {
     } catch (err) { setError('Connection error.'); setLoading(false); }
   }
 
-  async function toggleStatus(shipperID, newStatus) {
+    async function toggleStatus(shipperID, newStatus) {
     const msg = newStatus === 'Suspended' ? 'Suspend this shipper?' : 'Activate this shipper?';
     if (!window.confirm(msg)) return;
     setActionLoading(shipperID);
@@ -2029,6 +2029,108 @@ function ShippersPanel() {
       setActionLoading('');
       loadShippers();
     } catch (err) { window.alert('Error: ' + err.message); setActionLoading(''); }
+  }
+
+  // P.2 — open the Edit Profile modal, auto-filling from the shipper row
+  function openEditShipperModal(s) {
+    setEditShipperModal({ shipper: s });
+    setEditShipperFields({
+      companyName: s.companyName || s.name || '',
+      contactPerson: s.contactPerson || '',
+      phone: s.phone && s.phone !== '-' ? s.phone : '',
+      email: s.email && s.email !== '-' ? s.email : '',
+      companyAddress: s.companyAddress || '',
+      companyCity: s.companyCity || '',
+      companyState: s.companyState || '',
+      companyCountry: s.companyCountry || '',
+      companyBin: s.companyBin || '',
+    });
+    setEditShipperPassword('');
+    setEditShipperShowPwd(false);
+    setEditShipperError('');
+  }
+
+  function closeEditShipperModal() {
+    setEditShipperModal(null);
+    setEditShipperFields({});
+    setEditShipperPassword('');
+    setEditShipperShowPwd(false);
+    setEditShipperError('');
+    setEditShipperSaving(false);
+  }
+
+  function setEditShipperField(key, value) {
+    setEditShipperFields((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSaveEditShipper() {
+    setEditShipperError('');
+    if (!editShipperFields.companyName || !editShipperFields.companyName.trim()) {
+      setEditShipperError('Company name is required.');
+      return;
+    }
+    if (!editShipperFields.email || !editShipperFields.email.trim()) {
+      setEditShipperError('Email is required.');
+      return;
+    }
+    if (editShipperPassword && editShipperPassword.length < 6) {
+      setEditShipperError('Password must be at least 6 characters (or leave blank to keep current).');
+      return;
+    }
+
+    const credentialsChanged =
+      (editShipperFields.email || '').trim().toLowerCase() !== (editShipperModal.shipper.email || '').trim().toLowerCase() ||
+      !!editShipperPassword;
+
+    if (credentialsChanged) {
+      const ok = window.confirm(
+        'You are changing login credentials (email or password).\n\n' +
+        'The shipper will be logged out of all devices and must log in again with the new credentials.\n\n' +
+        'Continue?'
+      );
+      if (!ok) return;
+    }
+
+    setEditShipperSaving(true);
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const res = await fetch('/api/admin/shippers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          action: 'editProfile',
+          shipperID: editShipperModal.shipper.shipperID,
+          companyName: editShipperFields.companyName.trim(),
+          contactPerson: (editShipperFields.contactPerson || '').trim(),
+          phone: (editShipperFields.phone || '').trim(),
+          email: (editShipperFields.email || '').trim().toLowerCase(),
+          password: editShipperPassword || '',
+          companyAddress: (editShipperFields.companyAddress || '').trim(),
+          companyCity: (editShipperFields.companyCity || '').trim(),
+          companyState: (editShipperFields.companyState || '').trim(),
+          companyCountry: (editShipperFields.companyCountry || '').trim(),
+          companyBin: (editShipperFields.companyBin || '').trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setEditShipperError(data.error || 'Failed to save.');
+        setEditShipperSaving(false);
+        return;
+      }
+
+      const name = editShipperModal.shipper.name || editShipperModal.shipper.shipperID;
+      closeEditShipperModal();
+      window.alert(
+        'Shipper "' + name + '" updated.' +
+        (data.credentialsChanged ? '  They must log in again with the new credentials.' : '')
+      );
+      loadShippers();
+    } catch (err) {
+      setEditShipperError('Connection error: ' + err.message);
+      setEditShipperSaving(false);
+    }
   }
 
   function getColumnValue(s, col) {
