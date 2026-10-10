@@ -2137,9 +2137,129 @@ function ShippersPanel() {
         (data.credentialsChanged ? '  They must log in again with the new credentials.' : '')
       );
       loadShippers();
-    } catch (err) {
+        } catch (err) {
       setEditShipperError('Connection error: ' + err.message);
       setEditShipperSaving(false);
+    }
+  }
+
+  // ============================================================
+  // D.2 — Delete Month modal handlers
+  // ============================================================
+
+  function openDeleteMonthModal(s) {
+    setDeleteMonthModal({ shipper: s });
+    setDeleteMonthValue('');
+    setDeleteMonthPreview(null);
+    setDeleteMonthConfirmInput('');
+    setDeleteMonthError('');
+    setDeleteMonthSuccess(null);
+  }
+
+  function closeDeleteMonthModal() {
+    setDeleteMonthModal(null);
+    setDeleteMonthValue('');
+    setDeleteMonthPreview(null);
+    setDeleteMonthConfirmInput('');
+    setDeleteMonthError('');
+    setDeleteMonthSuccess(null);
+    setDeleteMonthDeleting(false);
+    setDeleteMonthPreviewLoading(false);
+  }
+
+  async function handleDeleteMonthPreview() {
+    setDeleteMonthError('');
+    setDeleteMonthSuccess(null);
+    setDeleteMonthPreview(null);
+
+    if (!deleteMonthValue) {
+      setDeleteMonthError('Please select a month first.');
+      return;
+    }
+
+    setDeleteMonthPreviewLoading(true);
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const res = await fetch(
+        '/api/admin/cleanup?shipper=' +
+        encodeURIComponent(deleteMonthModal.shipper.shipperID) +
+        '&month=' + encodeURIComponent(deleteMonthValue),
+        { headers: { Authorization: 'Bearer ' + token } }
+      );
+      const data = await res.json();
+
+      if (!data.success) {
+        setDeleteMonthError(data.error || 'Preview failed.');
+        setDeleteMonthPreviewLoading(false);
+        return;
+      }
+
+      setDeleteMonthPreview(data);
+      setDeleteMonthPreviewLoading(false);
+    } catch (err) {
+      setDeleteMonthError('Connection error: ' + err.message);
+      setDeleteMonthPreviewLoading(false);
+    }
+  }
+
+  async function handleDeleteMonthExecute() {
+    setDeleteMonthError('');
+    setDeleteMonthSuccess(null);
+
+    if (!deleteMonthPreview || deleteMonthPreview.eligibleCount === 0) {
+      setDeleteMonthError('Nothing to delete. Run the preview first.');
+      return;
+    }
+
+    if (deleteMonthConfirmInput !== deleteMonthValue) {
+      setDeleteMonthError('Type the month exactly as shown to confirm.');
+      return;
+    }
+
+    const ok = window.confirm(
+      'PERMANENTLY DELETE ' + deleteMonthPreview.eligibleCount + ' shipment(s) from ' +
+      deleteMonthValue + ' for shipper "' + deleteMonthModal.shipper.name + '"?\n\n' +
+      'This deletes:\n' +
+      '• ' + deleteMonthPreview.eligibleCount + ' shipment(s)\n' +
+      '• ' + deleteMonthPreview.trackingHistoryCount + ' tracking entr(ies)\n' +
+      '• ' + deleteMonthPreview.invoiceCount + ' invoice(s)\n' +
+      '• ' + deleteMonthPreview.fileCount + ' storage file(s)\n\n' +
+      'This cannot be undone.'
+    );
+    if (!ok) return;
+
+    setDeleteMonthDeleting(true);
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const res = await fetch('/api/admin/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          shipperID: deleteMonthModal.shipper.shipperID,
+          month: deleteMonthValue,
+          confirm: deleteMonthConfirmInput,
+        }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setDeleteMonthError(data.error || 'Delete failed.');
+        setDeleteMonthDeleting(false);
+        return;
+      }
+
+      setDeleteMonthSuccess(data);
+      setDeleteMonthDeleting(false);
+      setDeleteMonthPreview(null);
+      setDeleteMonthConfirmInput('');
+
+      // Refresh the shipper list stats behind the modal
+      setTimeout(loadShippers, 600);
+    } catch (err) {
+      setDeleteMonthError('Connection error: ' + err.message);
+      setDeleteMonthDeleting(false);
     }
   }
 
