@@ -56,6 +56,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [company, setCompany] = useState(null);
+  const [showWeChatModal, setShowWeChatModal] = useState(false);
 
   useEffect(() => {
     fetch('/api/company-info')
@@ -65,6 +66,16 @@ export default function Home() {
       })
       .catch(() => { /* silent — section shows fallbacks */ });
   }, []);
+
+  // Lock body scroll while the WeChat modal is open
+  useEffect(() => {
+    if (showWeChatModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showWeChatModal]);
 
   async function handleTrack(e) {
     e.preventDefault();
@@ -328,6 +339,11 @@ export default function Home() {
             color: #FF6B00 !important;
             transform: translateX(2px);
           }
+          .sxl-wechat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(7,193,96,0.18) !important;
+            border-color: #07C160 !important;
+          }
         `}</style>
 
         <div className="sxl-container">
@@ -390,19 +406,34 @@ export default function Home() {
               />
             </div>
 
-            {/* Right card — WeChat (compact & vertically centered) */}
-            <div style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: '30px 28px',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-              borderTop: '4px solid #07C160',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center'
-            }}>
+            {/* Right card — WeChat: QR only, clickable to open modal */}
+            <div
+              className="sxl-wechat-card"
+              onClick={() => setShowWeChatModal(true)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setShowWeChatModal(true);
+                }
+              }}
+              style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '30px 28px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                borderTop: '4px solid #07C160',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                outline: 'none'
+              }}
+            >
               <div style={{
                 width: '56px',
                 height: '56px',
@@ -421,7 +452,7 @@ export default function Home() {
                 WeChat
               </h3>
               <p style={{ color: '#6C757D', fontSize: '0.85rem', margin: '0 0 16px' }}>
-                Scan or search to add us
+                Scan the QR code to add us
               </p>
 
               {c.company_wechat_qr_url ? (
@@ -431,48 +462,165 @@ export default function Home() {
                   background: 'white',
                   borderRadius: '10px',
                   border: '2px solid #E9ECEF',
-                  marginBottom: '14px'
+                  marginBottom: '4px'
                 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={c.company_wechat_qr_url}
                     alt="WeChat QR Code"
-                    style={{ width: '160px', height: '160px', display: 'block' }}
+                    style={{ width: '180px', height: '180px', display: 'block' }}
                   />
                 </div>
               ) : (
                 <div style={{
-                  fontSize: '3.5rem',
-                  margin: '14px 0 18px',
+                  fontSize: '4rem',
+                  margin: '20px 0',
                   opacity: 0.35
                 }}>
                   🟢
                 </div>
               )}
 
-              {c.company_wechat && (
-                <div style={{
-                  padding: '12px 16px',
-                  background: '#E8F7EF',
-                  border: '2px solid #07C160',
-                  borderRadius: '10px',
-                  fontFamily: 'Consolas, monospace',
-                  fontWeight: 800,
-                  color: '#155724',
-                  fontSize: '1rem',
-                  wordBreak: 'break-all',
-                  width: '100%',
-                  boxSizing: 'border-box'
-                }}>
-                  {c.company_wechat}
-                </div>
-              )}
+              <div style={{
+                fontSize: '0.75rem',
+                color: '#07C160',
+                fontWeight: 700,
+                marginTop: '10px',
+                letterSpacing: '0.5px'
+              }}>
+                Click to enlarge →
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       <Footer />
+
+      {/* ===================== WeChat Modal ===================== */}
+      {showWeChatModal && (
+        <div
+          onClick={() => setShowWeChatModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            zIndex: 100000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: '16px',
+              padding: '32px 28px',
+              maxWidth: '420px',
+              width: '100%',
+              textAlign: 'center',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+              position: 'relative'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setShowWeChatModal(false)}
+              aria-label="Close"
+              style={{
+                position: 'absolute',
+                top: '12px',
+                right: '14px',
+                background: 'transparent',
+                border: 'none',
+                fontSize: '1.5rem',
+                cursor: 'pointer',
+                color: '#6C757D',
+                lineHeight: 1,
+                padding: '4px 8px'
+              }}
+            >
+              ✕
+            </button>
+
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: '#07C160',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              boxShadow: '0 8px 20px rgba(7,193,96,0.35)'
+            }}>
+              <IconWeChat size={32} />
+            </div>
+
+            <h2 style={{ color: '#003366', fontSize: '1.35rem', margin: '0 0 6px' }}>
+              Add us on WeChat
+            </h2>
+            <p style={{ color: '#6C757D', fontSize: '0.9rem', margin: '0 0 20px' }}>
+              Scan the QR code with WeChat
+            </p>
+
+            {c.company_wechat_qr_url ? (
+              <div style={{
+                display: 'inline-block',
+                padding: '14px',
+                background: 'white',
+                borderRadius: '12px',
+                border: '2px solid #E9ECEF',
+                marginBottom: '18px'
+              }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={c.company_wechat_qr_url}
+                  alt="WeChat QR Code"
+                  style={{ width: '260px', height: '260px', display: 'block' }}
+                />
+              </div>
+            ) : (
+              <div style={{ fontSize: '4rem', margin: '20px 0 30px', opacity: 0.35 }}>
+                🟢
+              </div>
+            )}
+
+            {c.company_wechat && (
+              <a
+                href={'weixin://dl/chat'}
+                onClick={(e) => {
+                  // Deep link only works on mobile with WeChat installed.
+                  // On desktop we silently fall back to showing the ID.
+                  setTimeout(() => { /* no-op */ }, 100);
+                }}
+                style={{
+                  display: 'block',
+                  padding: '14px 16px',
+                  background: '#07C160',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontFamily: 'inherit',
+                  fontWeight: 800,
+                  fontSize: '1rem',
+                  textDecoration: 'none',
+                  boxShadow: '0 6px 16px rgba(7,193,96,0.35)',
+                  marginBottom: '10px'
+                }}
+              >
+                📱 Open in WeChat App
+              </a>
+            )}
+
+            <p style={{ color: '#ADB5BD', fontSize: '0.72rem', margin: 0, fontStyle: 'italic' }}>
+              &quot;Open in WeChat App&quot; works on mobile devices with WeChat installed.
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 }
