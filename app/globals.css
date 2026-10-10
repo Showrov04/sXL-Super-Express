@@ -47,13 +47,8 @@ input, select, textarea {
 }
 
 /* ============================================================
-   TASK 15 — GLOBAL INTERACTIVE POLISH
-   Smooth transitions + hover/active feedback for all buttons,
-   links, and form fields. This makes every UI element feel
-   fluid and professional site-wide.
+   GLOBAL INTERACTIVE POLISH
    ============================================================ */
-
-/* --- Smooth transitions on all interactive elements --- */
 button,
 a,
 input,
@@ -69,7 +64,6 @@ textarea {
     filter 0.2s ease;
 }
 
-/* --- Buttons: hover brightness + active press --- */
 button:not(:disabled):hover {
   filter: brightness(1.08);
 }
@@ -84,7 +78,6 @@ button:disabled {
   opacity: 0.6;
 }
 
-/* --- Focus ring for accessibility (keyboard nav) --- */
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
@@ -95,13 +88,10 @@ textarea:focus-visible {
   border-radius: 6px;
 }
 
-/* --- Anchor elements: subtle hover (no brightness — keeps
-       inline/nav links elegant rather than glowing) --- */
 a:not([class*="btn"]):not([style*="background"]):hover {
   opacity: 0.92;
 }
 
-/* --- Inputs / selects / textareas: smooth focus glow --- */
 input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus,
 textarea:focus {
@@ -109,12 +99,81 @@ textarea:focus {
   box-shadow: 0 0 0 4px rgba(255, 107, 0, 0.12);
 }
 
-/* --- Disabled inputs look muted --- */
 input:disabled,
 select:disabled,
 textarea:disabled {
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+/* ============================================================
+   TASK 16a — NAV LINK SLIDING UNDERLINE
+   ============================================================ */
+.sxl-nav-link {
+  position: relative;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--sxl-gray-800);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.sxl-nav-link:hover {
+  background: var(--sxl-gray-100);
+  color: var(--sxl-orange);
+}
+
+/* Underline: grows from center on hover */
+.sxl-nav-link::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 0;
+  height: 2px;
+  background: var(--sxl-orange);
+  border-radius: 2px;
+  transform: translateX(-50%);
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sxl-nav-link:hover::after {
+  width: 55%;
+}
+
+/* Active page — persistent underline + colored text */
+.sxl-nav-link.active {
+  color: var(--sxl-orange);
+  font-weight: 700;
+}
+
+.sxl-nav-link.active::after {
+  width: 55%;
+  background: var(--sxl-orange);
+}
+
+/* ============================================================
+   TASK 16a — PAGE FADE-IN TRANSITION
+   Plays whenever the route changes (via key in PageTransition).
+   ============================================================ */
+@keyframes sxlPageFade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sxl-page-fade {
+  animation: sxlPageFade 0.24s cubic-bezier(0.4, 0, 0.2, 1) both;
+  will-change: opacity, transform;
 }
 
 /* ============================================================
@@ -242,7 +301,7 @@ textarea:disabled {
 }
 
 /* ============================================================
-   BUTTONS (utility classes)
+   BUTTONS
    ============================================================ */
 .sxl-btn {
   display: inline-block;
@@ -301,13 +360,12 @@ textarea:disabled {
 }
 
 /* ============================================================
-   SMOOTH SCROLL — site-wide anchor glide
+   SMOOTH SCROLL + REDUCED MOTION
    ============================================================ */
 html {
   scroll-behavior: smooth;
 }
 
-/* Respect reduced-motion users */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
