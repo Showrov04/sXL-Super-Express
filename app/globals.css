@@ -47,6 +47,77 @@ input, select, textarea {
 }
 
 /* ============================================================
+   TASK 15 — GLOBAL INTERACTIVE POLISH
+   Smooth transitions + hover/active feedback for all buttons,
+   links, and form fields. This makes every UI element feel
+   fluid and professional site-wide.
+   ============================================================ */
+
+/* --- Smooth transitions on all interactive elements --- */
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    background-color 0.22s ease,
+    color 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.25s ease,
+    opacity 0.2s ease,
+    transform 0.15s ease,
+    filter 0.2s ease;
+}
+
+/* --- Buttons: hover brightness + active press --- */
+button:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+
+button:not(:disabled):active {
+  transform: scale(0.97);
+  filter: brightness(0.96);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* --- Focus ring for accessibility (keyboard nav) --- */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(255, 107, 0, 0.35);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* --- Anchor elements: subtle hover (no brightness — keeps
+       inline/nav links elegant rather than glowing) --- */
+a:not([class*="btn"]):not([style*="background"]):hover {
+  opacity: 0.92;
+}
+
+/* --- Inputs / selects / textareas: smooth focus glow --- */
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--sxl-orange) !important;
+  box-shadow: 0 0 0 4px rgba(255, 107, 0, 0.12);
+}
+
+/* --- Disabled inputs look muted --- */
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* ============================================================
    HEADER
    ============================================================ */
 .sxl-header {
@@ -74,6 +145,11 @@ input, select, textarea {
   gap: 12px;
   cursor: pointer;
   user-select: none;
+  transition: transform 0.2s ease;
+}
+
+.sxl-logo:hover {
+  transform: scale(1.02);
 }
 
 .sxl-logo-mark {
@@ -89,6 +165,11 @@ input, select, textarea {
   font-size: 1.1rem;
   letter-spacing: -0.5px;
   box-shadow: 0 6px 16px rgba(255,107,0,0.35);
+  transition: box-shadow 0.25s ease;
+}
+
+.sxl-logo:hover .sxl-logo-mark {
+  box-shadow: 0 10px 24px rgba(255,107,0,0.45);
 }
 
 .sxl-logo-text {
@@ -129,7 +210,7 @@ input, select, textarea {
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.22s ease;
 }
 
 .sxl-nav a:hover,
@@ -141,13 +222,14 @@ input, select, textarea {
 .sxl-nav .btn-primary {
   background: var(--sxl-orange);
   color: white;
+  box-shadow: 0 4px 12px rgba(255,107,0,0.25);
 }
 
 .sxl-nav .btn-primary:hover {
   background: var(--sxl-orange-dark);
   color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(255,107,0,0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(255,107,0,0.4);
 }
 
 /* ============================================================
@@ -160,7 +242,7 @@ input, select, textarea {
 }
 
 /* ============================================================
-   BUTTONS
+   BUTTONS (utility classes)
    ============================================================ */
 .sxl-btn {
   display: inline-block;
@@ -170,19 +252,24 @@ input, select, textarea {
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   text-align: center;
 }
 
 .sxl-btn-primary {
   background: var(--sxl-orange);
   color: white;
+  box-shadow: 0 4px 12px rgba(255,107,0,0.25);
 }
 
 .sxl-btn-primary:hover {
   background: var(--sxl-orange-dark);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(255,107,0,0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(255,107,0,0.4);
+}
+
+.sxl-btn-primary:active {
+  transform: translateY(0);
 }
 
 .sxl-btn-ghost {
@@ -194,6 +281,8 @@ input, select, textarea {
 .sxl-btn-ghost:hover {
   border-color: var(--sxl-orange);
   color: var(--sxl-orange);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(255,107,0,0.12);
 }
 
 /* ============================================================
@@ -209,4 +298,23 @@ input, select, textarea {
 
 .sxl-footer p {
   margin: 5px 0;
+}
+
+/* ============================================================
+   SMOOTH SCROLL — site-wide anchor glide
+   ============================================================ */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Respect reduced-motion users */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
