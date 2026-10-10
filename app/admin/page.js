@@ -2323,7 +2323,13 @@ function ShippersPanel() {
                         <td style={{ ...TD_STYLE, width: 130 }}>
                           <span style={{ background: isActive ? '#D4EDDA' : '#F8D7DA', color: isActive ? '#155724' : '#721C24', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem' }}>{s.status}</span>
                         </td>
-                        <td style={{ ...TD_STYLE, width: 140, whiteSpace: 'nowrap' }}>
+                          <td style={{ ...TD_STYLE, width: 220, whiteSpace: 'nowrap' }}>
+                          <button
+                            onClick={() => openEditShipperModal(s)}
+                            style={{ padding: '6px 12px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}
+                          >
+                            ✏️ Edit Profile
+                          </button>
                           {isActive ? (
                             <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Suspended')} style={{ padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>🚫 Suspend</button>
                           ) : (
