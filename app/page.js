@@ -50,6 +50,34 @@ function IconWeChat({ size = 22 }) {
   );
 }
 
+/* ---- Services data (icon, title, tag, description) ---- */
+const SERVICES = [
+  {
+    icon: '📦',
+    title: 'Courier Express',
+    tag: 'Fastest',
+    desc: 'Fast door-to-door delivery for documents and parcels worldwide.'
+  },
+  {
+    icon: '✈️',
+    title: 'Air Freight',
+    tag: 'Time-critical',
+    desc: 'Time-critical shipments delivered by air to any destination.'
+  },
+  {
+    icon: '🚢',
+    title: 'Sea Freight',
+    tag: 'Cost-effective',
+    desc: 'Cost-effective ocean shipping for bulk cargo and containers.'
+  },
+  {
+    icon: '🏢',
+    title: 'Internal Cargo',
+    tag: 'Inter-branch',
+    desc: 'Company transfers and internal logistics between branches.'
+  }
+];
+
 export default function Home() {
   const router = useRouter();
   const [trackInput, setTrackInput] = useState('');
@@ -109,6 +137,57 @@ export default function Home() {
 
   return (
     <>
+      <style>{`
+        html { scroll-behavior: smooth; }
+
+        /* ---------- Services cards ---------- */
+        .sxl-service-card {
+          transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                      box-shadow 0.35s ease,
+                      border-color 0.35s ease;
+          cursor: default;
+        }
+        .sxl-service-card:hover {
+          transform: translateY(-8px);
+          border-color: #FF6B00 !important;
+          box-shadow: 0 24px 48px rgba(255,107,0,0.14) !important;
+        }
+        .sxl-service-card:hover .sxl-service-icon {
+          transform: scale(1.08) rotate(-3deg);
+        }
+        .sxl-service-card:hover .sxl-service-accent {
+          width: 64px;
+        }
+        .sxl-service-card:hover .sxl-service-number {
+          color: #FF6B00 !important;
+        }
+        .sxl-service-icon {
+          transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .sxl-service-accent {
+          transition: width 0.35s ease;
+        }
+        .sxl-service-number {
+          transition: color 0.35s ease;
+        }
+
+        /* ---------- Contact rows ---------- */
+        .sxl-contact-row:hover {
+          background: #FFFFFF !important;
+          box-shadow: 0 6px 18px rgba(0,0,0,0.08) !important;
+          transform: translateY(-2px);
+        }
+        .sxl-contact-row:hover .sxl-contact-arrow {
+          color: #FF6B00 !important;
+          transform: translateX(2px);
+        }
+        .sxl-wechat-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 12px 30px rgba(7,193,96,0.18) !important;
+          border-color: #07C160 !important;
+        }
+      `}</style>
+
       <Header />
 
       <section style={{
@@ -220,7 +299,8 @@ export default function Home() {
                 borderRadius: '8px',
                 fontWeight: 700,
                 fontSize: '0.9rem',
-                textDecoration: 'none'
+                textDecoration: 'none',
+                transition: 'all 0.2s'
               }}
             >
               Our Services ↓
@@ -235,7 +315,8 @@ export default function Home() {
                 borderRadius: '8px',
                 fontWeight: 700,
                 fontSize: '0.9rem',
-                textDecoration: 'none'
+                textDecoration: 'none',
+                transition: 'all 0.2s'
               }}
             >
               Contact Us ↓
@@ -245,54 +326,143 @@ export default function Home() {
       </section>
 
       {/* ============ OUR SERVICES ============ */}
-      <section id="services" style={{ padding: '80px 20px', background: 'white', scrollMarginTop: '80px' }}>
+      <section
+        id="services"
+        style={{
+          padding: '90px 20px',
+          background: 'linear-gradient(180deg, #FFFFFF 0%, #F8F9FA 100%)',
+          scrollMarginTop: '80px'
+        }}
+      >
         <div className="sxl-container">
-          <div style={{ textAlign: 'center', marginBottom: '50px' }}>
-            <h2 style={{ fontSize: '2.2rem', fontWeight: 800, color: '#003366', marginBottom: '10px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '55px' }}>
+            <div style={{
+              display: 'inline-block',
+              padding: '5px 14px',
+              background: '#FFF5EB',
+              color: '#FF6B00',
+              borderRadius: '20px',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '1.2px',
+              marginBottom: '14px'
+            }}>
+              What we offer
+            </div>
+            <h2 style={{ fontSize: '2.4rem', fontWeight: 800, color: '#003366', marginBottom: '10px', letterSpacing: '-0.5px' }}>
               Our Services
             </h2>
-            <p style={{ color: '#6C757D', fontSize: '1.05rem' }}>
-              Complete logistics solutions for your business
+            <p style={{ color: '#6C757D', fontSize: '1.05rem', maxWidth: '560px', margin: '0 auto' }}>
+              Complete logistics solutions for your business — from a single parcel to full container loads.
             </p>
           </div>
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '25px',
-            maxWidth: '1100px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '22px',
+            maxWidth: '1160px',
             margin: '0 auto'
           }}>
-            {[
-              { icon: '📦', title: 'Courier Express', desc: 'Fast door-to-door delivery for documents and parcels worldwide.' },
-              { icon: '✈️', title: 'Air Freight', desc: 'Time-critical shipments delivered by air to any destination.' },
-              { icon: '🚢', title: 'Sea Freight', desc: 'Cost-effective ocean shipping for bulk cargo and containers.' },
-              { icon: '🏢', title: 'Internal Cargo', desc: 'Company transfers and internal logistics between branches.' }
-            ].map((s, i) => (
-              <div key={i} style={{
-                padding: '30px 25px',
-                borderRadius: '10px',
-                background: '#F8F9FA',
-                border: '2px solid transparent',
-                textAlign: 'center',
-                transition: 'all 0.3s'
-              }}>
-                <div style={{
-                  width: '70px',
-                  height: '70px',
-                  margin: '0 auto 20px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #FF6B00 0%, #FF8C33 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '2rem',
-                  boxShadow: '0 10px 20px rgba(255,107,0,0.25)'
-                }}>
+            {SERVICES.map((s, i) => (
+              <div
+                key={i}
+                className="sxl-service-card"
+                style={{
+                  position: 'relative',
+                  background: 'white',
+                  borderRadius: '18px',
+                  border: '2px solid #F1F3F5',
+                  padding: '34px 28px 30px',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+                  overflow: 'hidden'
+                }}
+              >
+                {/* Corner number */}
+                <div
+                  className="sxl-service-number"
+                  style={{
+                    position: 'absolute',
+                    top: '22px',
+                    right: '26px',
+                    fontSize: '0.9rem',
+                    fontWeight: 800,
+                    color: '#D0D6DB',
+                    letterSpacing: '1px',
+                    fontFamily: 'Consolas, monospace'
+                  }}
+                >
+                  {String(i + 1).padStart(2, '0')}
+                </div>
+
+                {/* Icon */}
+                <div
+                  className="sxl-service-icon"
+                  style={{
+                    width: '68px',
+                    height: '68px',
+                    borderRadius: '20px',
+                    background: 'linear-gradient(135deg, #FF6B00 0%, #FF8C33 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '2rem',
+                    marginBottom: '22px',
+                    boxShadow: '0 12px 28px rgba(255,107,0,0.28)',
+                    transformOrigin: 'center'
+                  }}
+                >
                   {s.icon}
                 </div>
-                <h3 style={{ fontSize: '1.2rem', marginBottom: '10px', color: '#003366' }}>{s.title}</h3>
-                <p style={{ fontSize: '0.95rem', color: '#6C757D', lineHeight: 1.6 }}>{s.desc}</p>
+
+                {/* Title */}
+                <h3 style={{
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  color: '#003366',
+                  marginBottom: '10px',
+                  letterSpacing: '-0.3px'
+                }}>
+                  {s.title}
+                </h3>
+
+                {/* Tag pill */}
+                <div style={{
+                  display: 'inline-block',
+                  padding: '3px 11px',
+                  background: '#FFF5EB',
+                  color: '#FF6B00',
+                  borderRadius: '20px',
+                  fontSize: '0.66rem',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.9px',
+                  marginBottom: '14px'
+                }}>
+                  {s.tag}
+                </div>
+
+                {/* Description */}
+                <p style={{
+                  fontSize: '0.92rem',
+                  color: '#6C757D',
+                  lineHeight: 1.65,
+                  marginBottom: '22px'
+                }}>
+                  {s.desc}
+                </p>
+
+                {/* Accent line that grows on hover */}
+                <div
+                  className="sxl-service-accent"
+                  style={{
+                    width: '28px',
+                    height: '3px',
+                    background: '#FF6B00',
+                    borderRadius: '2px'
+                  }}
+                />
               </div>
             ))}
           </div>
@@ -329,23 +499,6 @@ export default function Home() {
 
       {/* ============ CONTACT US ============ */}
       <section id="contact" style={{ padding: '80px 20px', background: '#F8F9FA', scrollMarginTop: '80px' }}>
-        <style>{`
-          .sxl-contact-row:hover {
-            background: #FFFFFF !important;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.08) !important;
-            transform: translateY(-2px);
-          }
-          .sxl-contact-row:hover .sxl-contact-arrow {
-            color: #FF6B00 !important;
-            transform: translateX(2px);
-          }
-          .sxl-wechat-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 30px rgba(7,193,96,0.18) !important;
-            border-color: #07C160 !important;
-          }
-        `}</style>
-
         <div className="sxl-container">
           <div style={{ textAlign: 'center', marginBottom: '50px' }}>
             <h2 style={{ fontSize: '2.2rem', fontWeight: 800, color: '#003366', marginBottom: '10px' }}>
@@ -591,10 +744,8 @@ export default function Home() {
             {c.company_wechat && (
               <a
                 href={'weixin://dl/chat'}
-                onClick={(e) => {
+                onClick={() => {
                   // Deep link only works on mobile with WeChat installed.
-                  // On desktop we silently fall back to showing the ID.
-                  setTimeout(() => { /* no-op */ }, 100);
                 }}
                 style={{
                   display: 'block',
