@@ -1938,7 +1938,7 @@ function ShippersPanel() {
   const [shippers, setShippers] = useState([]);
   const [counts, setCounts] = useState({ total: 0, active: 0, suspended: 0 });
   const [error, setError] = useState('');
-    const [actionLoading, setActionLoading] = useState('');
+  const [actionLoading, setActionLoading] = useState('');
 
   // P.2 — Edit Profile modal state
   const [editShipperModal, setEditShipperModal] = useState(null);
@@ -2012,7 +2012,7 @@ function ShippersPanel() {
     } catch (err) { setError('Connection error.'); setLoading(false); }
   }
 
-    async function toggleStatus(shipperID, newStatus) {
+  async function toggleStatus(shipperID, newStatus) {
     const msg = newStatus === 'Suspended' ? 'Suspend this shipper?' : 'Activate this shipper?';
     if (!window.confirm(msg)) return;
     setActionLoading(shipperID);
@@ -2295,7 +2295,7 @@ function ShippersPanel() {
             </div>
 
             <div ref={tableScrollRef} style={{ overflow: 'auto', maxHeight: '70vh' }}>
-              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '900px', tableLayout: 'fixed' }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '1050px', tableLayout: 'fixed' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                   <tr>
                     <FilterHeaderCell col="none" label="Short Form" width={110} />
@@ -2305,7 +2305,7 @@ function ShippersPanel() {
                     <FilterHeaderCell col="phone" label="Phone" width={150} />
                     <FilterHeaderCell col="none" label="Country" width={100} />
                     <FilterHeaderCell col="status" label="Status" width={130} />
-                    <FilterHeaderCell col="none" label="Actions" width={140} />
+                    <FilterHeaderCell col="none" label="Actions" width={240} />
                   </tr>
                 </thead>
                 <tbody>
@@ -2323,7 +2323,7 @@ function ShippersPanel() {
                         <td style={{ ...TD_STYLE, width: 130 }}>
                           <span style={{ background: isActive ? '#D4EDDA' : '#F8D7DA', color: isActive ? '#155724' : '#721C24', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem' }}>{s.status}</span>
                         </td>
-                          <td style={{ ...TD_STYLE, width: 220, whiteSpace: 'nowrap' }}>
+                        <td style={{ ...TD_STYLE, width: 240, whiteSpace: 'nowrap' }}>
                           <button
                             onClick={() => openEditShipperModal(s)}
                             style={{ padding: '6px 12px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}
@@ -2331,9 +2331,21 @@ function ShippersPanel() {
                             ✏️ Edit Profile
                           </button>
                           {isActive ? (
-                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Suspended')} style={{ padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>🚫 Suspend</button>
+                            <button
+                              disabled={actionLoading === s.shipperID}
+                              onClick={() => toggleStatus(s.shipperID, 'Suspended')}
+                              style={{ padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}
+                            >
+                              🚫 Suspend
+                            </button>
                           ) : (
-                            <button disabled={actionLoading === s.shipperID} onClick={() => toggleStatus(s.shipperID, 'Active')} style={{ padding: '6px 12px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}>✅ Activate</button>
+                            <button
+                              disabled={actionLoading === s.shipperID}
+                              onClick={() => toggleStatus(s.shipperID, 'Active')}
+                              style={{ padding: '6px 12px', background: '#28A745', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', opacity: actionLoading === s.shipperID ? 0.6 : 1 }}
+                            >
+                              ✅ Activate
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -2348,6 +2360,131 @@ function ShippersPanel() {
             Showing <b>{filtered.length}</b> of <b>{shippers.length}</b> shipper{shippers.length !== 1 ? 's' : ''}
           </div>
         </>
+      )}
+
+      {/* P.2 — Edit Profile modal */}
+      {editShipperModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+          padding: '20px', overflowY: 'auto'
+        }}>
+          <div style={{
+            background: 'white', maxWidth: '720px', width: '100%',
+            borderRadius: '16px', padding: '30px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            marginTop: '40px', marginBottom: '40px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>✏️ Edit Shipper Profile</h2>
+                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
+                  <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{editShipperModal.shipper.shipperID}</span>
+                  {' · '}{editShipperModal.shipper.shortForm}
+                </div>
+              </div>
+              <button onClick={closeEditShipperModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+            </div>
+
+            {editShipperError && (
+              <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem' }}>
+                {editShipperError}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gap: '14px' }}>
+              <div style={{ background: '#F8F9FA', padding: '14px 16px', borderRadius: '10px', borderLeft: '4px solid #003366', fontSize: '0.82rem', color: '#495057' }}>
+                ℹ️ Only the fields below are editable. User ID and Account Type are locked.
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Company Name *</label>
+                  <input type="text" value={editShipperFields.companyName || ''} onChange={(e) => setEditShipperField('companyName', e.target.value)} placeholder="e.g., ABC Trading Ltd"
+                    style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Contact Person</label>
+                  <input type="text" value={editShipperFields.contactPerson || ''} onChange={(e) => setEditShipperField('contactPerson', e.target.value)} placeholder="e.g., John Smith"
+                    style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Email (login) *</label>
+                  <input type="email" value={editShipperFields.email || ''} onChange={(e) => setEditShipperField('email', e.target.value)} placeholder="customer@example.com"
+                    style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Phone</label>
+                  <input type="tel" value={editShipperFields.phone || ''} onChange={(e) => setEditShipperField('phone', e.target.value)} placeholder="+852 0000 0000"
+                    style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', alignItems: 'flex-end' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>
+                    New Password <span style={{ color: '#6C757D', fontWeight: 400 }}>(leave blank to keep current)</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input type={editShipperShowPwd ? 'text' : 'password'} value={editShipperPassword} onChange={(e) => setEditShipperPassword(e.target.value)} placeholder="Min 6 characters"
+                      style={{ width: '100%', padding: '10px 44px 10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    <button type="button" onClick={() => setEditShipperShowPwd(!editShipperShowPwd)} title={editShipperShowPwd ? 'Hide password' : 'Show password'}
+                      style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: '2px', color: '#6C757D', lineHeight: 1 }}>
+                      {editShipperShowPwd ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#8B4500', background: '#FFF5EB', borderLeft: '3px solid #FF6B00', padding: '10px 12px', borderRadius: '6px', lineHeight: 1.5 }}>
+                  ⚠️ Changing email or password will <b>log the shipper out of all devices</b>. They must log in again with the new credentials.
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Full Address</label>
+                <textarea value={editShipperFields.companyAddress || ''} onChange={(e) => setEditShipperField('companyAddress', e.target.value)} placeholder="Street, building, floor..."
+                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', minHeight: '60px', resize: 'vertical' }} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>City</label>
+                  <input type="text" value={editShipperFields.companyCity || ''} onChange={(e) => setEditShipperField('companyCity', e.target.value)} placeholder="City"
+                    style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>State</label>
+                  <input type="text" value={editShipperFields.companyState || ''} onChange={(e) => setEditShipperField('companyState', e.target.value)} placeholder="State"
+                    style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>Country</label>
+                  <input type="text" value={editShipperFields.companyCountry || ''} onChange={(e) => setEditShipperField('companyCountry', e.target.value)} placeholder="Country code or name"
+                    style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>BIN</label>
+                <input type="text" value={editShipperFields.companyBin || ''} onChange={(e) => setEditShipperField('companyBin', e.target.value)} placeholder="Business Identification Number"
+                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px', flexWrap: 'wrap' }}>
+              <button onClick={closeEditShipperModal} disabled={editShipperSaving}
+                style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={handleSaveEditShipper} disabled={editShipperSaving}
+                style={{ padding: '12px 28px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: editShipperSaving ? 'not-allowed' : 'pointer', opacity: editShipperSaving ? 0.6 : 1, fontFamily: 'inherit' }}>
+                {editShipperSaving ? 'Saving...' : '💾 Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
