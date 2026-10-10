@@ -2420,12 +2420,12 @@ function ShippersPanel() {
       {!loading && !error && filtered.length > 0 && (
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
-            <div ref={topScrollRef} style={TOP_SCROLLBAR_STYLE} aria-hidden="true">
-              <div style={{ width: '900px', height: '1px' }} />
+                        <div ref={topScrollRef} style={TOP_SCROLLBAR_STYLE} aria-hidden="true">
+              <div style={{ width: '1200px', height: '1px' }} />
             </div>
 
             <div ref={tableScrollRef} style={{ overflow: 'auto', maxHeight: '70vh' }}>
-              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '1050px', tableLayout: 'fixed' }}>
+                            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '1200px', tableLayout: 'fixed' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                   <tr>
                     <FilterHeaderCell col="none" label="Short Form" width={110} />
@@ -2435,7 +2435,7 @@ function ShippersPanel() {
                     <FilterHeaderCell col="phone" label="Phone" width={150} />
                     <FilterHeaderCell col="none" label="Country" width={100} />
                     <FilterHeaderCell col="status" label="Status" width={130} />
-                    <FilterHeaderCell col="none" label="Actions" width={320} />
+                    <FilterHeaderCell col="none" label="Actions" width={360} />
                   </tr>
                 </thead>
                 <tbody>
