@@ -10,6 +10,25 @@ const serviceSupabase = createClient(
 
 const SETTING_KEY = 'special_parcel_enabled';
 
+// Task 1 of 5 — Company contact keys (admin-editable, used by PDF generator)
+const COMPANY_KEYS = [
+  'company_phone',
+  'company_email',
+  'company_website',
+  'company_wechat',
+  'company_whatsapp',
+  'company_wechat_qr_url',
+];
+
+const COMPANY_DEFAULTS = {
+  company_phone: '+852 60480171',
+  company_email: 'admin@sxl-logistics.com',
+  company_website: 'www.sxl-logistics.com',
+  company_wechat: 'sXL-Logistics',
+  company_whatsapp: '+852 60480171',
+  company_wechat_qr_url: '',
+};
+
 async function requireSession(request) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.replace('Bearer ', '').trim();
@@ -44,6 +63,25 @@ function parseBool(v, fallback = true) {
   return fallback;
 }
 
+async function loadCompanySettings() {
+  const { data: rows } = await serviceSupabase
+    .from('settings')
+    .select('key, value')
+    .in('key', COMPANY_KEYS);
+
+  const map = {};
+  (rows || []).forEach((r) => { map[r.key] = r.value; });
+
+  const out = {};
+  COMPANY_KEYS.forEach((k) => {
+    const v = map[k];
+    out[k] = (v === null || v === undefined || v === '')
+      ? (COMPANY_DEFAULTS[k] || '')
+      : v;
+  });
+  return out;
+}
+
 export async function GET(request) {
   try {
     const session = await requireSession(request);
@@ -51,6 +89,7 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Please log in.' });
     }
 
+    // Special Parcel flag
     const { data: row } = await serviceSupabase
       .from('settings')
       .select('value')
@@ -59,10 +98,14 @@ export async function GET(request) {
 
     const specialParcelEnabled = row ? parseBool(row.value, true) : true;
 
+    // Company contact block (Task 1 of 5)
+    const company = await loadCompanySettings();
+
     return NextResponse.json({
       success: true,
       settings: {
         specialParcelEnabled,
+        ...company,
       },
     });
 
@@ -80,6 +123,66 @@ export async function POST(request) {
 
     const body = await request.json();
 
+    // ===== Task 1 of 5 — Save company contact block =====
+    const hasCompanyPayload = COMPANY_KEYS.some((k) =>
+      Object.prototype.hasOwnProperty.call(body, k)
+    );
+
+    if (hasCompanyPayload) {
+      const toSave = {};
+      COMPANY_KEYS.forEach((k) => {
+        if (Object.prototype.hasOwnProperty.call(body, k)) {
+          const v = body[k];
+          toSave[k] = (v === null || v === undefined) ? '' : String(v).trim();
+        }
+      });
+
+      for (const [key, value] of Object.entries(toSave)) {
+        const { data: existing } = await serviceSupabase
+          .from('settings')
+          .select('key')
+          .eq('key', key)
+          .maybeSingle();
+
+        if (existing) {
+          const { error: updErr } = await serviceSupabase
+            .from('settings')
+            .update({ value, updated_at: new Date().toISOString() })
+            .eq('key', key);
+
+          if (updErr) {
+            return NextResponse.json({ success: false, error: updErr.message });
+          }
+        } else {
+          const { error: insErr } = await serviceSupabase
+            .from('settings')
+            .insert({ key, value });
+
+          if (insErr) {
+            return NextResponse.json({ success: false, error: insErr.message });
+          }
+        }
+      }
+
+      // Return full refreshed settings
+      const { data: row2 } = await serviceSupabase
+        .from('settings')
+        .select('value')
+        .eq('key', SETTING_KEY)
+        .maybeSingle();
+      const specialParcelEnabled = row2 ? parseBool(row2.value, true) : true;
+      const company = await loadCompanySettings();
+
+      return NextResponse.json({
+        success: true,
+        settings: {
+          specialParcelEnabled,
+          ...company,
+        },
+      });
+    }
+
+    // ===== Existing Special Parcel toggle (unchanged) =====
     if (!Object.prototype.hasOwnProperty.call(body, 'specialParcelEnabled')) {
       return NextResponse.json({ success: false, error: 'specialParcelEnabled is required.' });
     }
@@ -111,10 +214,13 @@ export async function POST(request) {
       }
     }
 
+    const company = await loadCompanySettings();
+
     return NextResponse.json({
       success: true,
       settings: {
         specialParcelEnabled: newValue === 'true',
+        ...company,
       },
     });
 
