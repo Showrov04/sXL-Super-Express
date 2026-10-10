@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Header from './components/Header';
 import Footer from './components/Footer';
 
@@ -10,6 +11,16 @@ export default function Home() {
   const [trackInput, setTrackInput] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [company, setCompany] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/company-info')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && d.company) setCompany(d.company);
+      })
+      .catch(() => { /* silent — section shows fallbacks */ });
+  }, []);
 
   async function handleTrack(e) {
     e.preventDefault();
@@ -38,6 +49,8 @@ export default function Home() {
       setLoading(false);
     }
   }
+
+  const c = company || {};
 
   return (
     <>
@@ -134,10 +147,51 @@ export default function Home() {
               ❌ {error}
             </div>
           )}
+
+          {/* Quick links to Services + Contact */}
+          <div style={{
+            marginTop: '30px',
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'center',
+            flexWrap: 'wrap'
+          }}>
+            <a
+              href="#services"
+              style={{
+                padding: '12px 24px',
+                background: 'transparent',
+                color: 'white',
+                border: '2px solid rgba(255,255,255,0.4)',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                textDecoration: 'none'
+              }}
+            >
+              Our Services ↓
+            </a>
+            <a
+              href="#contact"
+              style={{
+                padding: '12px 24px',
+                background: 'transparent',
+                color: 'white',
+                border: '2px solid rgba(255,255,255,0.4)',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                textDecoration: 'none'
+              }}
+            >
+              Contact Us ↓
+            </a>
+          </div>
         </div>
       </section>
 
-      <section style={{ padding: '80px 20px', background: 'white' }}>
+      {/* ============ OUR SERVICES ============ */}
+      <section id="services" style={{ padding: '80px 20px', background: 'white', scrollMarginTop: '80px' }}>
         <div className="sxl-container">
           <div style={{ textAlign: 'center', marginBottom: '50px' }}>
             <h2 style={{ fontSize: '2.2rem', fontWeight: 800, color: '#003366', marginBottom: '10px' }}>
@@ -191,6 +245,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ============ STATS ============ */}
       <section style={{ padding: '60px 20px', background: '#003366', color: 'white' }}>
         <div style={{
           display: 'grid',
@@ -218,7 +273,196 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ============ CONTACT US ============ */}
+      <section id="contact" style={{ padding: '80px 20px', background: '#F8F9FA', scrollMarginTop: '80px' }}>
+        <div className="sxl-container">
+          <div style={{ textAlign: 'center', marginBottom: '50px' }}>
+            <h2 style={{ fontSize: '2.2rem', fontWeight: 800, color: '#003366', marginBottom: '10px' }}>
+              Contact Us
+            </h2>
+            <p style={{ color: '#6C757D', fontSize: '1.05rem' }}>
+              Get in touch — we respond fast
+            </p>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: '25px',
+            maxWidth: '1000px',
+            margin: '0 auto'
+          }}>
+            {/* Left card — text contact info */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '35px 30px',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+              borderTop: '4px solid #FF6B00'
+            }}>
+              <h3 style={{ color: '#003366', fontSize: '1.15rem', fontWeight: 800, marginBottom: '22px' }}>
+                📞 Reach Us Directly
+              </h3>
+
+              <ContactRow
+                icon="📱"
+                label="Phone"
+                value={c.company_phone}
+                href={c.company_phone ? 'tel:' + String(c.company_phone).replace(/\s+/g, '') : null}
+              />
+              <ContactRow
+                icon="💬"
+                label="WhatsApp"
+                value={c.company_whatsapp}
+                href={c.company_whatsapp ? 'https://wa.me/' + String(c.company_whatsapp).replace(/[^\d]/g, '') : null}
+              />
+              <ContactRow
+                icon="📧"
+                label="Email"
+                value={c.company_email}
+                href={c.company_email ? 'mailto:' + c.company_email : null}
+              />
+              <ContactRow
+                icon="🌐"
+                label="Website"
+                value={c.company_website}
+                href={c.company_website ? 'https://' + String(c.company_website).replace(/^https?:\/\//, '') : null}
+              />
+            </div>
+
+            {/* Right card — WeChat + QR */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '35px 30px',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+              borderTop: '4px solid #00A86B',
+              textAlign: 'center'
+            }}>
+              <h3 style={{ color: '#003366', fontSize: '1.15rem', fontWeight: 800, marginBottom: '22px' }}>
+                🟢 WeChat
+              </h3>
+
+              {c.company_wechat_qr_url ? (
+                <>
+                  <div style={{
+                    display: 'inline-block',
+                    padding: '10px',
+                    background: 'white',
+                    borderRadius: '10px',
+                    border: '2px solid #E9ECEF'
+                  }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={c.company_wechat_qr_url}
+                      alt="WeChat QR Code"
+                      style={{ width: '180px', height: '180px', display: 'block' }}
+                    />
+                  </div>
+                  <p style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '12px' }}>
+                    Scan with WeChat to add us
+                  </p>
+                </>
+              ) : (
+                <div style={{
+                  fontSize: '4rem',
+                  margin: '20px 0',
+                  opacity: 0.3
+                }}>
+                  🟢
+                </div>
+              )}
+
+              {c.company_wechat && (
+                <div style={{
+                  marginTop: '18px',
+                  padding: '12px 16px',
+                  background: '#E8F7EF',
+                  border: '2px solid #00A86B',
+                  borderRadius: '10px',
+                  fontFamily: 'Consolas, monospace',
+                  fontWeight: 800,
+                  color: '#155724',
+                  fontSize: '1rem',
+                  wordBreak: 'break-all'
+                }}>
+                  {c.company_wechat}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <Footer />
     </>
   );
+}
+
+function ContactRow({ icon, label, value, href }) {
+  if (!value) return null;
+
+  const content = (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '14px',
+      padding: '14px 16px',
+      borderRadius: '10px',
+      background: '#F8F9FA',
+      marginBottom: '12px',
+      textDecoration: 'none',
+      color: 'inherit',
+      transition: 'background 0.2s'
+    }}>
+      <div style={{
+        width: '42px',
+        height: '42px',
+        borderRadius: '10px',
+        background: 'linear-gradient(135deg, #FF6B00 0%, #FF8C33 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '1.2rem',
+        flexShrink: 0,
+        boxShadow: '0 4px 10px rgba(255,107,0,0.25)'
+      }}>
+        {icon}
+      </div>
+      <div style={{ overflow: 'hidden', flex: 1 }}>
+        <div style={{
+          fontSize: '0.72rem',
+          textTransform: 'uppercase',
+          color: '#6C757D',
+          fontWeight: 700,
+          letterSpacing: '0.5px',
+          marginBottom: '2px'
+        }}>
+          {label}
+        </div>
+        <div style={{
+          fontSize: '0.95rem',
+          fontWeight: 700,
+          color: '#003366',
+          wordBreak: 'break-all'
+        }}>
+          {value}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target={href.startsWith('http') ? '_blank' : undefined}
+        rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
+        style={{ textDecoration: 'none', display: 'block' }}
+      >
+        {content}
+      </a>
+    );
+  }
+  return content;
 }
