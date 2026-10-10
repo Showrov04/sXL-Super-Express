@@ -190,6 +190,7 @@ function TopTab({ active, onClick, label, badgeCount }) {
 
 /* ============================================================
    F.2 — SETTINGS PANEL
+   Task 2 of 5 — Company Contact block added
    ============================================================ */
 function SettingsPanel() {
   const [loading, setLoading] = useState(true);
@@ -197,6 +198,16 @@ function SettingsPanel() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [specialParcelEnabled, setSpecialParcelEnabled] = useState(true);
+
+  const [company, setCompany] = useState({
+    company_phone: '',
+    company_email: '',
+    company_website: '',
+    company_wechat: '',
+    company_whatsapp: '',
+    company_wechat_qr_url: '',
+  });
+  const [savingCompany, setSavingCompany] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -227,6 +238,14 @@ function SettingsPanel() {
         return;
       }
       setSpecialParcelEnabled(data.settings?.specialParcelEnabled !== false);
+      setCompany({
+        company_phone: data.settings?.company_phone || '',
+        company_email: data.settings?.company_email || '',
+        company_website: data.settings?.company_website || '',
+        company_wechat: data.settings?.company_wechat || '',
+        company_whatsapp: data.settings?.company_whatsapp || '',
+        company_wechat_qr_url: data.settings?.company_wechat_qr_url || '',
+      });
       setLoading(false);
     } catch (err) {
       setError('Connection error.');
@@ -263,6 +282,77 @@ function SettingsPanel() {
       setSaving(false);
     }
   }
+
+  async function saveCompanyInfo() {
+    setError('');
+    const token = localStorage.getItem('sxl_token');
+
+    const qr = String(company.company_wechat_qr_url || '').trim();
+    if (qr && !/^https?:\/\//i.test(qr)) {
+      setError('WeChat QR image URL must start with http:// or https://');
+      return;
+    }
+
+    setSavingCompany(true);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          company_phone: company.company_phone,
+          company_email: company.company_email,
+          company_website: company.company_website,
+          company_wechat: company.company_wechat,
+          company_whatsapp: company.company_whatsapp,
+          company_wechat_qr_url: qr,
+        }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setError(data.error || 'Failed to save company info.');
+        setSavingCompany(false);
+        return;
+      }
+
+      setCompany({
+        company_phone: data.settings?.company_phone || '',
+        company_email: data.settings?.company_email || '',
+        company_website: data.settings?.company_website || '',
+        company_wechat: data.settings?.company_wechat || '',
+        company_whatsapp: data.settings?.company_whatsapp || '',
+        company_wechat_qr_url: data.settings?.company_wechat_qr_url || '',
+      });
+      setSavingCompany(false);
+      setToast('✅ Company contact info saved');
+    } catch (err) {
+      setError('Connection error: ' + err.message);
+      setSavingCompany(false);
+    }
+  }
+
+  function setCompanyField(key, value) {
+    setCompany((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const inputStyle = {
+    width: '100%',
+    padding: '11px 14px',
+    fontSize: '0.9rem',
+    border: '2px solid #E9ECEF',
+    borderRadius: '8px',
+    outline: 'none',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+  };
+
+  const labelStyle = {
+    display: 'block',
+    fontSize: '0.8rem',
+    fontWeight: 600,
+    color: '#343A40',
+    marginBottom: '5px',
+  };
 
   return (
     <div>
@@ -374,6 +464,135 @@ function SettingsPanel() {
               Customers attempting to book a Special Parcel will see the option greyed out and receive the message "This service is not available at the moment." Server-side booking creation will also be rejected until you re-enable it.
             </div>
           )}
+
+          <div style={{
+            background: 'white', borderRadius: '12px', padding: '24px 28px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+            borderLeft: '5px solid #003366',
+            marginBottom: '20px'
+          }}>
+            <div style={{ marginBottom: '18px', paddingBottom: '12px', borderBottom: '2px solid #F1F3F5' }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#003366', marginBottom: '4px' }}>
+                📞 Company Contact Information
+              </div>
+              <div style={{ color: '#6C757D', fontSize: '0.85rem', lineHeight: 1.6 }}>
+                These appear in the footer of every generated <b>Booking PDF</b> and <b>Invoice PDF</b>.
+                Leave a field blank to hide that row.
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+              <div>
+                <label style={labelStyle}>📱 Phone</label>
+                <input
+                  type="text"
+                  value={company.company_phone}
+                  onChange={(e) => setCompanyField('company_phone', e.target.value)}
+                  placeholder="+852 60480171"
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>💬 WhatsApp</label>
+                <input
+                  type="text"
+                  value={company.company_whatsapp}
+                  onChange={(e) => setCompanyField('company_whatsapp', e.target.value)}
+                  placeholder="+852 60480171"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+              <div>
+                <label style={labelStyle}>📧 Email</label>
+                <input
+                  type="email"
+                  value={company.company_email}
+                  onChange={(e) => setCompanyField('company_email', e.target.value)}
+                  placeholder="admin@sxl-logistics.com"
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>🌐 Website</label>
+                <input
+                  type="text"
+                  value={company.company_website}
+                  onChange={(e) => setCompanyField('company_website', e.target.value)}
+                  placeholder="www.sxl-logistics.com"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '14px' }}>
+              <label style={labelStyle}>🟢 WeChat ID</label>
+              <input
+                type="text"
+                value={company.company_wechat}
+                onChange={(e) => setCompanyField('company_wechat', e.target.value)}
+                placeholder="sXL-Logistics"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ marginBottom: '18px' }}>
+              <label style={labelStyle}>🔳 WeChat QR Image URL (optional)</label>
+              <input
+                type="text"
+                value={company.company_wechat_qr_url}
+                onChange={(e) => setCompanyField('company_wechat_qr_url', e.target.value)}
+                placeholder="https://...supabase.co/storage/v1/object/public/booking-docs/company/wechat-qr.png"
+                style={inputStyle}
+              />
+              <div style={{ fontSize: '0.78rem', color: '#6C757D', marginTop: '6px', lineHeight: 1.5 }}>
+                Paste a public image URL (PNG or JPG). The Booking PDF footer will show the QR code on the right side.
+                If left blank, the footer falls back to displaying the WeChat ID as plain text.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={loadSettings}
+                disabled={savingCompany}
+                style={{
+                  padding: '11px 22px',
+                  background: 'transparent',
+                  color: '#003366',
+                  border: '2px solid #E9ECEF',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  cursor: savingCompany ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                ↺ Reset
+              </button>
+              <button
+                type="button"
+                onClick={saveCompanyInfo}
+                disabled={savingCompany}
+                style={{
+                  padding: '11px 26px',
+                  background: '#003366',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  cursor: savingCompany ? 'not-allowed' : 'pointer',
+                  opacity: savingCompany ? 0.6 : 1,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {savingCompany ? 'Saving...' : '💾 Save Company Info'}
+              </button>
+            </div>
+          </div>
 
           <div style={{
             background: '#F8F9FA',
@@ -2255,7 +2474,6 @@ function ShippersPanel() {
       setDeleteMonthPreview(null);
       setDeleteMonthConfirmInput('');
 
-      // Refresh the shipper list stats behind the modal
       setTimeout(loadShippers, 600);
     } catch (err) {
       setDeleteMonthError('Connection error: ' + err.message);
@@ -2420,12 +2638,12 @@ function ShippersPanel() {
       {!loading && !error && filtered.length > 0 && (
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
-                        <div ref={topScrollRef} style={TOP_SCROLLBAR_STYLE} aria-hidden="true">
+            <div ref={topScrollRef} style={TOP_SCROLLBAR_STYLE} aria-hidden="true">
               <div style={{ width: '1200px', height: '1px' }} />
             </div>
 
             <div ref={tableScrollRef} style={{ overflow: 'auto', maxHeight: '70vh' }}>
-                            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '1200px', tableLayout: 'fixed' }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem', minWidth: '1200px', tableLayout: 'fixed' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                   <tr>
                     <FilterHeaderCell col="none" label="Short Form" width={110} />
@@ -2453,7 +2671,7 @@ function ShippersPanel() {
                         <td style={{ ...TD_STYLE, width: 130 }}>
                           <span style={{ background: isActive ? '#D4EDDA' : '#F8D7DA', color: isActive ? '#155724' : '#721C24', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem' }}>{s.status}</span>
                         </td>
-                                                <td style={{ ...TD_STYLE, width: 320, whiteSpace: 'nowrap' }}>
+                        <td style={{ ...TD_STYLE, width: 320, whiteSpace: 'nowrap' }}>
                           <button
                             onClick={() => openEditShipperModal(s)}
                             style={{ padding: '6px 12px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}
@@ -2498,7 +2716,6 @@ function ShippersPanel() {
         </>
       )}
 
-      {/* P.2 — Edit Profile modal */}
       {editShipperModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
@@ -2614,7 +2831,7 @@ function ShippersPanel() {
                 style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
-                            <button onClick={handleSaveEditShipper} disabled={editShipperSaving}
+              <button onClick={handleSaveEditShipper} disabled={editShipperSaving}
                 style={{ padding: '12px 28px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: editShipperSaving ? 'not-allowed' : 'pointer', opacity: editShipperSaving ? 0.6 : 1, fontFamily: 'inherit' }}>
                 {editShipperSaving ? 'Saving...' : '💾 Save Changes'}
               </button>
@@ -2623,7 +2840,6 @@ function ShippersPanel() {
         </div>
       )}
 
-      {/* D.2 — Delete Month modal */}
       {deleteMonthModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999,
@@ -2660,7 +2876,6 @@ function ShippersPanel() {
               </div>
             )}
 
-            {/* Step 1 — pick month + preview */}
             {!deleteMonthPreview && !deleteMonthSuccess && (
               <>
                 <div style={{ marginBottom: '18px' }}>
@@ -2696,7 +2911,6 @@ function ShippersPanel() {
               </>
             )}
 
-            {/* Step 2 — show preview, confirm, delete */}
             {deleteMonthPreview && !deleteMonthSuccess && (
               <>
                 <div style={{ background: '#F8F9FA', borderRadius: '10px', padding: '18px 20px', marginBottom: '18px', border: '1px solid #E9ECEF' }}>
@@ -2798,7 +3012,6 @@ function ShippersPanel() {
               </>
             )}
 
-            {/* Step 3 — success summary */}
             {deleteMonthSuccess && (
               <>
                 <div style={{ background: '#D4EDDA', border: '2px solid #28A745', borderRadius: '12px', padding: '20px', marginBottom: '18px' }}>
