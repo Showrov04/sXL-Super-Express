@@ -19,6 +19,37 @@ const NO_CACHE_HEADERS = {
   'Expires': '0',
 };
 
+// Task 4 of 5 — Company contact keys fetched from settings table
+const COMPANY_KEYS = [
+  'company_phone',
+  'company_email',
+  'company_website',
+  'company_wechat',
+  'company_whatsapp',
+  'company_wechat_qr_url',
+];
+
+async function loadCompanyContact() {
+  try {
+    const { data: rows } = await serviceSupabase
+      .from('settings')
+      .select('key, value')
+      .in('key', COMPANY_KEYS);
+
+    const map = {};
+    (rows || []).forEach((r) => { map[r.key] = r.value; });
+
+    const out = {};
+    COMPANY_KEYS.forEach((k) => {
+      out[k] = (map[k] === null || map[k] === undefined) ? '' : map[k];
+    });
+    return out;
+  } catch (e) {
+    console.error('[PDF Booking] Contact load failed:', e.message);
+    return {};
+  }
+}
+
 export async function GET(request, { params }) {
   try {
     const tn = (params.tn || '').toUpperCase();
@@ -48,7 +79,10 @@ export async function GET(request, { params }) {
       });
     }
 
-    const pdfBytes = await generateBookingPDF(shipment);
+    // Task 4 of 5 — fetch company contact and pass to PDF generator
+    const contact = await loadCompanyContact();
+
+    const pdfBytes = await generateBookingPDF(shipment, contact);
 
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,
