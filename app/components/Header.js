@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function Header() {
   const [user, setUser] = useState(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     // Read user from localStorage (set by login page later)
@@ -33,6 +35,17 @@ export default function Header() {
 
   const isAdmin = user && (user.role === 'admin' || user.role === 'staff');
 
+  // Helper: is this nav link the current page?
+  function isActive(href) {
+    if (!pathname) return false;
+    // Home link exact match (but ignore hash links like /#services)
+    if (href === '/') return pathname === '/';
+    // For hash-anchored routes like /#services — treat as "home" only
+    if (href.startsWith('/#')) return false;
+    // Prefix match for nested routes (e.g. /admin/anything still activates "Admin")
+    return pathname === href || pathname.startsWith(href + '/');
+  }
+
   return (
     <header className="sxl-header">
       <div className="sxl-header-inner">
@@ -47,21 +60,47 @@ export default function Header() {
         <nav className="sxl-nav">
           {user ? (
             <>
-              <Link href="/dashboard">Dashboard</Link>
-              <Link href="/book">Book</Link>
-              <Link href="/track">Track</Link>
-              {isAdmin && <Link href="/admin">Admin</Link>}
-              <Link href="/account">Account</Link>
-              <button onClick={logout}>Logout</button>
+              <Link href="/dashboard" className={'sxl-nav-link' + (isActive('/dashboard') ? ' active' : '')}>
+                Dashboard
+              </Link>
+              <Link href="/book" className={'sxl-nav-link' + (isActive('/book') ? ' active' : '')}>
+                Book
+              </Link>
+              <Link href="/track" className={'sxl-nav-link' + (isActive('/track') ? ' active' : '')}>
+                Track
+              </Link>
+              {isAdmin && (
+                <Link href="/admin" className={'sxl-nav-link' + (isActive('/admin') ? ' active' : '')}>
+                  Admin
+                </Link>
+              )}
+              <Link href="/account" className={'sxl-nav-link' + (isActive('/account') ? ' active' : '')}>
+                Account
+              </Link>
+              <button onClick={logout} className="sxl-nav-link">
+                Logout
+              </button>
             </>
           ) : (
             <>
-              <Link href="/">Home</Link>
-              <Link href="/#services">Services</Link>
-              <Link href="/#contact">Contact</Link>
-              <Link href="/track">Track</Link>
-              <Link href="/login">Login</Link>
-              <Link href="/register" className="btn-primary">Sign Up</Link>
+              <Link href="/" className={'sxl-nav-link' + (isActive('/') ? ' active' : '')}>
+                Home
+              </Link>
+              <Link href="/#services" className="sxl-nav-link">
+                Services
+              </Link>
+              <Link href="/#contact" className="sxl-nav-link">
+                Contact
+              </Link>
+              <Link href="/track" className={'sxl-nav-link' + (isActive('/track') ? ' active' : '')}>
+                Track
+              </Link>
+              <Link href="/login" className={'sxl-nav-link' + (isActive('/login') ? ' active' : '')}>
+                Login
+              </Link>
+              <Link href="/register" className="btn-primary">
+                Sign Up
+              </Link>
             </>
           )}
         </nav>
