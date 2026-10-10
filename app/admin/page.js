@@ -2435,7 +2435,7 @@ function ShippersPanel() {
                     <FilterHeaderCell col="phone" label="Phone" width={150} />
                     <FilterHeaderCell col="none" label="Country" width={100} />
                     <FilterHeaderCell col="status" label="Status" width={130} />
-                    <FilterHeaderCell col="none" label="Actions" width={240} />
+                    <FilterHeaderCell col="none" label="Actions" width={320} />
                   </tr>
                 </thead>
                 <tbody>
@@ -2453,12 +2453,18 @@ function ShippersPanel() {
                         <td style={{ ...TD_STYLE, width: 130 }}>
                           <span style={{ background: isActive ? '#D4EDDA' : '#F8D7DA', color: isActive ? '#155724' : '#721C24', padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.75rem' }}>{s.status}</span>
                         </td>
-                        <td style={{ ...TD_STYLE, width: 240, whiteSpace: 'nowrap' }}>
+                                                <td style={{ ...TD_STYLE, width: 320, whiteSpace: 'nowrap' }}>
                           <button
                             onClick={() => openEditShipperModal(s)}
                             style={{ padding: '6px 12px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}
                           >
                             ✏️ Edit Profile
+                          </button>
+                          <button
+                            onClick={() => openDeleteMonthModal(s)}
+                            style={{ padding: '6px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}
+                          >
+                            🗑️ Delete Month
                           </button>
                           {isActive ? (
                             <button
