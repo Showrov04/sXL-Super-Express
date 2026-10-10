@@ -1940,13 +1940,23 @@ function ShippersPanel() {
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState('');
 
-  // P.2 — Edit Profile modal state
+    // P.2 — Edit Profile modal state
   const [editShipperModal, setEditShipperModal] = useState(null);
   const [editShipperFields, setEditShipperFields] = useState({});
   const [editShipperPassword, setEditShipperPassword] = useState('');
   const [editShipperShowPwd, setEditShipperShowPwd] = useState(false);
   const [editShipperSaving, setEditShipperSaving] = useState(false);
   const [editShipperError, setEditShipperError] = useState('');
+
+  // D.2 — Delete Month modal state
+  const [deleteMonthModal, setDeleteMonthModal] = useState(null);
+  const [deleteMonthValue, setDeleteMonthValue] = useState('');
+  const [deleteMonthPreview, setDeleteMonthPreview] = useState(null);
+  const [deleteMonthPreviewLoading, setDeleteMonthPreviewLoading] = useState(false);
+  const [deleteMonthConfirmInput, setDeleteMonthConfirmInput] = useState('');
+  const [deleteMonthDeleting, setDeleteMonthDeleting] = useState(false);
+  const [deleteMonthError, setDeleteMonthError] = useState('');
+  const [deleteMonthSuccess, setDeleteMonthSuccess] = useState(null);
 
   const [colFilters, setColFilters] = useState({
     name: [], contact: [], email: [], phone: [], status: [],
