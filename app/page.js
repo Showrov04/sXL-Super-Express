@@ -6,7 +6,24 @@ import Link from 'next/link';
 import Header from './components/Header';
 import Footer from './components/Footer';
 
-/* ---- Small inline SVG icons (match the footer brand style) ---- */
+/* ============================================================
+   Task 30 — Hardcoded office address (no DB dependency)
+   ============================================================ */
+const OFFICE_ADDRESS_LINES = [
+  'Unit 704B, 7th Floor',
+  'Well Fung Industrial Centre 和豐工業中心',
+  '葵涌 打磚坪街68號',
+  '68 Ta Chuen Ping Street, Kwai Chung',
+  'Hong Kong',
+];
+
+const OFFICE_MAPS_URL =
+  'https://www.google.com/maps/search/?api=1&query=' +
+  encodeURIComponent(
+    'Well Fung Industrial Centre, 68 Ta Chuen Ping Street, Kwai Chung, Hong Kong'
+  );
+
+/* ---- Small inline SVG icons ---- */
 function IconPhone() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
@@ -133,12 +150,6 @@ export default function Home() {
 
   const c = company || {};
 
-  // Split the office address into display lines
-  const addressLines = String(c.company_address || '')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean);
-
   return (
     <>
       <style>{`
@@ -192,10 +203,17 @@ export default function Home() {
         }
 
         /* ---------- Office address card ---------- */
+        .sxl-office-card {
+          transition: all 0.25s ease;
+        }
         .sxl-office-card:hover {
           transform: translateY(-3px);
           box-shadow: 0 12px 30px rgba(255,107,0,0.15) !important;
           border-color: #FF6B00 !important;
+        }
+        .sxl-office-card:hover .sxl-office-maps {
+          opacity: 1;
+          transform: translateX(2px);
         }
       `}</style>
 
@@ -522,63 +540,88 @@ export default function Home() {
             gap: '25px'
           }}>
 
-            {/* ---- OFFICE ADDRESS card (full-width, top) ---- */}
-            {addressLines.length > 0 && (
-              <div
-                className="sxl-office-card"
-                style={{
-                  background: 'white',
-                  borderRadius: '12px',
-                  padding: '28px 30px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                  borderTop: '4px solid #FF6B00',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '18px',
-                  transition: 'all 0.25s ease'
-                }}
-              >
+            {/* ---- OFFICE ADDRESS card (hardcoded, clickable → Google Maps) ---- */}
+            <a
+              href={OFFICE_MAPS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sxl-office-card"
+              title="Open in Google Maps"
+              style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '28px 30px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                borderTop: '4px solid #FF6B00',
+                border: '2px solid transparent',
+                borderTopColor: '#FF6B00',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '18px',
+                textDecoration: 'none',
+                color: 'inherit'
+              }}
+            >
+              <div style={{
+                width: '52px',
+                height: '52px',
+                borderRadius: '50%',
+                background: '#FFF5EB',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 4px 12px rgba(255,107,0,0.15)'
+              }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FF6B00" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+              </div>
+
+              <div style={{ flex: 1 }}>
                 <div style={{
-                  width: '52px',
-                  height: '52px',
-                  borderRadius: '50%',
-                  background: '#FFF5EB',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  boxShadow: '0 4px 12px rgba(255,107,0,0.15)'
+                  gap: '8px',
+                  marginBottom: '8px',
+                  flexWrap: 'wrap'
                 }}>
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FF6B00" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                    <circle cx="12" cy="10" r="3" />
-                  </svg>
-                </div>
-
-                <div style={{ flex: 1 }}>
-                  <div style={{
+                  <span style={{
                     fontSize: '0.72rem',
                     textTransform: 'uppercase',
                     letterSpacing: '1.4px',
                     color: '#8B4500',
-                    fontWeight: 800,
-                    marginBottom: '8px'
+                    fontWeight: 800
                   }}>
                     🏢 Our Office
-                  </div>
-                  <div style={{
-                    fontSize: '1rem',
-                    lineHeight: 1.75,
-                    color: '#343A40',
-                    fontWeight: 500
-                  }}>
-                    {addressLines.map((line, idx) => (
-                      <div key={idx}>{line}</div>
-                    ))}
-                  </div>
+                  </span>
+                  <span
+                    className="sxl-office-maps"
+                    style={{
+                      fontSize: '0.68rem',
+                      color: '#FF6B00',
+                      fontWeight: 700,
+                      letterSpacing: '0.4px',
+                      opacity: 0,
+                      transition: 'opacity 0.2s, transform 0.2s'
+                    }}
+                  >
+                    · View on Map ↗
+                  </span>
+                </div>
+                <div style={{
+                  fontSize: '1rem',
+                  lineHeight: 1.75,
+                  color: '#343A40',
+                  fontWeight: 500
+                }}>
+                  {OFFICE_ADDRESS_LINES.map((line, idx) => (
+                    <div key={idx}>{line}</div>
+                  ))}
                 </div>
               </div>
-            )}
+            </a>
 
             {/* ---- Two columns: Reach Us Directly + WeChat ---- */}
             <div style={{
@@ -745,112 +788,109 @@ export default function Home() {
               boxSizing: 'border-box',
             }}
           >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'white',
-              borderRadius: '16px',
-              padding: '32px 28px',
-              maxWidth: '420px',
-              width: '100%',
-              textAlign: 'center',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-              position: 'relative',
-              boxSizing: 'border-box',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setShowWeChatModal(false)}
-              aria-label="Close"
+            <div
+              onClick={(e) => e.stopPropagation()}
               style={{
-                position: 'absolute',
-                top: '12px',
-                right: '14px',
-                background: 'transparent',
-                border: 'none',
-                fontSize: '1.5rem',
-                cursor: 'pointer',
-                color: '#6C757D',
-                lineHeight: 1,
-                padding: '4px 8px',
+                background: 'white',
+                borderRadius: '16px',
+                padding: '32px 28px',
+                maxWidth: '420px',
+                width: '100%',
+                textAlign: 'center',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+                position: 'relative',
+                boxSizing: 'border-box',
               }}
             >
-              ✕
-            </button>
-
-            <div style={{
-              width: '60px',
-              height: '60px',
-              borderRadius: '50%',
-              background: '#07C160',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
-              boxShadow: '0 8px 20px rgba(7,193,96,0.35)',
-            }}>
-              <IconWeChat size={32} />
-            </div>
-
-            <h2 style={{ color: '#003366', fontSize: '1.35rem', margin: '0 0 6px' }}>
-              Add us on WeChat
-            </h2>
-            <p style={{ color: '#6C757D', fontSize: '0.9rem', margin: '0 0 20px' }}>
-              Scan the QR code with WeChat
-            </p>
-
-            {c.company_wechat_qr_url ? (
-              <div style={{
-                display: 'inline-block',
-                padding: '14px',
-                background: 'white',
-                borderRadius: '12px',
-                border: '2px solid #E9ECEF',
-                marginBottom: '18px',
-              }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={c.company_wechat_qr_url}
-                  alt="WeChat QR Code"
-                  style={{ width: '260px', height: '260px', display: 'block' }}
-                />
-              </div>
-            ) : (
-              <div style={{ fontSize: '4rem', margin: '20px 0 30px', opacity: 0.35 }}>
-                🟢
-              </div>
-            )}
-
-            {c.company_wechat && (
-              <a
-                href={'weixin://dl/chat'}
-                onClick={() => {
-                  // Deep link only works on mobile with WeChat installed.
-                }}
+              <button
+                type="button"
+                onClick={() => setShowWeChatModal(false)}
+                aria-label="Close"
                 style={{
-                  display: 'block',
-                  padding: '14px 16px',
-                  background: '#07C160',
-                  color: 'white',
+                  position: 'absolute',
+                  top: '12px',
+                  right: '14px',
+                  background: 'transparent',
                   border: 'none',
-                  borderRadius: '10px',
-                  fontFamily: 'inherit',
-                  fontWeight: 800,
-                  fontSize: '1rem',
-                  textDecoration: 'none',
-                  boxShadow: '0 6px 16px rgba(7,193,96,0.35)',
-                  marginBottom: '10px',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer',
+                  color: '#6C757D',
+                  lineHeight: 1,
+                  padding: '4px 8px',
                 }}
               >
-                📱 Open in WeChat App
-              </a>
-            )}
+                ✕
+              </button>
 
-            <p style={{ color: '#ADB5BD', fontSize: '0.72rem', margin: 0, fontStyle: 'italic' }}>
-              &quot;Open in WeChat App&quot; works on mobile devices with WeChat installed.
-            </p>
-          </div>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '50%',
+                background: '#07C160',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                boxShadow: '0 8px 20px rgba(7,193,96,0.35)',
+              }}>
+                <IconWeChat size={32} />
+              </div>
+
+              <h2 style={{ color: '#003366', fontSize: '1.35rem', margin: '0 0 6px' }}>
+                Add us on WeChat
+              </h2>
+              <p style={{ color: '#6C757D', fontSize: '0.9rem', margin: '0 0 20px' }}>
+                Scan the QR code with WeChat
+              </p>
+
+              {c.company_wechat_qr_url ? (
+                <div style={{
+                  display: 'inline-block',
+                  padding: '14px',
+                  background: 'white',
+                  borderRadius: '12px',
+                  border: '2px solid #E9ECEF',
+                  marginBottom: '18px',
+                }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={c.company_wechat_qr_url}
+                    alt="WeChat QR Code"
+                    style={{ width: '260px', height: '260px', display: 'block' }}
+                  />
+                </div>
+              ) : (
+                <div style={{ fontSize: '4rem', margin: '20px 0 30px', opacity: 0.35 }}>
+                  🟢
+                </div>
+              )}
+
+              {c.company_wechat && (
+                <a
+                  href={'weixin://dl/chat'}
+                  style={{
+                    display: 'block',
+                    padding: '14px 16px',
+                    background: '#07C160',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontFamily: 'inherit',
+                    fontWeight: 800,
+                    fontSize: '1rem',
+                    textDecoration: 'none',
+                    boxShadow: '0 6px 16px rgba(7,193,96,0.35)',
+                    marginBottom: '10px',
+                  }}
+                >
+                  📱 Open in WeChat App
+                </a>
+              )}
+
+              <p style={{ color: '#ADB5BD', fontSize: '0.72rem', margin: 0, fontStyle: 'italic' }}>
+                &quot;Open in WeChat App&quot; works on mobile devices with WeChat installed.
+              </p>
+            </div>
           </div>
         </div>
       )}
