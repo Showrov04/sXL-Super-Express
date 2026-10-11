@@ -10,16 +10,6 @@ const serviceSupabase = createClient(
 
 const SETTING_KEY = 'special_parcel_enabled';
 
-/* ============================================================
-   Task 26b — Company contact keys
-   Added: company_address (office address shown on:
-     - Website footer
-     - Website home Contact section
-     - Booking PDF header strip
-     - Invoice PDF header strip
-   Chinese characters are stored as-is; the website renders them
-   natively, and the PDF generator uses Noto Sans SC (Task 26g).
-   ============================================================ */
 const COMPANY_KEYS = [
   'company_phone',
   'company_email',
@@ -74,14 +64,51 @@ function parseBool(v, fallback = true) {
   return fallback;
 }
 
+/* ============================================================
+   Task 27 — upsertSetting()
+   Wipes ALL rows for a key, then inserts exactly one. This
+   guarantees a single row per key even if duplicates existed
+   from earlier saves (which caused the "Hong Kong" bug).
+   ============================================================ */
+async function upsertSetting(key, value) {
+  // 1. Delete all existing rows for this key
+  const { error: delErr } = await serviceSupabase
+    .from('settings')
+    .delete()
+    .eq('key', key);
+
+  if (delErr) {
+    throw new Error('Delete failed for ' + key + ': ' + delErr.message);
+  }
+
+  // 2. Insert one clean row
+  const { error: insErr } = await serviceSupabase
+    .from('settings')
+    .insert({
+      key,
+      value,
+      updated_at: new Date().toISOString(),
+    });
+
+  if (insErr) {
+    throw new Error('Insert failed for ' + key + ': ' + insErr.message);
+  }
+}
+
+/* ============================================================
+   loadCompanySettings()
+   Reads all matching rows but de-duplicates by taking the LAST
+   occurrence, so the freshest value wins even if duplicates exist.
+   ============================================================ */
 async function loadCompanySettings() {
   const { data: rows } = await serviceSupabase
     .from('settings')
-    .select('key, value')
-    .in('key', COMPANY_KEYS);
+    .select('key, value, updated_at')
+    .in('key', COMPANY_KEYS)
+    .order('updated_at', { ascending: true }); // oldest first
 
   const map = {};
-  (rows || []).forEach((r) => { map[r.key] = r.value; });
+  (rows || []).forEach((r) => { map[r.key] = r.value; }); // last wins
 
   const out = {};
   COMPANY_KEYS.forEach((k) => {
@@ -100,7 +127,6 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Please log in.' });
     }
 
-    // Special Parcel flag
     const { data: row } = await serviceSupabase
       .from('settings')
       .select('value')
@@ -108,8 +134,6 @@ export async function GET(request) {
       .maybeSingle();
 
     const specialParcelEnabled = row ? parseBool(row.value, true) : true;
-
-    // Company contact block (includes company_address)
     const company = await loadCompanySettings();
 
     return NextResponse.json({
@@ -134,7 +158,7 @@ export async function POST(request) {
 
     const body = await request.json();
 
-    // ===== Company contact block (Task 26b — includes company_address) =====
+    // ===== Company contact block =====
     const hasCompanyPayload = COMPANY_KEYS.some((k) =>
       Object.prototype.hasOwnProperty.call(body, k)
     );
@@ -144,39 +168,20 @@ export async function POST(request) {
       COMPANY_KEYS.forEach((k) => {
         if (Object.prototype.hasOwnProperty.call(body, k)) {
           const v = body[k];
-          // Preserve newlines in company_address; trim only leading/trailing whitespace
+          // Preserve newlines in company_address; only trim outer whitespace
           toSave[k] = (v === null || v === undefined) ? '' : String(v).trim();
         }
       });
 
-      for (const [key, value] of Object.entries(toSave)) {
-        const { data: existing } = await serviceSupabase
-          .from('settings')
-          .select('key')
-          .eq('key', key)
-          .maybeSingle();
-
-        if (existing) {
-          const { error: updErr } = await serviceSupabase
-            .from('settings')
-            .update({ value, updated_at: new Date().toISOString() })
-            .eq('key', key);
-
-          if (updErr) {
-            return NextResponse.json({ success: false, error: updErr.message });
-          }
-        } else {
-          const { error: insErr } = await serviceSupabase
-            .from('settings')
-            .insert({ key, value });
-
-          if (insErr) {
-            return NextResponse.json({ success: false, error: insErr.message });
-          }
+      try {
+        for (const [key, value] of Object.entries(toSave)) {
+          await upsertSetting(key, value);
         }
+      } catch (saveErr) {
+        return NextResponse.json({ success: false, error: saveErr.message });
       }
 
-      // Return full refreshed settings
+      // Return refreshed values
       const { data: row2 } = await serviceSupabase
         .from('settings')
         .select('value')
@@ -194,36 +199,17 @@ export async function POST(request) {
       });
     }
 
-    // ===== Special Parcel toggle (unchanged) =====
+    // ===== Special Parcel toggle =====
     if (!Object.prototype.hasOwnProperty.call(body, 'specialParcelEnabled')) {
       return NextResponse.json({ success: false, error: 'specialParcelEnabled is required.' });
     }
 
     const newValue = body.specialParcelEnabled === true ? 'true' : 'false';
 
-    const { data: existing } = await serviceSupabase
-      .from('settings')
-      .select('key')
-      .eq('key', SETTING_KEY)
-      .maybeSingle();
-
-    if (existing) {
-      const { error: updErr } = await serviceSupabase
-        .from('settings')
-        .update({ value: newValue, updated_at: new Date().toISOString() })
-        .eq('key', SETTING_KEY);
-
-      if (updErr) {
-        return NextResponse.json({ success: false, error: updErr.message });
-      }
-    } else {
-      const { error: insErr } = await serviceSupabase
-        .from('settings')
-        .insert({ key: SETTING_KEY, value: newValue });
-
-      if (insErr) {
-        return NextResponse.json({ success: false, error: insErr.message });
-      }
+    try {
+      await upsertSetting(SETTING_KEY, newValue);
+    } catch (saveErr) {
+      return NextResponse.json({ success: false, error: saveErr.message });
     }
 
     const company = await loadCompanySettings();
