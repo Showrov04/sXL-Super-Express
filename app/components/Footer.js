@@ -13,6 +13,7 @@ export default function Footer() {
     company_wechat: 'sXL-Logistics',
     company_whatsapp: '+852 60480171',
     company_wechat_qr_url: '',
+    company_address: 'Unit 704B, 7th Floor\nWell Fung Industrial Centre 和豐工業中心\n葵涌 打磚坪街68號\n68 Ta Chuen Ping Street, Kwai Chung\nHong Kong',
   });
 
   const [showWeChatModal, setShowWeChatModal] = useState(false);
@@ -43,6 +44,12 @@ export default function Footer() {
   const webUrl = c.company_website
     ? 'https://' + String(c.company_website).replace(/^https?:\/\//, '')
     : '';
+
+  // Split the office address into display lines
+  const addressLines = String(c.company_address || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
 
   const iconBtn = {
     width: '44px',
@@ -189,6 +196,62 @@ export default function Footer() {
             </div>
           </div>
 
+          {/* ---- MIDDLE: Office Address ---- */}
+          {addressLines.length > 0 && (
+            <div style={{
+              padding: '22px 0',
+              borderBottom: '1px solid rgba(255,255,255,0.12)',
+              display: 'flex',
+              justifyContent: 'center',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '14px',
+                maxWidth: '620px',
+                textAlign: 'left',
+              }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  background: 'rgba(255,107,0,0.18)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  marginTop: '2px',
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF6B00" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                </div>
+                <div>
+                  <div style={{
+                    fontSize: '0.7rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1.4px',
+                    color: 'rgba(255,107,0,0.85)',
+                    fontWeight: 800,
+                    marginBottom: '6px',
+                  }}>
+                    Office Address
+                  </div>
+                  <div style={{
+                    fontSize: '0.88rem',
+                    lineHeight: 1.65,
+                    color: 'rgba(255,255,255,0.82)',
+                  }}>
+                    {addressLines.map((line, idx) => (
+                      <div key={idx}>{line}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ---- BOTTOM: Copyright ---- */}
           <div style={{
             textAlign: 'center',
@@ -212,26 +275,36 @@ export default function Footer() {
           onClick={() => setShowWeChatModal(false)}
           style={{
             position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.65)',
+            top: 0, left: 0, width: '100vw', height: '100vh',
+            background: 'rgba(0,0,0,0.7)',
             zIndex: 100000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
           }}
         >
+          <div
+            style={{
+              minHeight: '100%',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '40px 20px',
+              boxSizing: 'border-box',
+            }}
+          >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               background: 'white',
               borderRadius: '16px',
-              padding: '30px',
-              maxWidth: '400px',
+              padding: '32px 28px',
+              maxWidth: '420px',
               width: '100%',
               textAlign: 'center',
               boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
               position: 'relative',
+              boxSizing: 'border-box',
             }}
           >
             <button
@@ -255,17 +328,17 @@ export default function Footer() {
             </button>
 
             <div style={{
-              width: '56px',
-              height: '56px',
+              width: '60px',
+              height: '60px',
               borderRadius: '50%',
               background: '#07C160',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 14px',
+              margin: '0 auto 16px',
               boxShadow: '0 8px 20px rgba(7,193,96,0.35)',
             }}>
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="white">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
                 <path d="M8.5 4C4.9 4 2 6.5 2 9.5c0 1.7 1 3.2 2.5 4.2-.1.4-.4 1.5-.6 2 0 0 .1.1.2 0 .4-.2 1.8-1 2.4-1.3.6.1 1.3.2 2 .2.2 0 .4 0 .6-.1-.2-.6-.4-1.2-.4-1.9 0-3.4 3.3-6.1 7.3-6.1h.5C15.7 5.1 12.4 4 8.5 4z" />
                 <path d="M22 13c0-2.5-2.4-4.5-5.4-4.5S11.2 10.5 11.2 13s2.4 4.5 5.4 4.5c.6 0 1.2-.1 1.7-.2.5.3 1.7.9 2 .9 0 0 .1-.1 0-.2-.2-.4-.4-1.3-.4-1.5.7-.8 1.1-1.8 1.1-2.5z" />
               </svg>
@@ -274,16 +347,14 @@ export default function Footer() {
             <h2 style={{ color: '#003366', fontSize: '1.35rem', margin: '0 0 6px' }}>
               Add us on WeChat
             </h2>
-            <p style={{ color: '#6C757D', fontSize: '0.9rem', margin: '0 0 22px' }}>
-              {c.company_wechat_qr_url
-                ? 'Scan the QR code below with WeChat'
-                : 'Search our WeChat ID to add us'}
+            <p style={{ color: '#6C757D', fontSize: '0.9rem', margin: '0 0 20px' }}>
+              Scan the QR code with WeChat
             </p>
 
             {c.company_wechat_qr_url ? (
               <div style={{
                 display: 'inline-block',
-                padding: '12px',
+                padding: '14px',
                 background: 'white',
                 borderRadius: '12px',
                 border: '2px solid #E9ECEF',
@@ -293,34 +364,44 @@ export default function Footer() {
                 <img
                   src={c.company_wechat_qr_url}
                   alt="WeChat QR Code"
-                  style={{ width: '220px', height: '220px', display: 'block' }}
+                  style={{ width: '260px', height: '260px', display: 'block' }}
                 />
               </div>
             ) : (
-              <div style={{
-                fontSize: '3.5rem',
-                margin: '20px 0 30px',
-                opacity: 0.35,
-              }}>
+              <div style={{ fontSize: '4rem', margin: '20px 0 30px', opacity: 0.35 }}>
                 🟢
               </div>
             )}
 
             {c.company_wechat && (
-              <div style={{
-                padding: '14px 16px',
-                background: '#E8F7EF',
-                border: '2px solid #07C160',
-                borderRadius: '10px',
-                fontFamily: 'Consolas, monospace',
-                fontWeight: 800,
-                color: '#155724',
-                fontSize: '1.05rem',
-                wordBreak: 'break-all',
-              }}>
-                {c.company_wechat}
-              </div>
+              <a
+                href={'weixin://dl/chat'}
+                onClick={() => {
+                  // Deep link only works on mobile with WeChat installed.
+                }}
+                style={{
+                  display: 'block',
+                  padding: '14px 16px',
+                  background: '#07C160',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontFamily: 'inherit',
+                  fontWeight: 800,
+                  fontSize: '1rem',
+                  textDecoration: 'none',
+                  boxShadow: '0 6px 16px rgba(7,193,96,0.35)',
+                  marginBottom: '10px',
+                }}
+              >
+                📱 Open in WeChat App
+              </a>
             )}
+
+            <p style={{ color: '#ADB5BD', fontSize: '0.72rem', margin: 0, fontStyle: 'italic' }}>
+              &quot;Open in WeChat App&quot; works on mobile devices with WeChat installed.
+            </p>
+          </div>
           </div>
         </div>
       )}
