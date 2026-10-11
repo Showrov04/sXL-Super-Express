@@ -8,6 +8,7 @@ import Footer from '../components/Footer';
 import BillingPanel from '../components/BillingPanel';
 import CancellationPanel from '../components/CancellationPanel';
 import CreditRequestsPanel from '../components/CreditRequestsPanel';
+import QuotesPanel from '../components/QuotesPanel';
 
 const COL_W_TRACKING = 170;
 const COL_W_MODE = 130;
@@ -126,6 +127,7 @@ export default function AdminPage() {
           <TopTab active={adminTab === 'shipments'} onClick={() => setAdminTab('shipments')} label="📦 Management Shipment" />
           <TopTab active={adminTab === 'shippers'} onClick={() => setAdminTab('shippers')} label="🚚 Management Shipper" />
           <TopTab active={adminTab === 'billing'} onClick={() => setAdminTab('billing')} label="💰 Financial & Billing" />
+          <TopTab active={adminTab === 'quotes'} onClick={() => setAdminTab('quotes')} label="💬 Quotes" />
           <TopTab
             active={adminTab === 'cancellations'}
             onClick={() => setAdminTab('cancellations')}
@@ -144,6 +146,7 @@ export default function AdminPage() {
         {adminTab === 'shipments' && <ShipmentsPanel />}
         {adminTab === 'shippers' && <ShippersPanel />}
         {adminTab === 'billing' && <BillingPanel />}
+        {adminTab === 'quotes' && <QuotesPanel />}
         {adminTab === 'cancellations' && <CancellationPanel onActionComplete={loadPendingCounts} />}
         {adminTab === 'credit' && <CreditRequestsPanel onActionComplete={loadPendingCounts} />}
         {adminTab === 'settings' && <SettingsPanel />}
@@ -190,7 +193,7 @@ function TopTab({ active, onClick, label, badgeCount }) {
 
 /* ============================================================
    SETTINGS PANEL
-   Task 26d — Added Office Address field (multi-line textarea)
+   Task 26d — Office Address field added.
    ============================================================ */
 function SettingsPanel() {
   const [loading, setLoading] = useState(true);
@@ -636,9 +639,6 @@ function SettingsPanel() {
 
 /* ============================================================
    SHIPMENTS PANEL
-   Only "Active" and "Cancelled" tabs.
-   Warehouse button uses loose check (!== true) so legacy null
-   values also count as self-delivery.
    ============================================================ */
 function ShipmentsPanel() {
   const [tab, setTab] = useState('active');
@@ -2384,10 +2384,6 @@ function ShippersPanel() {
   }
 
   async function handleDeleteMonthPreview() {
-    console.log('[DeleteMonth] Preview clicked');
-    console.log('[DeleteMonth] month =', deleteMonthValue);
-    console.log('[DeleteMonth] shipperID =', deleteMonthModal?.shipper?.shipperID);
-
     setDeleteMonthError('');
     setDeleteMonthSuccess(null);
     setDeleteMonthPreview(null);
@@ -2412,17 +2408,12 @@ function ShippersPanel() {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.warn('[DeleteMonth] Aborting — request exceeded 15s');
-      controller.abort();
-    }, 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
       const url = '/api/admin/cleanup?shipper=' +
         encodeURIComponent(deleteMonthModal.shipper.shipperID) +
         '&month=' + encodeURIComponent(deleteMonthValue);
-
-      console.log('[DeleteMonth] Fetching:', url);
 
       const res = await fetch(url, {
         headers: { Authorization: 'Bearer ' + token },
@@ -2430,16 +2421,11 @@ function ShippersPanel() {
       });
 
       clearTimeout(timeoutId);
-      console.log('[DeleteMonth] HTTP status:', res.status);
 
       const rawText = await res.text();
-      console.log('[DeleteMonth] Raw response text:', rawText);
 
       if (!res.ok) {
-        setDeleteMonthError(
-          'API error ' + res.status + ' — ' +
-          (rawText ? rawText.slice(0, 200) : res.statusText || 'Unknown error')
-        );
+        setDeleteMonthError('API error ' + res.status + ' — ' + (rawText ? rawText.slice(0, 200) : res.statusText));
         setDeleteMonthPreviewLoading(false);
         return;
       }
@@ -2448,13 +2434,10 @@ function ShippersPanel() {
       try {
         data = JSON.parse(rawText);
       } catch (parseErr) {
-        console.error('[DeleteMonth] JSON parse failed:', parseErr);
-        setDeleteMonthError('Server returned non-JSON response. First 200 chars: ' + rawText.slice(0, 200));
+        setDeleteMonthError('Server returned non-JSON response.');
         setDeleteMonthPreviewLoading(false);
         return;
       }
-
-      console.log('[DeleteMonth] Parsed data:', data);
 
       if (!data.success) {
         setDeleteMonthError(data.error || 'Preview failed.');
@@ -2467,10 +2450,8 @@ function ShippersPanel() {
     } catch (err) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        console.error('[DeleteMonth] Request timed out');
-        setDeleteMonthError('Request timed out after 15 seconds. The server may be under load — please try again.');
+        setDeleteMonthError('Request timed out after 15 seconds.');
       } else {
-        console.error('[DeleteMonth] Fetch exception:', err);
         setDeleteMonthError('Connection error: ' + err.message);
       }
       setDeleteMonthPreviewLoading(false);
@@ -2493,13 +2474,7 @@ function ShippersPanel() {
 
     const ok = window.confirm(
       'PERMANENTLY DELETE ' + deleteMonthPreview.eligibleCount + ' shipment(s) from ' +
-      deleteMonthValue + ' for shipper "' + deleteMonthModal.shipper.name + '"?\n\n' +
-      'This deletes:\n' +
-      '• ' + deleteMonthPreview.eligibleCount + ' shipment(s)\n' +
-      '• ' + deleteMonthPreview.trackingHistoryCount + ' tracking entr(ies)\n' +
-      '• ' + deleteMonthPreview.invoiceCount + ' invoice(s)\n' +
-      '• ' + deleteMonthPreview.fileCount + ' storage file(s)\n\n' +
-      'This cannot be undone.'
+      deleteMonthValue + ' for shipper "' + deleteMonthModal.shipper.name + '"?'
     );
     if (!ok) return;
 
@@ -2528,7 +2503,6 @@ function ShippersPanel() {
       setDeleteMonthDeleting(false);
       setDeleteMonthPreview(null);
       setDeleteMonthConfirmInput('');
-
       setTimeout(loadShippers, 600);
     } catch (err) {
       setDeleteMonthError('Connection error: ' + err.message);
@@ -2931,9 +2905,6 @@ function ShippersPanel() {
             {deleteMonthError && (
               <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem', wordBreak: 'break-word' }}>
                 <b>❌ {deleteMonthError}</b>
-                <div style={{ fontSize: '0.78rem', marginTop: '6px', opacity: 0.8 }}>
-                  Open DevTools (F12) → Console for detailed logs.
-                </div>
               </div>
             )}
 
@@ -2954,9 +2925,6 @@ function ShippersPanel() {
                     }}
                     style={{ width: '100%', padding: '12px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
-                  <div style={{ fontSize: '0.78rem', color: '#6C757D', marginTop: '6px', fontStyle: 'italic' }}>
-                    Month filter uses the booking creation date (booked_at).
-                  </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
@@ -2965,17 +2933,8 @@ function ShippersPanel() {
                     Cancel
                   </button>
                   <button onClick={handleDeleteMonthPreview} disabled={deleteMonthPreviewLoading || !deleteMonthValue}
-                    style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: (deleteMonthPreviewLoading || !deleteMonthValue) ? 'not-allowed' : 'pointer', opacity: (deleteMonthPreviewLoading || !deleteMonthValue) ? 0.6 : 1, fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                    {deleteMonthPreviewLoading ? (
-                      <>
-                        <span style={{
-                          display: 'inline-block', width: '14px', height: '14px',
-                          border: '2px solid rgba(255,255,255,0.4)', borderTopColor: 'white',
-                          borderRadius: '50%', animation: 'spin 0.7s linear infinite'
-                        }} />
-                        Checking...
-                      </>
-                    ) : '🔍 Preview'}
+                    style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: (deleteMonthPreviewLoading || !deleteMonthValue) ? 'not-allowed' : 'pointer', opacity: (deleteMonthPreviewLoading || !deleteMonthValue) ? 0.6 : 1, fontFamily: 'inherit' }}>
+                    {deleteMonthPreviewLoading ? 'Checking...' : '🔍 Preview'}
                   </button>
                 </div>
               </>
@@ -2994,7 +2953,7 @@ function ShippersPanel() {
                     </div>
                     <div style={{ background: 'white', borderRadius: '8px', padding: '12px', border: '1px solid #E9ECEF' }}>
                       <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#DC3545' }}>{deleteMonthPreview.trackingHistoryCount}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#6C757D', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tracking entries</div>
+                      <div style={{ fontSize: '0.75rem', color: '#6C757D', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tracking</div>
                     </div>
                     <div style={{ background: 'white', borderRadius: '8px', padding: '12px', border: '1px solid #E9ECEF' }}>
                       <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#DC3545' }}>{deleteMonthPreview.invoiceCount}</div>
@@ -3002,21 +2961,9 @@ function ShippersPanel() {
                     </div>
                     <div style={{ background: 'white', borderRadius: '8px', padding: '12px', border: '1px solid #E9ECEF' }}>
                       <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#DC3545' }}>{deleteMonthPreview.fileCount}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#6C757D', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Storage files</div>
+                      <div style={{ fontSize: '0.75rem', color: '#6C757D', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Files</div>
                     </div>
                   </div>
-
-                  {deleteMonthPreview.totalInMonth !== undefined && (
-                    <div style={{ fontSize: '0.8rem', color: '#6C757D', marginBottom: '10px' }}>
-                      Total shipments in {deleteMonthPreview.month}: <b>{deleteMonthPreview.totalInMonth}</b>
-                    </div>
-                  )}
-
-                  {deleteMonthPreview.skippedCount > 0 && (
-                    <div style={{ fontSize: '0.8rem', color: '#856404', background: '#FFF3CD', borderLeft: '3px solid #FFC107', borderRadius: '6px', padding: '8px 12px', marginBottom: '10px' }}>
-                      ⚠️ {deleteMonthPreview.skippedCount} shipment(s) in this month are <b>not eligible</b> (Active / Awaiting Payment / Cancellation Requested) and will be <b>kept</b>.
-                    </div>
-                  )}
 
                   {deleteMonthPreview.eligibleCount === 0 ? (
                     <div style={{ fontSize: '0.9rem', color: '#856404', background: '#FFF3CD', borderRadius: '8px', padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>
@@ -3100,9 +3047,6 @@ function ShippersPanel() {
                     <div><b>Tracking entries deleted:</b> {deleteMonthSuccess.trackingDeleted}</div>
                     <div><b>Invoices deleted:</b> {deleteMonthSuccess.invoicesDeleted}</div>
                     <div><b>Storage files deleted:</b> {deleteMonthSuccess.filesDeleted}</div>
-                    <div style={{ marginTop: '8px', fontSize: '0.8rem', color: '#495057', fontStyle: 'italic' }}>
-                      Took {deleteMonthSuccess.durationMs} ms
-                    </div>
                   </div>
                 </div>
 
