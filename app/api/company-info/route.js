@@ -8,7 +8,11 @@ const serviceSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Public company contact keys — safe to expose (no secrets)
+/* ============================================================
+   Task 26c — Public company contact keys
+   Added: company_address (office address).
+   Safe to expose — no secrets.
+   ============================================================ */
 const COMPANY_KEYS = [
   'company_phone',
   'company_email',
@@ -16,9 +20,10 @@ const COMPANY_KEYS = [
   'company_wechat',
   'company_whatsapp',
   'company_wechat_qr_url',
+  'company_address',
 ];
 
-// Fallbacks if the settings row is missing
+/* Fallbacks if the settings row is missing */
 const DEFAULTS = {
   company_phone: '+852 60480171',
   company_email: 'admin@sxl-logistics.com',
@@ -26,6 +31,7 @@ const DEFAULTS = {
   company_wechat: 'sXL-Logistics',
   company_whatsapp: '+852 60480171',
   company_wechat_qr_url: '',
+  company_address: 'Unit 704B, 7th Floor\nWell Fung Industrial Centre 和豐工業中心\n葵涌 打磚坪街68號\n68 Ta Chuen Ping Street, Kwai Chung\nHong Kong',
 };
 
 export async function GET() {
