@@ -612,6 +612,8 @@ function SettingsPanel() {
 /* ============================================================
    SHIPMENTS PANEL
    Only "Active" and "Cancelled" tabs.
+   Warehouse button uses loose check (!== true) so legacy null
+   values also count as self-delivery.
    ============================================================ */
 function ShipmentsPanel() {
   const [tab, setTab] = useState('active');
@@ -1278,7 +1280,6 @@ function ShipmentsPanel() {
         </div>
       </div>
 
-      {/* Only Active Shipment and Cancelled tabs */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
         <TabButton active={tab === 'cancelled'} onClick={() => setTab('cancelled')} label="⚫ Cancelled" count={counts.cancelled || 0} badgeBg="#E9ECEF" badgeColor="#495057" />
@@ -1303,11 +1304,11 @@ function ShipmentsPanel() {
         <>
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
             <div ref={topScrollRef} style={TOP_SCROLLBAR_STYLE} aria-hidden="true">
-              <div style={{ width: '1650px', height: '1px' }} />
+              <div style={{ width: '1850px', height: '1px' }} />
             </div>
 
             <div ref={tableScrollRef} style={{ overflow: 'auto', maxHeight: '70vh' }}>
-              <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
+              <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1850px', tableLayout: 'fixed', width: '100%' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                   <tr>
                     <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
@@ -1322,14 +1323,13 @@ function ShipmentsPanel() {
                     <HeaderCell col="payment" label="Payment" width={120} />
                     <HeaderCell col="none" label="Booked" width={120} />
                     <HeaderCell col="none" label="ETA" width={125} />
-                    <HeaderCell col="none" label="Actions" width={520} />
+                    <HeaderCell col="none" label="Actions" width={720} />
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((s, i) => {
                     const sc = statusClass(s.status);
                     const pc = paymentClass(s.paymentStatus);
-                    const isSelfDelivery = s.pickupService !== true;
                     const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
                     const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
                     const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
@@ -1337,7 +1337,11 @@ function ShipmentsPanel() {
                     const whSent = !!s.warehouseSentAt;
                     const wasUpdated = String(s.status || '').toLowerCase() !== 'booked';
                     const isActiveTab = tab === 'active';
-                    const showWarehouseBtn = isActiveTab && isSelfDelivery;
+
+                    // Show the Send Warehouse button whenever this is NOT
+                    // a pickup-by-sXL shipment. Uses loose check (!== true)
+                    // so legacy null values also count as self-delivery.
+                    const showWarehouseBtn = isActiveTab && s.pickupService !== true;
 
                     return (
                       <tr key={i} style={{ background: rowBg }}>
@@ -1365,7 +1369,7 @@ function ShipmentsPanel() {
                             {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                           </span>
                         </td>
-                        <td style={{ ...TD_STYLE, width: 520 }}>
+                        <td style={{ ...TD_STYLE, width: 720 }}>
                           {tab !== 'cancelled' && (
                             <>
                               <a
