@@ -10,7 +10,16 @@ const serviceSupabase = createClient(
 
 const SETTING_KEY = 'special_parcel_enabled';
 
-// Task 1 of 5 — Company contact keys (admin-editable, used by PDF generator)
+/* ============================================================
+   Task 26b — Company contact keys
+   Added: company_address (office address shown on:
+     - Website footer
+     - Website home Contact section
+     - Booking PDF header strip
+     - Invoice PDF header strip
+   Chinese characters are stored as-is; the website renders them
+   natively, and the PDF generator uses Noto Sans SC (Task 26g).
+   ============================================================ */
 const COMPANY_KEYS = [
   'company_phone',
   'company_email',
@@ -18,6 +27,7 @@ const COMPANY_KEYS = [
   'company_wechat',
   'company_whatsapp',
   'company_wechat_qr_url',
+  'company_address',
 ];
 
 const COMPANY_DEFAULTS = {
@@ -27,6 +37,7 @@ const COMPANY_DEFAULTS = {
   company_wechat: 'sXL-Logistics',
   company_whatsapp: '+852 60480171',
   company_wechat_qr_url: '',
+  company_address: 'Unit 704B, 7th Floor\nWell Fung Industrial Centre 和豐工業中心\n葵涌 打磚坪街68號\n68 Ta Chuen Ping Street, Kwai Chung\nHong Kong',
 };
 
 async function requireSession(request) {
@@ -98,7 +109,7 @@ export async function GET(request) {
 
     const specialParcelEnabled = row ? parseBool(row.value, true) : true;
 
-    // Company contact block (Task 1 of 5)
+    // Company contact block (includes company_address)
     const company = await loadCompanySettings();
 
     return NextResponse.json({
@@ -123,7 +134,7 @@ export async function POST(request) {
 
     const body = await request.json();
 
-    // ===== Task 1 of 5 — Save company contact block =====
+    // ===== Company contact block (Task 26b — includes company_address) =====
     const hasCompanyPayload = COMPANY_KEYS.some((k) =>
       Object.prototype.hasOwnProperty.call(body, k)
     );
@@ -133,6 +144,7 @@ export async function POST(request) {
       COMPANY_KEYS.forEach((k) => {
         if (Object.prototype.hasOwnProperty.call(body, k)) {
           const v = body[k];
+          // Preserve newlines in company_address; trim only leading/trailing whitespace
           toSave[k] = (v === null || v === undefined) ? '' : String(v).trim();
         }
       });
@@ -182,7 +194,7 @@ export async function POST(request) {
       });
     }
 
-    // ===== Existing Special Parcel toggle (unchanged) =====
+    // ===== Special Parcel toggle (unchanged) =====
     if (!Object.prototype.hasOwnProperty.call(body, 'specialParcelEnabled')) {
       return NextResponse.json({ success: false, error: 'specialParcelEnabled is required.' });
     }
