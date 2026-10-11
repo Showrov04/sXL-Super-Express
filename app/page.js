@@ -50,7 +50,6 @@ function IconWeChat({ size = 22 }) {
   );
 }
 
-/* ---- Services data (icon, title, tag, description) ---- */
 const SERVICES = [
   {
     icon: '📦',
@@ -95,7 +94,6 @@ export default function Home() {
       .catch(() => { /* silent — section shows fallbacks */ });
   }, []);
 
-  // Lock body scroll while the WeChat modal is open
   useEffect(() => {
     if (showWeChatModal) {
       document.body.style.overflow = 'hidden';
@@ -134,6 +132,12 @@ export default function Home() {
   }
 
   const c = company || {};
+
+  // Split the office address into display lines
+  const addressLines = String(c.company_address || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
 
   return (
     <>
@@ -185,6 +189,13 @@ export default function Home() {
           transform: translateY(-3px);
           box-shadow: 0 12px 30px rgba(7,193,96,0.18) !important;
           border-color: #07C160 !important;
+        }
+
+        /* ---------- Office address card ---------- */
+        .sxl-office-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 12px 30px rgba(255,107,0,0.15) !important;
+          border-color: #FF6B00 !important;
         }
       `}</style>
 
@@ -379,7 +390,6 @@ export default function Home() {
                   overflow: 'hidden'
                 }}
               >
-                {/* Corner number */}
                 <div
                   className="sxl-service-number"
                   style={{
@@ -396,7 +406,6 @@ export default function Home() {
                   {String(i + 1).padStart(2, '0')}
                 </div>
 
-                {/* Icon */}
                 <div
                   className="sxl-service-icon"
                   style={{
@@ -416,7 +425,6 @@ export default function Home() {
                   {s.icon}
                 </div>
 
-                {/* Title */}
                 <h3 style={{
                   fontSize: '1.25rem',
                   fontWeight: 800,
@@ -427,7 +435,6 @@ export default function Home() {
                   {s.title}
                 </h3>
 
-                {/* Tag pill */}
                 <div style={{
                   display: 'inline-block',
                   padding: '3px 11px',
@@ -443,7 +450,6 @@ export default function Home() {
                   {s.tag}
                 </div>
 
-                {/* Description */}
                 <p style={{
                   fontSize: '0.92rem',
                   color: '#6C757D',
@@ -453,7 +459,6 @@ export default function Home() {
                   {s.desc}
                 </p>
 
-                {/* Accent line that grows on hover */}
                 <div
                   className="sxl-service-accent"
                   style={{
@@ -510,138 +515,204 @@ export default function Home() {
           </div>
 
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: '25px',
             maxWidth: '1000px',
             margin: '0 auto',
-            alignItems: 'stretch'
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '25px'
           }}>
-            {/* Left card — text contact info (all rows clickable) */}
+
+            {/* ---- OFFICE ADDRESS card (full-width, top) ---- */}
+            {addressLines.length > 0 && (
+              <div
+                className="sxl-office-card"
+                style={{
+                  background: 'white',
+                  borderRadius: '12px',
+                  padding: '28px 30px',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                  borderTop: '4px solid #FF6B00',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '18px',
+                  transition: 'all 0.25s ease'
+                }}
+              >
+                <div style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '50%',
+                  background: '#FFF5EB',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: '0 4px 12px rgba(255,107,0,0.15)'
+                }}>
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FF6B00" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontSize: '0.72rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1.4px',
+                    color: '#8B4500',
+                    fontWeight: 800,
+                    marginBottom: '8px'
+                  }}>
+                    🏢 Our Office
+                  </div>
+                  <div style={{
+                    fontSize: '1rem',
+                    lineHeight: 1.75,
+                    color: '#343A40',
+                    fontWeight: 500
+                  }}>
+                    {addressLines.map((line, idx) => (
+                      <div key={idx}>{line}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ---- Two columns: Reach Us Directly + WeChat ---- */}
             <div style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: '30px 28px',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-              borderTop: '4px solid #FF6B00'
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+              gap: '25px',
+              alignItems: 'stretch'
             }}>
-              <h3 style={{ color: '#003366', fontSize: '1.15rem', fontWeight: 800, marginBottom: '22px' }}>
-                📞 Reach Us Directly
-              </h3>
-
-              <ContactRow
-                icon={<IconPhone />}
-                brandColor="#FF6B00"
-                label="Phone"
-                value={c.company_phone}
-                href={c.company_phone ? 'tel:' + String(c.company_phone).replace(/\s+/g, '') : null}
-              />
-              <ContactRow
-                icon={<IconWhatsApp />}
-                brandColor="#25D366"
-                label="WhatsApp"
-                value={c.company_whatsapp}
-                href={c.company_whatsapp ? 'https://wa.me/' + String(c.company_whatsapp).replace(/[^\d]/g, '') : null}
-              />
-              <ContactRow
-                icon={<IconEmail />}
-                brandColor="#0066CC"
-                label="Email"
-                value={c.company_email}
-                href={c.company_email ? 'mailto:' + c.company_email : null}
-              />
-              <ContactRow
-                icon={<IconWeb />}
-                brandColor="#00A86B"
-                label="Website"
-                value={c.company_website}
-                href={c.company_website ? 'https://' + String(c.company_website).replace(/^https?:\/\//, '') : null}
-              />
-            </div>
-
-            {/* Right card — WeChat: QR only, clickable to open modal */}
-            <div
-              className="sxl-wechat-card"
-              onClick={() => setShowWeChatModal(true)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setShowWeChatModal(true);
-                }
-              }}
-              style={{
+              {/* Left card — text contact info */}
+              <div style={{
                 background: 'white',
                 borderRadius: '12px',
                 padding: '30px 28px',
                 boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                borderTop: '4px solid #07C160',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                outline: 'none'
-              }}
-            >
-              <div style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '50%',
-                background: '#07C160',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '14px',
-                boxShadow: '0 8px 20px rgba(7,193,96,0.35)'
+                borderTop: '4px solid #FF6B00'
               }}>
-                <IconWeChat size={30} />
+                <h3 style={{ color: '#003366', fontSize: '1.15rem', fontWeight: 800, marginBottom: '22px' }}>
+                  📞 Reach Us Directly
+                </h3>
+
+                <ContactRow
+                  icon={<IconPhone />}
+                  brandColor="#FF6B00"
+                  label="Phone"
+                  value={c.company_phone}
+                  href={c.company_phone ? 'tel:' + String(c.company_phone).replace(/\s+/g, '') : null}
+                />
+                <ContactRow
+                  icon={<IconWhatsApp />}
+                  brandColor="#25D366"
+                  label="WhatsApp"
+                  value={c.company_whatsapp}
+                  href={c.company_whatsapp ? 'https://wa.me/' + String(c.company_whatsapp).replace(/[^\d]/g, '') : null}
+                />
+                <ContactRow
+                  icon={<IconEmail />}
+                  brandColor="#0066CC"
+                  label="Email"
+                  value={c.company_email}
+                  href={c.company_email ? 'mailto:' + c.company_email : null}
+                />
+                <ContactRow
+                  icon={<IconWeb />}
+                  brandColor="#00A86B"
+                  label="Website"
+                  value={c.company_website}
+                  href={c.company_website ? 'https://' + String(c.company_website).replace(/^https?:\/\//, '') : null}
+                />
               </div>
 
-              <h3 style={{ color: '#003366', fontSize: '1.15rem', fontWeight: 800, margin: '0 0 6px' }}>
-                WeChat
-              </h3>
-              <p style={{ color: '#6C757D', fontSize: '0.85rem', margin: '0 0 16px' }}>
-                Scan the QR code to add us
-              </p>
-
-              {c.company_wechat_qr_url ? (
-                <div style={{
-                  display: 'inline-block',
-                  padding: '10px',
+              {/* Right card — WeChat */}
+              <div
+                className="sxl-wechat-card"
+                onClick={() => setShowWeChatModal(true)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setShowWeChatModal(true);
+                  }
+                }}
+                style={{
                   background: 'white',
-                  borderRadius: '10px',
-                  border: '2px solid #E9ECEF',
-                  marginBottom: '4px'
-                }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={c.company_wechat_qr_url}
-                    alt="WeChat QR Code"
-                    style={{ width: '180px', height: '180px', display: 'block' }}
-                  />
-                </div>
-              ) : (
+                  borderRadius: '12px',
+                  padding: '30px 28px',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                  borderTop: '4px solid #07C160',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  outline: 'none'
+                }}
+              >
                 <div style={{
-                  fontSize: '4rem',
-                  margin: '20px 0',
-                  opacity: 0.35
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  background: '#07C160',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '14px',
+                  boxShadow: '0 8px 20px rgba(7,193,96,0.35)'
                 }}>
-                  🟢
+                  <IconWeChat size={30} />
                 </div>
-              )}
 
-              <div style={{
-                fontSize: '0.75rem',
-                color: '#07C160',
-                fontWeight: 700,
-                marginTop: '10px',
-                letterSpacing: '0.5px'
-              }}>
-                Click to enlarge →
+                <h3 style={{ color: '#003366', fontSize: '1.15rem', fontWeight: 800, margin: '0 0 6px' }}>
+                  WeChat
+                </h3>
+                <p style={{ color: '#6C757D', fontSize: '0.85rem', margin: '0 0 16px' }}>
+                  Scan the QR code to add us
+                </p>
+
+                {c.company_wechat_qr_url ? (
+                  <div style={{
+                    display: 'inline-block',
+                    padding: '10px',
+                    background: 'white',
+                    borderRadius: '10px',
+                    border: '2px solid #E9ECEF',
+                    marginBottom: '4px'
+                  }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={c.company_wechat_qr_url}
+                      alt="WeChat QR Code"
+                      style={{ width: '180px', height: '180px', display: 'block' }}
+                    />
+                  </div>
+                ) : (
+                  <div style={{
+                    fontSize: '4rem',
+                    margin: '20px 0',
+                    opacity: 0.35
+                  }}>
+                    🟢
+                  </div>
+                )}
+
+                <div style={{
+                  fontSize: '0.75rem',
+                  color: '#07C160',
+                  fontWeight: 700,
+                  marginTop: '10px',
+                  letterSpacing: '0.5px'
+                }}>
+                  Click to enlarge →
+                </div>
               </div>
             </div>
           </div>
@@ -656,15 +727,24 @@ export default function Home() {
           onClick={() => setShowWeChatModal(false)}
           style={{
             position: 'fixed',
-            inset: 0,
+            top: 0, left: 0, width: '100vw', height: '100vh',
             background: 'rgba(0,0,0,0.7)',
             zIndex: 100000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px'
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
           }}
         >
+          <div
+            style={{
+              minHeight: '100%',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '40px 20px',
+              boxSizing: 'border-box',
+            }}
+          >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -675,7 +755,8 @@ export default function Home() {
               width: '100%',
               textAlign: 'center',
               boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-              position: 'relative'
+              position: 'relative',
+              boxSizing: 'border-box',
             }}
           >
             <button
@@ -692,7 +773,7 @@ export default function Home() {
                 cursor: 'pointer',
                 color: '#6C757D',
                 lineHeight: 1,
-                padding: '4px 8px'
+                padding: '4px 8px',
               }}
             >
               ✕
@@ -707,7 +788,7 @@ export default function Home() {
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 16px',
-              boxShadow: '0 8px 20px rgba(7,193,96,0.35)'
+              boxShadow: '0 8px 20px rgba(7,193,96,0.35)',
             }}>
               <IconWeChat size={32} />
             </div>
@@ -726,7 +807,7 @@ export default function Home() {
                 background: 'white',
                 borderRadius: '12px',
                 border: '2px solid #E9ECEF',
-                marginBottom: '18px'
+                marginBottom: '18px',
               }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -759,7 +840,7 @@ export default function Home() {
                   fontSize: '1rem',
                   textDecoration: 'none',
                   boxShadow: '0 6px 16px rgba(7,193,96,0.35)',
-                  marginBottom: '10px'
+                  marginBottom: '10px',
                 }}
               >
                 📱 Open in WeChat App
@@ -769,6 +850,7 @@ export default function Home() {
             <p style={{ color: '#ADB5BD', fontSize: '0.72rem', margin: 0, fontStyle: 'italic' }}>
               &quot;Open in WeChat App&quot; works on mobile devices with WeChat installed.
             </p>
+          </div>
           </div>
         </div>
       )}
