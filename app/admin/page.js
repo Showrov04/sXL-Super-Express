@@ -611,7 +611,7 @@ function SettingsPanel() {
 
 /* ============================================================
    SHIPMENTS PANEL
-   Task 18 — Only "Active" and "Cancelled" tabs remain.
+   Only "Active" and "Cancelled" tabs.
    ============================================================ */
 function ShipmentsPanel() {
   const [tab, setTab] = useState('active');
@@ -1278,7 +1278,7 @@ function ShipmentsPanel() {
         </div>
       </div>
 
-      {/* Task 18 — Only Active Shipment and Cancelled tabs remain */}
+      {/* Only Active Shipment and Cancelled tabs */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <TabButton active={tab === 'active'} onClick={() => setTab('active')} label="🔵 Active Shipment" count={counts.active} badgeBg="#CCE5FF" badgeColor="#004085" />
         <TabButton active={tab === 'cancelled'} onClick={() => setTab('cancelled')} label="⚫ Cancelled" count={counts.cancelled || 0} badgeBg="#E9ECEF" badgeColor="#495057" />
@@ -1478,14 +1478,14 @@ function ShipmentsPanel() {
       {statusModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          padding: '20px', overflowY: 'auto'
+          overflowY: 'auto',
+          padding: '20px 20px 60px'
         }}>
           <div style={{
             background: 'white', maxWidth: '640px', width: '100%',
+            margin: '0 auto',
             borderRadius: '16px', padding: '30px',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            marginTop: '40px', marginBottom: '40px'
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
               <div>
@@ -1917,14 +1917,14 @@ function ShipmentsPanel() {
       {whModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          padding: '20px', overflowY: 'auto'
+          overflowY: 'auto',
+          padding: '20px 20px 60px'
         }}>
           <div style={{
             background: 'white', maxWidth: '640px', width: '100%',
+            margin: '0 auto',
             borderRadius: '16px', padding: '30px',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            marginTop: '40px', marginBottom: '40px'
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
               <div>
@@ -1977,8 +1977,17 @@ function ShipmentsPanel() {
       )}
 
       {filesModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '20px', overflowY: 'auto' }}>
-          <div style={{ background: 'white', maxWidth: '600px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', marginTop: '40px', marginBottom: '40px' }}>
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          overflowY: 'auto',
+          padding: '20px 20px 60px'
+        }}>
+          <div style={{
+            background: 'white', maxWidth: '600px', width: '100%',
+            margin: '0 auto',
+            borderRadius: '16px', padding: '30px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>📎 Uploaded Documents</h2>
@@ -2739,14 +2748,14 @@ function ShippersPanel() {
       {editShipperModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          padding: '20px', overflowY: 'auto'
+          overflowY: 'auto',
+          padding: '20px 20px 60px'
         }}>
           <div style={{
             background: 'white', maxWidth: '720px', width: '100%',
+            margin: '0 auto',
             borderRadius: '16px', padding: '30px',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            marginTop: '40px', marginBottom: '40px'
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
               <div>
@@ -2863,16 +2872,16 @@ function ShippersPanel() {
       {deleteMonthModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999,
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          padding: '20px', overflowY: 'auto'
+          overflowY: 'auto',
+          padding: '20px 20px 60px'
         }}>
           <div
             id="sxl-delete-month-modal"
             style={{
               background: 'white', maxWidth: '720px', width: '100%',
+              margin: '0 auto',
               borderRadius: '16px', padding: '30px',
               boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-              marginTop: '40px', marginBottom: '40px',
               borderTop: '6px solid #DC3545'
             }}
           >
