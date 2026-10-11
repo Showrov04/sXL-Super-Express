@@ -160,20 +160,23 @@ textarea:disabled {
    TASK 16a — PAGE FADE-IN TRANSITION
    Plays whenever the route changes (via key in PageTransition).
    ============================================================ */
-@keyframes sxlPageFade {
+ @keyframes sxlPageFade {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
 .sxl-page-fade {
   animation: sxlPageFade 0.24s cubic-bezier(0.4, 0, 0.2, 1) both;
-  will-change: opacity, transform;
+  /* NOTE: no `will-change: transform` and no `transform` in keyframes —
+     any transform on this wrapper would create a containing block for
+     position:fixed modals rendered inside (Cost / Invoice / Delete Month
+     / Update Status / Warehouse modals). Opacity-only animation avoids
+     that entirely while still giving the page a soft fade-in. */
+  will-change: opacity;
 }
 
 /* ============================================================
