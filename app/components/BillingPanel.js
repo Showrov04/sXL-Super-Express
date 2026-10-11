@@ -22,7 +22,6 @@ function statusClass(s) {
   return { bg: '#FFF3CD', color: '#856404' };
 }
 
-// G.39b — Mode cell renderer
 function renderModeCell(s) {
   const mode = String(s.shipMode || '').toUpperCase();
   const isSpecialParcel = s.isSpecialParcel === true;
@@ -74,7 +73,6 @@ const TD_STYLE = {
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
 
-// S.4 — Top scrollbar styling (mirrors bottom horizontal scroll of the table)
 const TOP_SCROLLBAR_STYLE = {
   overflowX: 'auto',
   overflowY: 'hidden',
@@ -120,7 +118,6 @@ export default function BillingPanel() {
   const [filterSearch, setFilterSearch] = useState('');
   const filterDropdownRef = useRef(null);
 
-  // S.4 — dual horizontal scrollbar refs
   const topScrollRef = useRef(null);
   const tableScrollRef = useRef(null);
   const isSyncingRef = useRef(false);
@@ -195,7 +192,6 @@ export default function BillingPanel() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // S.4 — sync top <-> table scrollbars
   useEffect(() => {
     const topEl = topScrollRef.current;
     const tableEl = tableScrollRef.current;
@@ -773,8 +769,6 @@ export default function BillingPanel() {
   const isAllTab = tab === 'all';
   const isDueTab = tab === 'due';
 
-  // S.4 — ghost div width must match the current table's minWidth
-  // Due tab = 2600px, other tabs = 1700px
   const tableMinWidth = isDueTab ? 2600 : 1700;
 
   return (
@@ -853,13 +847,11 @@ export default function BillingPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
-          {/* S.4 — Top horizontal scrollbar (mirrors the table's own scrollbar) */}
           <div
             ref={topScrollRef}
             style={TOP_SCROLLBAR_STYLE}
             aria-hidden="true"
           >
-            {/* Ghost div — matches current tab's table minWidth so top scrollbar has correct width */}
             <div style={{ width: tableMinWidth + 'px', height: '1px' }} />
           </div>
 
@@ -1157,237 +1149,289 @@ export default function BillingPanel() {
         </>
       )}
 
-        {costModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
-          overflowY: 'auto',
-          padding: '20px 20px 60px'
-        }}>
-          <div style={{
-            background: 'white', maxWidth: '900px', width: '100%',
-            margin: '0 auto',
-            borderRadius: '16px', padding: '30px',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-              <div>
-                <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>
-                  {costSaved ? '✏️ Update Shipment Cost' : '💰 Add Shipment Cost'}
-                </h2>
-                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
-                  {costModal.shipment.trackingNumber} · {costModal.shipment.shipperName}
-                </div>
-                <div style={{ color: '#003366', fontSize: '0.85rem', marginTop: '2px', fontWeight: 700 }}>
-                  Route: {costModal.shipment.origin || '—'} → {costModal.shipment.destination || '—'} · Mode: {costModal.shipment.shipmentType || costModal.shipment.shipMode || '—'}
-                </div>
-              </div>
-              <button onClick={closeCostModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
-            </div>
-
-            {costMsg && (
-              <div style={{
-                background: costMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA',
-                color: costMsg.startsWith('✅') ? '#155724' : '#721C24',
-                borderLeft: '4px solid ' + (costMsg.startsWith('✅') ? '#28A745' : '#DC3545'),
-                borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem'
-              }}>
-                {costMsg}
-              </div>
-            )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Tracking Number *</label>
-                <input type="text" value={costTn} readOnly
-                  style={{ width: '100%', padding: '10px', border: '2px solid #F1F3F5', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', background: '#F8F9FA', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Actual Weight (kg)</label>
-                <input type="number" step="0.01" value={costActualWeight} onChange={(e) => setCostActualWeight(e.target.value)} placeholder="e.g., 5.5"
-                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-              </div>
-
-              {selectedIsSea && (
+      {costModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0,0,0,0.6)',
+            zIndex: 9999,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          <div
+            style={{
+              minHeight: '100%',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'center',
+              padding: '40px 20px 120px',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div
+              style={{
+                background: 'white',
+                maxWidth: '900px',
+                width: '100%',
+                borderRadius: '16px',
+                padding: '30px',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                boxSizing: 'border-box'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Actual Volume (CBM)</label>
-                  <input type="number" step="0.01" value={costActualCbm} onChange={(e) => setCostActualCbm(e.target.value)} placeholder="e.g., 1.2"
+                  <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>
+                    {costSaved ? '✏️ Update Shipment Cost' : '💰 Add Shipment Cost'}
+                  </h2>
+                  <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
+                    {costModal.shipment.trackingNumber} · {costModal.shipment.shipperName}
+                  </div>
+                  <div style={{ color: '#003366', fontSize: '0.85rem', marginTop: '2px', fontWeight: 700 }}>
+                    Route: {costModal.shipment.origin || '—'} → {costModal.shipment.destination || '—'} · Mode: {costModal.shipment.shipmentType || costModal.shipment.shipMode || '—'}
+                  </div>
+                </div>
+                <button onClick={closeCostModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+              </div>
+
+              {costMsg && (
+                <div style={{
+                  background: costMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA',
+                  color: costMsg.startsWith('✅') ? '#155724' : '#721C24',
+                  borderLeft: '4px solid ' + (costMsg.startsWith('✅') ? '#28A745' : '#DC3545'),
+                  borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem'
+                }}>
+                  {costMsg}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Tracking Number *</label>
+                  <input type="text" value={costTn} readOnly
+                    style={{ width: '100%', padding: '10px', border: '2px solid #F1F3F5', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', background: '#F8F9FA', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Actual Weight (kg)</label>
+                  <input type="number" step="0.01" value={costActualWeight} onChange={(e) => setCostActualWeight(e.target.value)} placeholder="e.g., 5.5"
                     style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
+
+                {selectedIsSea && (
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Actual Volume (CBM)</label>
+                    <input type="number" step="0.01" value={costActualCbm} onChange={(e) => setCostActualCbm(e.target.value)} placeholder="e.g., 1.2"
+                      style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  </div>
+                )}
+
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                    Freight Rate {selectedIsSea ? '(per CBM)' : '(per kg)'}
+                  </label>
+                  <input type="number" step="0.01" value={costRate} onChange={(e) => setCostRate(e.target.value)} placeholder={selectedIsSea ? 'e.g., 120.00' : 'e.g., 12.50'}
+                    style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Currency</label>
+                  <select value={costCurrency} onChange={(e) => setCostCurrency(e.target.value)}
+                    style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                    <option>USD</option>
+                    <option>HKD</option>
+                    <option>CNY</option>
+                    <option>BDT</option>
+                  </select>
+                </div>
+              </div>
+
+              {selectedShipment && !selectedShipment.isSpecialParcel && (
+                <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
+                  <h4 style={{ fontSize: '0.95rem', color: '#003366', marginBottom: '12px' }}>🛠️ Service Charges</h4>
+
+                  <div style={{ display: 'grid', gap: '12px' }}>
+                    {selectedShipment.pickupService && (
+                      <div>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                          🚚 Pickup Charge — <span style={{ color: '#155724' }}>Pickup by sXL</span>
+                        </label>
+                        <input type="number" step="0.01" value={pickupCharge} onChange={(e) => setPickupCharge(e.target.value)} placeholder="Amount"
+                          style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      </div>
+                    )}
+
+                    {selectedShipment.customService === 'sxl' && (
+                      <div>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                          🛃 Customs Clearance Charge — <span style={{ color: '#155724' }}>Handled by sXL</span>
+                        </label>
+                        <input type="number" step="0.01" value={customsCharge} onChange={(e) => setCustomsCharge(e.target.value)} placeholder="Amount"
+                          style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      </div>
+                    )}
+
+                    {selectedShipment.deliveryService === 'sxl' && (
+                      <div>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                          📦 Delivery Charge — <span style={{ color: '#155724' }}>Handled by sXL</span>
+                        </label>
+                        <input type="number" step="0.01" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} placeholder="Amount"
+                          style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      </div>
+                    )}
+
+                    {!selectedShipment.pickupService && selectedShipment.customService !== 'sxl' && selectedShipment.deliveryService !== 'sxl' && (
+                      <div style={{ fontSize: '0.85rem', color: '#6C757D', fontStyle: 'italic' }}>
+                        No extra services selected by customer (self-delivery + consignee handles customs & delivery).
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
 
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                  Freight Rate {selectedIsSea ? '(per CBM)' : '(per kg)'}
-                </label>
-                <input type="number" step="0.01" value={costRate} onChange={(e) => setCostRate(e.target.value)} placeholder={selectedIsSea ? 'e.g., 120.00' : 'e.g., 12.50'}
-                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Currency</label>
-                <select value={costCurrency} onChange={(e) => setCostCurrency(e.target.value)}
-                  style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }}>
-                  <option>USD</option>
-                  <option>HKD</option>
-                  <option>CNY</option>
-                  <option>BDT</option>
-                </select>
-              </div>
-            </div>
+              {selectedShipment && selectedShipment.isSpecialParcel && (
+                <div style={{ marginTop: '20px', padding: '12px 16px', background: '#FFF5EB', borderRadius: '8px', borderLeft: '4px solid #FF6B00', fontSize: '0.85rem', color: '#8B4500' }}>
+                  ℹ️ Special Parcel shipments — no service charges apply.
+                </div>
+              )}
 
-            {selectedShipment && !selectedShipment.isSpecialParcel && (
               <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
-                <h4 style={{ fontSize: '0.95rem', color: '#003366', marginBottom: '12px' }}>🛠️ Service Charges</h4>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Additional Cost Lines</label>
+                {costLines.map((l, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center' }}>
+                    <input type="text" value={l.label} onChange={(e) => updateCostLine(idx, 'label', e.target.value)} placeholder="Description"
+                      style={{ flex: 2, padding: '8px', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.85rem', fontFamily: 'inherit' }} />
+                    <input type="number" step="0.01" value={l.amount} onChange={(e) => updateCostLine(idx, 'amount', e.target.value)} placeholder="Amount"
+                      style={{ flex: 1, padding: '8px', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.85rem', fontFamily: 'inherit' }} />
+                    <button type="button" onClick={() => removeCostLine(idx)} style={{ padding: '8px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>✕</button>
+                  </div>
+                ))}
+                <button type="button" onClick={addCostLine} style={{ marginTop: '8px', padding: '8px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>+ Add Cost Line</button>
+              </div>
 
-                <div style={{ display: 'grid', gap: '12px' }}>
-                  {selectedShipment.pickupService && (
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                        🚚 Pickup Charge — <span style={{ color: '#155724' }}>Pickup by sXL</span>
-                      </label>
-                      <input type="number" step="0.01" value={pickupCharge} onChange={(e) => setPickupCharge(e.target.value)} placeholder="Amount"
-                        style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                    </div>
-                  )}
-
-                  {selectedShipment.customService === 'sxl' && (
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                        🛃 Customs Clearance Charge — <span style={{ color: '#155724' }}>Handled by sXL</span>
-                      </label>
-                      <input type="number" step="0.01" value={customsCharge} onChange={(e) => setCustomsCharge(e.target.value)} placeholder="Amount"
-                        style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                    </div>
-                  )}
-
-                  {selectedShipment.deliveryService === 'sxl' && (
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                        📦 Delivery Charge — <span style={{ color: '#155724' }}>Handled by sXL</span>
-                      </label>
-                      <input type="number" step="0.01" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} placeholder="Amount"
-                        style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                    </div>
-                  )}
-
-                  {!selectedShipment.pickupService && selectedShipment.customService !== 'sxl' && selectedShipment.deliveryService !== 'sxl' && (
-                    <div style={{ fontSize: '0.85rem', color: '#6C757D', fontStyle: 'italic' }}>
-                      No extra services selected by customer (self-delivery + consignee handles customs & delivery).
-                    </div>
-                  )}
+              <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Local Currency (optional)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '6px' }}>
+                  <input type="text" value={costLocalCurrency} onChange={(e) => setCostLocalCurrency(e.target.value)} placeholder="e.g., BDT"
+                    style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  <input type="number" step="0.0001" value={costExchangeRate} onChange={(e) => setCostExchangeRate(e.target.value)} placeholder="Exchange rate (1 USD = ?)"
+                    style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#6C757D', marginTop: '4px', fontStyle: 'italic' }}>
+                  Enter the exchange rate to also compute the local-currency total.
                 </div>
               </div>
-            )}
 
-            {selectedShipment && selectedShipment.isSpecialParcel && (
-              <div style={{ marginTop: '20px', padding: '12px 16px', background: '#FFF5EB', borderRadius: '8px', borderLeft: '4px solid #FF6B00', fontSize: '0.85rem', color: '#8B4500' }}>
-                ℹ️ Special Parcel shipments — no service charges apply.
-              </div>
-            )}
-
-            <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Additional Cost Lines</label>
-              {costLines.map((l, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center' }}>
-                  <input type="text" value={l.label} onChange={(e) => updateCostLine(idx, 'label', e.target.value)} placeholder="Description"
-                    style={{ flex: 2, padding: '8px', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.85rem', fontFamily: 'inherit' }} />
-                  <input type="number" step="0.01" value={l.amount} onChange={(e) => updateCostLine(idx, 'amount', e.target.value)} placeholder="Amount"
-                    style={{ flex: 1, padding: '8px', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.85rem', fontFamily: 'inherit' }} />
-                  <button type="button" onClick={() => removeCostLine(idx)} style={{ padding: '8px 12px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>✕</button>
+              <div style={{ background: '#FFF5EB', padding: '18px', borderRadius: '10px', borderLeft: '4px solid #FF6B00', marginTop: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                  <span style={{ fontWeight: 700, color: '#003366' }}>TOTAL COST:</span>
+                  <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FF6B00' }}>{costCurrency} {calculatedTotal}</span>
                 </div>
-              ))}
-              <button type="button" onClick={addCostLine} style={{ marginTop: '8px', padding: '8px 14px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>+ Add Cost Line</button>
-            </div>
-
-            <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Local Currency (optional)</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '6px' }}>
-                <input type="text" value={costLocalCurrency} onChange={(e) => setCostLocalCurrency(e.target.value)} placeholder="e.g., BDT"
-                  style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                <input type="number" step="0.0001" value={costExchangeRate} onChange={(e) => setCostExchangeRate(e.target.value)} placeholder="Exchange rate (1 USD = ?)"
-                  style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                {localTotal && costLocalCurrency && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #FF6B00' }}>
+                    <span style={{ fontWeight: 700, color: '#003366' }}>LOCAL TOTAL:</span>
+                    <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#003366' }}>{costLocalCurrency} {localTotal}</span>
+                  </div>
+                )}
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#6C757D', marginTop: '4px', fontStyle: 'italic' }}>
-                Enter the exchange rate to also compute the local-currency total.
-              </div>
-            </div>
 
-            <div style={{ background: '#FFF5EB', padding: '18px', borderRadius: '10px', borderLeft: '4px solid #FF6B00', marginTop: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                <span style={{ fontWeight: 700, color: '#003366' }}>TOTAL COST:</span>
-                <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FF6B00' }}>{costCurrency} {calculatedTotal}</span>
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+                <button type="button" onClick={closeCostModal} disabled={costLoading}
+                  style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Cancel
+                </button>
+                <button type="button" onClick={handleSaveCost} disabled={costLoading}
+                  style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: costLoading ? 'not-allowed' : 'pointer', opacity: costLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
+                  {costLoading ? 'Saving...' : '💾 Save Cost'}
+                </button>
               </div>
-              {localTotal && costLocalCurrency && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #FF6B00' }}>
-                  <span style={{ fontWeight: 700, color: '#003366' }}>LOCAL TOTAL:</span>
-                  <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#003366' }}>{costLocalCurrency} {localTotal}</span>
-                </div>
-              )}
-            </div>
-
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
-              <button type="button" onClick={closeCostModal} disabled={costLoading}
-                style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Cancel
-              </button>
-              <button type="button" onClick={handleSaveCost} disabled={costLoading}
-                style={{ padding: '12px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: costLoading ? 'not-allowed' : 'pointer', opacity: costLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
-                {costLoading ? 'Saving...' : '💾 Save Cost'}
-              </button>
             </div>
           </div>
         </div>
       )}
 
-        {editInvModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
-          overflowY: 'auto',
-          padding: '20px 20px 60px'
-        }}>
-          <div style={{
-            background: 'white', maxWidth: '520px', width: '100%',
-            margin: '0 auto',
-            borderRadius: '16px', padding: '30px',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-              <div>
-                <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>✏️ Edit Invoice</h2>
-                <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
-                  {editInvModal.shipment.latestInvoice.invoiceNumber} · {editInvModal.shipment.trackingNumber}
+      {editInvModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0,0,0,0.6)',
+            zIndex: 9999,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          <div
+            style={{
+              minHeight: '100%',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'center',
+              padding: '40px 20px 120px',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div
+              style={{
+                background: 'white',
+                maxWidth: '520px',
+                width: '100%',
+                borderRadius: '16px',
+                padding: '30px',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                boxSizing: 'border-box'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                <div>
+                  <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>✏️ Edit Invoice</h2>
+                  <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
+                    {editInvModal.shipment.latestInvoice.invoiceNumber} · {editInvModal.shipment.trackingNumber}
+                  </div>
+                </div>
+                <button onClick={closeEditInvModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+              </div>
+
+              {editInvError && (
+                <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem' }}>
+                  {editInvError}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>Issue Date</label>
+                  <input type="date" value={editInvIssueDate} onChange={(e) => setEditInvIssueDate(e.target.value)}
+                    style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>Due Date</label>
+                  <input type="date" value={editInvDueDate} onChange={(e) => setEditInvDueDate(e.target.value)}
+                    style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
               </div>
-              <button onClick={closeEditInvModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
-            </div>
 
-            {editInvError && (
-              <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem' }}>
-                {editInvError}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px', flexWrap: 'wrap' }}>
+                <button onClick={closeEditInvModal} disabled={editInvSaving}
+                  style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Cancel
+                </button>
+                <button onClick={handleSaveEditInv} disabled={editInvSaving}
+                  style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: editInvSaving ? 'not-allowed' : 'pointer', opacity: editInvSaving ? 0.6 : 1, fontFamily: 'inherit' }}>
+                  {editInvSaving ? 'Saving...' : '💾 Save Changes'}
+                </button>
               </div>
-            )}
-
-            <div style={{ display: 'grid', gap: '14px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>Issue Date</label>
-                <input type="date" value={editInvIssueDate} onChange={(e) => setEditInvIssueDate(e.target.value)}
-                  style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>Due Date</label>
-                <input type="date" value={editInvDueDate} onChange={(e) => setEditInvDueDate(e.target.value)}
-                  style={{ width: '100%', padding: '12px 15px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px', flexWrap: 'wrap' }}>
-              <button onClick={closeEditInvModal} disabled={editInvSaving}
-                style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Cancel
-              </button>
-              <button onClick={handleSaveEditInv} disabled={editInvSaving}
-                style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: editInvSaving ? 'not-allowed' : 'pointer', opacity: editInvSaving ? 0.6 : 1, fontFamily: 'inherit' }}>
-                {editInvSaving ? 'Saving...' : '💾 Save Changes'}
-              </button>
             </div>
           </div>
         </div>
