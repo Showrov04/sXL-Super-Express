@@ -190,6 +190,7 @@ function TopTab({ active, onClick, label, badgeCount }) {
 
 /* ============================================================
    SETTINGS PANEL
+   Task 26d — Added Office Address field (multi-line textarea)
    ============================================================ */
 function SettingsPanel() {
   const [loading, setLoading] = useState(true);
@@ -205,6 +206,7 @@ function SettingsPanel() {
     company_wechat: '',
     company_whatsapp: '',
     company_wechat_qr_url: '',
+    company_address: '',
   });
   const [savingCompany, setSavingCompany] = useState(false);
 
@@ -244,6 +246,7 @@ function SettingsPanel() {
         company_wechat: data.settings?.company_wechat || '',
         company_whatsapp: data.settings?.company_whatsapp || '',
         company_wechat_qr_url: data.settings?.company_wechat_qr_url || '',
+        company_address: data.settings?.company_address || '',
       });
       setLoading(false);
     } catch (err) {
@@ -304,6 +307,7 @@ function SettingsPanel() {
           company_wechat: company.company_wechat,
           company_whatsapp: company.company_whatsapp,
           company_wechat_qr_url: qr,
+          company_address: company.company_address,
         }),
       });
       const data = await res.json();
@@ -321,6 +325,7 @@ function SettingsPanel() {
         company_wechat: data.settings?.company_wechat || '',
         company_whatsapp: data.settings?.company_whatsapp || '',
         company_wechat_qr_url: data.settings?.company_wechat_qr_url || '',
+        company_address: data.settings?.company_address || '',
       });
       setSavingCompany(false);
       setToast('✅ Company contact info saved');
@@ -475,7 +480,7 @@ function SettingsPanel() {
                 📞 Company Contact Information
               </div>
               <div style={{ color: '#6C757D', fontSize: '0.85rem', lineHeight: 1.6 }}>
-                These appear in the footer of every generated <b>Booking PDF</b> and <b>Invoice PDF</b>.
+                These appear in the footer of every generated <b>Booking PDF</b> and <b>Invoice PDF</b>, the website footer, and the home Contact section.
                 Leave a field blank to hide that row.
               </div>
             </div>
@@ -549,6 +554,26 @@ function SettingsPanel() {
               <div style={{ fontSize: '0.78rem', color: '#6C757D', marginTop: '6px', lineHeight: 1.5 }}>
                 Paste a public image URL (PNG or JPG). The Booking PDF footer will show the QR code on the right side.
                 If left blank, the footer falls back to displaying the WeChat ID as plain text.
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '18px' }}>
+              <label style={labelStyle}>🏢 Office Address</label>
+              <textarea
+                value={company.company_address}
+                onChange={(e) => setCompanyField('company_address', e.target.value)}
+                placeholder={'Unit 704B, 7th Floor\nWell Fung Industrial Centre 和豐工業中心\n葵涌 打磚坪街68號\n68 Ta Chuen Ping Street, Kwai Chung\nHong Kong'}
+                style={{
+                  ...inputStyle,
+                  minHeight: '130px',
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                  lineHeight: 1.6,
+                }}
+              />
+              <div style={{ fontSize: '0.78rem', color: '#6C757D', marginTop: '6px', lineHeight: 1.5 }}>
+                Multi-line supported. Shown in the website footer, home Contact section, and the header strip of every Booking + Invoice PDF.
+                English + Chinese characters are both supported in the PDFs (Noto Sans SC font).
               </div>
             </div>
 
@@ -1338,9 +1363,6 @@ function ShipmentsPanel() {
                     const wasUpdated = String(s.status || '').toLowerCase() !== 'booked';
                     const isActiveTab = tab === 'active';
 
-                    // Show the Send Warehouse button whenever this is NOT
-                    // a pickup-by-sXL shipment. Uses loose check (!== true)
-                    // so legacy null values also count as self-delivery.
                     const showWarehouseBtn = isActiveTab && s.pickupService !== true;
 
                     return (
