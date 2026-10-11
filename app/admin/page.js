@@ -1329,7 +1329,7 @@ function ShipmentsPanel() {
                   {filtered.map((s, i) => {
                     const sc = statusClass(s.status);
                     const pc = paymentClass(s.paymentStatus);
-                    const isSelfDelivery = s.pickupService === false;
+                    const isSelfDelivery = s.pickupService !== true;
                     const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
                     const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
                     const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
