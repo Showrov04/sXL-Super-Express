@@ -96,7 +96,7 @@ export async function POST(request) {
     if (!shipment) return NextResponse.json({ success: false, error: 'Shipment not found.' });
 
     // Must be a "No pickup" shipment
-    if (shipment.pickup_service !== false) {
+    if (shipment.pickup_service === true) {
       return NextResponse.json({
         success: false,
         error: 'This shipment has pickup service. Warehouse email is only for self-delivery shipments.',
