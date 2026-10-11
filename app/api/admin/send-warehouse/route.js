@@ -95,6 +95,7 @@ export async function POST(request) {
     if (fetchErr) return NextResponse.json({ success: false, error: fetchErr.message });
     if (!shipment) return NextResponse.json({ success: false, error: 'Shipment not found.' });
 
+    
     // Must be a "No pickup" shipment
     if (shipment.pickup_service === true) {
       return NextResponse.json({
