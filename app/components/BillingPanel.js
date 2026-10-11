@@ -1157,17 +1157,17 @@ export default function BillingPanel() {
         </>
       )}
 
-      {costModal && (
+        {costModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          padding: '20px', overflowY: 'auto'
+          overflowY: 'auto',
+          padding: '20px 20px 60px'
         }}>
           <div style={{
             background: 'white', maxWidth: '900px', width: '100%',
+            margin: '0 auto',
             borderRadius: '16px', padding: '30px',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            marginTop: '30px', marginBottom: '40px'
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
               <div>
@@ -1338,17 +1338,17 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {editInvModal && (
+        {editInvModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999,
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-          padding: '20px', overflowY: 'auto'
+          overflowY: 'auto',
+          padding: '20px 20px 60px'
         }}>
           <div style={{
             background: 'white', maxWidth: '520px', width: '100%',
+            margin: '0 auto',
             borderRadius: '16px', padding: '30px',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            marginTop: '60px', marginBottom: '40px'
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
               <div>
