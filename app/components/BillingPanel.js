@@ -263,7 +263,7 @@ export default function BillingPanel() {
     const token = localStorage.getItem('sxl_token');
     if (!token) { setMonthlyLoading(false); return; }
     try {
-      const res = await fetch('/api/admin/invoices?type=monthly', {
+      const res = await fetch('/api/admin/invoices?type=monthly-summary', {
         headers: { Authorization: 'Bearer ' + token },
       });
       const data = await res.json();
@@ -477,7 +477,11 @@ export default function BillingPanel() {
         setCostLoading(false);
         return;
       }
-      setCostMsg('✅ Cost saved: ' + data.currency + ' ' + Number(data.total).toFixed(2));
+      let successMsg = '✅ Cost saved: ' + data.currency + ' ' + Number(data.total).toFixed(2);
+      if (data.invoicesSynced > 0) {
+        successMsg += ' · Invoice also updated';
+      }
+      setCostMsg(successMsg);
       setCostSaved(true);
       setCostLoading(false);
       setToast('💰 Cost saved for ' + costTn.trim());
@@ -771,6 +775,9 @@ export default function BillingPanel() {
 
   const tableMinWidth = isDueTab ? 2600 : 1700;
 
+  // Cache-busting token — recomputed on every render so PDF links always open fresh
+  const vToken = Date.now();
+
   return (
     <div>
       {toast && (
@@ -977,7 +984,7 @@ export default function BillingPanel() {
                         {isDueTab && (
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                             <a
-                              href={'/api/pdf/booking/' + s.trackingNumber}
+                              href={'/api/pdf/booking/' + s.trackingNumber + '?_v=' + vToken}
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{
@@ -1029,7 +1036,7 @@ export default function BillingPanel() {
                                   ✅ Invoice Issued
                                 </button>
                                 <button onClick={() => openEditInvModal(s)} style={{ padding: '5px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✏️ Edit Invoice</button>
-                                <a href={'/api/pdf/invoice/' + s.latestInvoice.invoiceId} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block' }}>📄 Inv PDF</a>
+                                <a href={'/api/pdf/invoice/' + s.latestInvoice.invoiceId + '?_v=' + vToken} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block' }}>📄 Inv PDF</a>
                                 {!invSent ? (
                                   <button onClick={() => handleSendInvoice(s.trackingNumber)} style={{ padding: '5px 10px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>📤 Send Customer</button>
                                 ) : (
@@ -1137,7 +1144,7 @@ export default function BillingPanel() {
                         <td style={TD_STYLE}>{formatDate(inv.issueDate)}</td>
                         <td style={TD_STYLE}>{formatDate(inv.dueDate)}</td>
                         <td style={TD_STYLE}>
-                          <a href={'/api/pdf/invoice/' + inv.invoiceID} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>📄 PDF</a>
+                          <a href={'/api/pdf/invoice/' + inv.invoiceID + '?_v=' + vToken} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>📄 PDF</a>
                         </td>
                       </tr>
                     );
