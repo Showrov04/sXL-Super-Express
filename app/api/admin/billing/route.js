@@ -344,6 +344,62 @@ export async function POST(request) {
   }
 }
 
+/* ============================================================
+ *  TASK — Sync individual invoice amounts when cost is updated
+ *  When admin saves cost for a shipment, any INDIVIDUAL invoice
+ *  that references this tracking number has its `amount`
+ *  refreshed to match the live shipping_cost sum.
+ *  Monthly invoices are left alone (they're a roll-up).
+ * ============================================================ */
+async function syncIndividualInvoicesForTracking(trackingNumber) {
+  const { data: invoices, error } = await serviceSupabase
+    .from('invoices')
+    .select('invoice_id, type, tracking_numbers, amount, currency')
+    .eq('type', 'individual')
+    .ilike('tracking_numbers', '%' + trackingNumber + '%');
+
+  if (error || !invoices || invoices.length === 0) {
+    return { syncedCount: 0, newAmount: null };
+  }
+
+  let syncedCount = 0;
+  let lastNewAmount = null;
+
+  for (const inv of invoices) {
+    const tns = String(inv.tracking_numbers || '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    if (tns.length === 0) continue;
+
+    const { data: rows } = await serviceSupabase
+      .from('shipments')
+      .select('shipping_cost')
+      .in('tracking_number', tns);
+
+    let newAmount = 0;
+    (rows || []).forEach((r) => { newAmount += parseFloat(r.shipping_cost) || 0; });
+    newAmount = Math.round(newAmount * 100) / 100;
+
+    if (Math.abs(newAmount - (parseFloat(inv.amount) || 0)) < 0.005) {
+      continue; // no change worth saving
+    }
+
+    const { error: updErr } = await serviceSupabase
+      .from('invoices')
+      .update({ amount: newAmount })
+      .eq('invoice_id', inv.invoice_id);
+
+    if (!updErr) {
+      syncedCount++;
+      lastNewAmount = newAmount;
+    }
+  }
+
+  return { syncedCount, newAmount: lastNewAmount };
+}
+
 async function handleSaveCost(session, body) {
   const {
     trackingNumber,
@@ -433,6 +489,14 @@ async function handleSaveCost(session, body) {
     return NextResponse.json({ success: false, error: error.message });
   }
 
+  // TASK — sync individual invoice amount(s) that reference this tracking number
+  let invoiceSync = { syncedCount: 0, newAmount: null };
+  try {
+    invoiceSync = await syncIndividualInvoicesForTracking(trackingNumber);
+  } catch (e) {
+    console.error('[SaveCost] Invoice sync error:', e.message);
+  }
+
   return NextResponse.json({
     success: true,
     total,
@@ -440,6 +504,8 @@ async function handleSaveCost(session, body) {
     exchangeRate: fx,
     localCurrency: localCurrency || '',
     localAmount: breakdown.localAmount,
+    invoicesSynced: invoiceSync.syncedCount,
+    invoiceNewAmount: invoiceSync.newAmount,
   });
 }
 
