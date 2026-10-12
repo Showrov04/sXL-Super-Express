@@ -29,12 +29,6 @@ async function requireAdmin(request) {
   return { userId: session.user_id, role: session.role };
 }
 
-/* ============================================================
- *  G.7 — Due tab order (unchanged):
- *   0 = Unpaid + not delivered  (top)
- *   1 = Unpaid + delivered
- *   2 = Paid                    (bottom)
- * ============================================================ */
 function orderRank(s) {
   const status = String(s.status || '').toLowerCase();
   const pay = String(s.payment_status || '').toLowerCase();
@@ -45,10 +39,6 @@ function orderRank(s) {
   return 0;
 }
 
-/* ============================================================
- *  G.54 — Status-based sort for All Shipments tab
- *  (same rule as G.52 admin shipments API)
- * ============================================================ */
 const STATUS_RANK = {
   'booked': 1,
   'picked up': 2,
@@ -96,9 +86,26 @@ function sortAllShipments(list) {
   });
 }
 
-/**
- * GET — billing shipments (all | due | paid) + outstanding summary
- */
+/* ============================================================
+ *  TASK — normalise a raw invoice row into the summary shape
+ *  used inside the shipment list.
+ * ============================================================ */
+function normalizeInvoiceSummary(inv) {
+  if (!inv) return null;
+  return {
+    invoiceId: inv.invoice_id,
+    invoiceNumber: inv.invoice_number,
+    type: inv.type,
+    status: inv.status,
+    issueDate: inv.issue_date || null,
+    dueDate: inv.due_date || null,
+    issuedAt: inv.issue_date,
+    sentAt: inv.sent_at,
+    amount: parseFloat(inv.amount) || 0,
+    currency: inv.currency || 'USD',
+  };
+}
+
 export async function GET(request) {
   try {
     const session = await requireAdmin(request);
@@ -154,12 +161,6 @@ export async function GET(request) {
       });
     }
 
-    // ============================================================
-    //  G.54 — Sort
-    //  All Shipments tab → status → mode → booked_at DESC
-    //  Due tab           → G.7 orderRank (unchanged)
-    //  Paid tab          → booked_at DESC (unchanged)
-    // ============================================================
     if (filter === 'all') {
       filtered = sortAllShipments(filtered);
     } else if (filter === 'due') {
@@ -206,13 +207,21 @@ export async function GET(request) {
       const isSpecial = parcelType === 'Special Parcel';
 
       const tnsList = invoiceMap[s.tracking_number] || [];
-      const hasIndividual = tnsList.some((inv) => inv.type === 'individual');
-      const hasMonthly = tnsList.some((inv) => inv.type === 'monthly-summary');
-      const latestInvoice = tnsList.sort((a, b) => {
-        const da = new Date(a.issue_date || 0).getTime();
-        const db = new Date(b.issue_date || 0).getTime();
+
+      const byNewest = (a, b) => {
+        const da = new Date(a.issue_date || 0).getTime() || 0;
+        const db = new Date(b.issue_date || 0).getTime() || 0;
         return db - da;
-      })[0] || null;
+      };
+
+      const individualInvoices = tnsList.filter((inv) => inv.type === 'individual').sort(byNewest);
+      const monthlyInvoices = tnsList.filter((inv) => inv.type === 'monthly-summary').sort(byNewest);
+
+      const individualInvoice = normalizeInvoiceSummary(individualInvoices[0] || null);
+      const monthlyInvoice = normalizeInvoiceSummary(monthlyInvoices[0] || null);
+
+      // Backward-compat: latestInvoice prefers an individual invoice, falls back to monthly
+      const latestInvoice = individualInvoice || monthlyInvoice;
 
       return {
         trackingNumber: s.tracking_number,
@@ -251,20 +260,15 @@ export async function GET(request) {
         pickupCharge: parseFloat(s.pickup_charge) || 0,
         customsCharge: parseFloat(s.customs_charge) || 0,
         deliveryCharge: parseFloat(s.delivery_charge) || 0,
-        hasIndividualInvoice: hasIndividual,
-        hasMonthlyInvoice: hasMonthly,
-        latestInvoice: latestInvoice ? {
-          invoiceId: latestInvoice.invoice_id,
-          invoiceNumber: latestInvoice.invoice_number,
-          type: latestInvoice.type,
-          status: latestInvoice.status,
-          issueDate: latestInvoice.issue_date || null,
-          dueDate: latestInvoice.due_date || null,
-          issuedAt: latestInvoice.issue_date,
-          sentAt: latestInvoice.sent_at,
-          amount: parseFloat(latestInvoice.amount) || 0,
-          currency: latestInvoice.currency || 'USD',
-        } : null,
+
+        // Flag helpers
+        hasIndividualInvoice: !!individualInvoice,
+        hasMonthlyInvoice: !!monthlyInvoice,
+
+        // Full data (new)
+        individualInvoice,
+        monthlyInvoice,
+        latestInvoice,
         invoiceSentAt: s.invoice_sent_at || null,
       };
     });
@@ -306,9 +310,6 @@ export async function GET(request) {
   }
 }
 
-/**
- * POST — actions: saveCost | markPaid | markUnpaid | markInvoiceSent | updateInvoiceDates
- */
 export async function POST(request) {
   try {
     const session = await requireAdmin(request);
@@ -345,11 +346,8 @@ export async function POST(request) {
 }
 
 /* ============================================================
- *  TASK — Sync individual invoice amounts when cost is updated
- *  When admin saves cost for a shipment, any INDIVIDUAL invoice
- *  that references this tracking number has its `amount`
- *  refreshed to match the live shipping_cost sum.
- *  Monthly invoices are left alone (they're a roll-up).
+ *  Sync INDIVIDUAL invoice amounts when cost is updated.
+ *  Monthly invoices are skipped (they roll up many shipments).
  * ============================================================ */
 async function syncIndividualInvoicesForTracking(trackingNumber) {
   const { data: invoices, error } = await serviceSupabase
@@ -383,7 +381,7 @@ async function syncIndividualInvoicesForTracking(trackingNumber) {
     newAmount = Math.round(newAmount * 100) / 100;
 
     if (Math.abs(newAmount - (parseFloat(inv.amount) || 0)) < 0.005) {
-      continue; // no change worth saving
+      continue;
     }
 
     const { error: updErr } = await serviceSupabase
@@ -489,7 +487,6 @@ async function handleSaveCost(session, body) {
     return NextResponse.json({ success: false, error: error.message });
   }
 
-  // TASK — sync individual invoice amount(s) that reference this tracking number
   let invoiceSync = { syncedCount: 0, newAmount: null };
   try {
     invoiceSync = await syncIndividualInvoicesForTracking(trackingNumber);
