@@ -72,6 +72,7 @@ const TD_STYLE = {
 };
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
+const FROZEN_RIGHT_SHADOW = '-2px 0 5px -2px rgba(0,0,0,0.08)';
 
 const TOP_SCROLLBAR_STYLE = {
   overflowX: 'auto',
@@ -96,11 +97,53 @@ const FROZEN_LEFT_TRACKING_ALL = 0;
 const FROZEN_LEFT_MODE_ALL = COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE_ALL = COL_W_TRACKING + COL_W_MODE;
 
-const COL_W_ACTIONS_DUE = 460;
-const COL_W_ACTIONS_OTHER = 340;
+const COL_W_ACTIONS = 260;
 
-const ACTION_BTN = {
-  padding: '6px 10px',
+// Row hover background
+const HOVER_BG = '#EEF5FF';
+
+// Primary button styling
+const PRIMARY_BTN_BASE = {
+  padding: '8px 12px',
+  border: 'none',
+  borderRadius: '8px',
+  fontWeight: 700,
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '5px',
+  lineHeight: 1.15,
+  width: '100%',
+  maxWidth: '186px',
+  boxSizing: 'border-box',
+  transition: 'filter 0.15s, transform 0.1s',
+};
+
+const MORE_BTN = {
+  width: '36px',
+  height: '34px',
+  padding: 0,
+  background: 'white',
+  color: '#003366',
+  border: '1px solid #D0D6DB',
+  borderRadius: '8px',
+  fontWeight: 800,
+  fontSize: '1rem',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  lineHeight: 1,
+  flexShrink: 0,
+};
+
+const MENU_ACTION_STYLE = {
+  padding: '5px 10px',
   border: 'none',
   borderRadius: '6px',
   fontWeight: 700,
@@ -126,6 +169,8 @@ export default function BillingPanel() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
 
+  const [hoveredRow, setHoveredRow] = useState(null);
+
   const [colFilters, setColFilters] = useState({
     shipperRef: [], tracking: [], mode: [], route: [], shipper: [], recipient: [],
     status: [], payment: [], invNumber: [],
@@ -139,7 +184,6 @@ export default function BillingPanel() {
   const isSyncingRef = useRef(false);
 
   const [actionMenu, setActionMenu] = useState(null);
-
   const [expandedMonthly, setExpandedMonthly] = useState({});
 
   const [costModal, setCostModal] = useState(null);
@@ -723,19 +767,50 @@ export default function BillingPanel() {
     return <span style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(weight).toFixed(2)} kg</span>;
   }
 
-  function HeaderCell({ col, label, width, frozenLeft, hasShadow }) {
+  /* ============================================================
+   *  Status-driven primary action
+   * ============================================================ */
+  function getPrimaryAction(s) {
+    const tn = s.trackingNumber;
+    const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
+    const hasIndividual = !!s.individualInvoice;
+    const hasMonthly = !!s.monthlyInvoice;
+    const hasInvoice = hasIndividual || hasMonthly;
+    const displayInvoice = s.individualInvoice || s.monthlyInvoice;
+    const isSent = !!(s.invoiceSentAt || (displayInvoice && displayInvoice.sentAt));
+    const isPaid = String(s.paymentStatus || '').toLowerCase() === 'paid';
+
+    if (isPaid) {
+      return { type: 'chip', label: '✅ Paid', bg: '#D4EDDA', color: '#155724' };
+    }
+    if (!hasCost) {
+      return { type: 'btn', label: '🔄 Add Cost', bg: '#FF6B00', color: 'white', onClick: () => openCostModal(s) };
+    }
+    if (!hasInvoice) {
+      return { type: 'btn', label: '🧾 Issue Invoice', bg: '#0D6EFD', color: 'white', onClick: () => handleIssueInvoice(s) };
+    }
+    if (!isSent) {
+      return { type: 'btn', label: '📤 Send Invoice', bg: '#DC3545', color: 'white', onClick: () => handleSendInvoice(tn) };
+    }
+    return { type: 'btn', label: '💵 Mark Paid', bg: '#28A745', color: 'white', onClick: () => handleMarkPaid(tn) };
+  }
+
+  function HeaderCell({ col, label, width, frozenLeft, hasShadow, frozenRight }) {
     const isFilterable = ['shipperRef', 'tracking', 'mode', 'route', 'shipper', 'recipient', 'status', 'payment', 'invNumber'].includes(col);
     const activeCount = (colFilters[col] || []).length;
     const isOpen = openFilter === col;
+    const isFrozen = frozenLeft !== undefined || frozenRight === true;
 
     return (
       <th style={{
         ...TH_STYLE,
         background: isOpen ? '#DDE3E9' : '#E9ECEF',
         width, minWidth: width,
-        zIndex: frozenLeft !== undefined ? 22 : 20,
+        zIndex: isFrozen ? 23 : 20,
         ...(frozenLeft !== undefined ? { left: frozenLeft } : {}),
+        ...(frozenRight ? { right: 0 } : {}),
         ...(hasShadow ? { boxShadow: FROZEN_SHADOW } : {}),
+        ...(frozenRight ? { boxShadow: FROZEN_RIGHT_SHADOW } : {}),
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 12px' }}>
           <span>{label}{activeCount > 0 && <span style={{ marginLeft: '6px', color: '#FF6B00' }}>({activeCount})</span>}</span>
@@ -761,7 +836,7 @@ export default function BillingPanel() {
             style={{
               position: 'absolute', top: '100%',
               left: frozenLeft !== undefined ? frozenLeft : 'auto',
-              right: frozenLeft !== undefined ? 'auto' : 0,
+              right: (frozenLeft !== undefined) ? 'auto' : 0,
               minWidth: '200px', background: 'white',
               border: '1px solid #D0D6DB', borderRadius: '8px',
               boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 200,
@@ -903,11 +978,7 @@ export default function BillingPanel() {
 
       {!loading && !error && filtered.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
-          <div
-            ref={topScrollRef}
-            style={TOP_SCROLLBAR_STYLE}
-            aria-hidden="true"
-          >
+          <div ref={topScrollRef} style={TOP_SCROLLBAR_STYLE} aria-hidden="true">
             <div style={{ width: tableMinWidth + 'px', height: '1px' }} />
           </div>
 
@@ -918,25 +989,9 @@ export default function BillingPanel() {
                   {showShipperRef && (
                     <HeaderCell col="shipperRef" label="Shipper Ref" width={COL_W_SHIPPER_REF} frozenLeft={FROZEN_LEFT_REF} />
                   )}
-                  <HeaderCell
-                    col="tracking"
-                    label="Tracking #"
-                    width={COL_W_TRACKING}
-                    frozenLeft={isAllTab ? FROZEN_LEFT_TRACKING_ALL : FROZEN_LEFT_TRACKING}
-                  />
-                  <HeaderCell
-                    col="mode"
-                    label="Mode"
-                    width={COL_W_MODE}
-                    frozenLeft={isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE}
-                  />
-                  <HeaderCell
-                    col="route"
-                    label="Route"
-                    width={COL_W_ROUTE}
-                    frozenLeft={isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE}
-                    hasShadow={true}
-                  />
+                  <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={isAllTab ? FROZEN_LEFT_TRACKING_ALL : FROZEN_LEFT_TRACKING} />
+                  <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE} />
+                  <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE} hasShadow={true} />
                   <HeaderCell col="shipper" label="Shipper" width={150} />
                   <HeaderCell col="recipient" label="Recipient" width={150} />
                   <HeaderCell col="status" label="Status" width={120} />
@@ -949,27 +1004,25 @@ export default function BillingPanel() {
                   {showInvoiceColumns && <HeaderCell col="none" label="Inv Date" width={115} />}
                   {showInvoiceColumns && <HeaderCell col="invNumber" label="Inv #" width={130} />}
                   {showInvoiceColumns && <HeaderCell col="none" label="Due" width={115} />}
-                  <HeaderCell col="none" label="Actions" width={isDueTab ? COL_W_ACTIONS_DUE : COL_W_ACTIONS_OTHER} />
+                  <HeaderCell col="none" label="Actions" width={COL_W_ACTIONS} frozenRight={true} />
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((s, i) => {
                   const sc = statusClass(s.status);
-                  const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+                  const isHovered = hoveredRow === s.trackingNumber;
+                  const rowBg = isHovered ? HOVER_BG : (i % 2 === 0 ? '#FFFFFF' : '#FAFBFC');
                   const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
-                  const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
-                  const wasCostSaved = !!s.costSavedAt;
 
-                  const hasIndividual = !!s.individualInvoice;
-                  const hasMonthly = !!s.monthlyInvoice;
-                  const displayInvoice = s.individualInvoice || s.monthlyInvoice;
-
-                  const invSent = !!s.invoiceSentAt ||
-                    (s.individualInvoice && !!s.individualInvoice.sentAt) ||
-                    (s.monthlyInvoice && !!s.monthlyInvoice.sentAt);
+                  const primary = getPrimaryAction(s);
 
                   return (
-                    <tr key={i} style={{ background: rowBg }}>
+                    <tr
+                      key={i}
+                      onMouseEnter={() => setHoveredRow(s.trackingNumber)}
+                      onMouseLeave={() => setHoveredRow(null)}
+                      style={{ background: rowBg, transition: 'background 0.12s ease' }}
+                    >
                       {showShipperRef && (
                         <td style={{ ...frozenTd, left: FROZEN_LEFT_REF, width: COL_W_SHIPPER_REF, minWidth: COL_W_SHIPPER_REF }}>{s.shipperRef || '—'}</td>
                       )}
@@ -980,7 +1033,7 @@ export default function BillingPanel() {
                         fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366'
                       }}>
                         {s.trackingNumber}
-                        {hasMonthly && (
+                        {s.monthlyInvoice && (
                           <span
                             title={'Included in monthly invoice ' + (s.monthlyInvoice?.invoiceNumber || '')}
                             style={{
@@ -1001,17 +1054,8 @@ export default function BillingPanel() {
                           </span>
                         )}
                       </td>
-                      <td style={{
-                        ...frozenTd,
-                        left: isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE,
-                        width: COL_W_MODE, minWidth: COL_W_MODE
-                      }}>{renderModeCell(s)}</td>
-                      <td style={{
-                        ...frozenTd,
-                        left: isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE,
-                        width: COL_W_ROUTE, minWidth: COL_W_ROUTE,
-                        boxShadow: FROZEN_SHADOW
-                      }}>{s.origin || '—'} → {s.destination || '—'}</td>
+                      <td style={{ ...frozenTd, left: isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{renderModeCell(s)}</td>
+                      <td style={{ ...frozenTd, left: isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '—'} → {s.destination || '—'}</td>
                       <td style={{ ...TD_STYLE, width: 150 }}>{s.shipperName || '—'}</td>
                       <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '—'}</td>
                       <td style={{ ...TD_STYLE, width: 120 }}>
@@ -1020,7 +1064,7 @@ export default function BillingPanel() {
                       <td style={{ ...TD_STYLE, width: 100 }}>{s.bookingWeight ? s.bookingWeight + ' kg' : '—'}</td>
                       <td style={{ ...TD_STYLE, width: 130 }}>{renderActualCell(s)}</td>
                       <td style={{ ...TD_STYLE, width: 110 }}>
-                        {hasCost
+                        {s.shippingCost && parseFloat(s.shippingCost) > 0
                           ? <span style={{ fontWeight: 700, color: '#003366' }}>{Number(s.shippingCost).toFixed(2)} {s.currency}</span>
                           : <span style={{ color: '#ADB5BD', fontStyle: 'italic', fontWeight: 700 }}>TBA</span>}
                       </td>
@@ -1036,111 +1080,86 @@ export default function BillingPanel() {
 
                       {showInvoiceColumns && (
                         <td style={{ ...TD_STYLE, width: 115 }}>
-                          {displayInvoice && displayInvoice.issueDate ? formatDate(displayInvoice.issueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
+                          {(s.individualInvoice || s.monthlyInvoice) && (s.individualInvoice || s.monthlyInvoice).issueDate
+                            ? formatDate((s.individualInvoice || s.monthlyInvoice).issueDate)
+                            : <span style={{ color: '#ADB5BD' }}>—</span>}
                         </td>
                       )}
                       {showInvoiceColumns && (
                         <td style={{ ...TD_STYLE, width: 130, fontWeight: 700, color: '#003366' }}>
-                          {displayInvoice ? displayInvoice.invoiceNumber : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>}
+                          {(s.individualInvoice || s.monthlyInvoice)
+                            ? (s.individualInvoice || s.monthlyInvoice).invoiceNumber
+                            : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>}
                         </td>
                       )}
                       {showInvoiceColumns && (
                         <td style={{ ...TD_STYLE, width: 115 }}>
-                          {displayInvoice && displayInvoice.dueDate ? formatDate(displayInvoice.dueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
+                          {(s.individualInvoice || s.monthlyInvoice) && (s.individualInvoice || s.monthlyInvoice).dueDate
+                            ? formatDate((s.individualInvoice || s.monthlyInvoice).dueDate)
+                            : <span style={{ color: '#ADB5BD' }}>—</span>}
                         </td>
                       )}
 
+                      {/* STICKY ACTIONS CELL */}
                       <td style={{
                         ...TD_STYLE,
-                        whiteSpace: 'normal',
+                        position: 'sticky',
+                        right: 0,
+                        zIndex: 4,
+                        background: rowBg,
+                        boxShadow: FROZEN_RIGHT_SHADOW,
+                        width: COL_W_ACTIONS,
+                        minWidth: COL_W_ACTIONS,
+                        padding: '8px 12px',
+                        whiteSpace: 'nowrap',
                         overflow: 'visible',
                         textOverflow: 'clip',
-                        width: isDueTab ? COL_W_ACTIONS_DUE : COL_W_ACTIONS_OTHER,
-                        padding: '8px 12px'
                       }}>
-                        {isDueTab && (
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <a
-                              href={'/api/pdf/booking/' + s.trackingNumber + '?_v=' + vToken}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ ...ACTION_BTN, background: '#00A86B', color: 'white' }}
-                            >
-                              📄 Booking
-                            </a>
-
-                            <button
-                              onClick={() => openCostModal(s)}
-                              style={{
-                                ...ACTION_BTN,
-                                background: wasCostSaved ? '#E9ECEF' : '#FF6B00',
-                                color: wasCostSaved ? '#495057' : 'white',
-                              }}
-                            >
-                              {wasCostSaved ? '✅ Cost' : '🔄 Cost'}
-                            </button>
-
-                            {hasIndividual ? (
-                              <a
-                                href={'/api/pdf/invoice/' + s.individualInvoice.invoiceId + '?_v=' + vToken}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={'Individual invoice ' + s.individualInvoice.invoiceNumber}
-                                style={{ ...ACTION_BTN, background: '#0D6EFD', color: 'white' }}
+                        {isDueTab ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                            {primary.type === 'chip' ? (
+                              <span
+                                style={{
+                                  ...PRIMARY_BTN_BASE,
+                                  background: primary.bg,
+                                  color: primary.color,
+                                  cursor: 'default',
+                                }}
+                                title="Payment received"
                               >
-                                🧾 Inv PDF
-                              </a>
-                            ) : hasMonthly ? (
-                              <a
-                                href={'/api/pdf/invoice/' + s.monthlyInvoice.invoiceId + '?_v=' + vToken}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={'No individual invoice. Opens monthly invoice ' + s.monthlyInvoice.invoiceNumber}
-                                style={{ ...ACTION_BTN, background: '#6366F1', color: 'white' }}
-                              >
-                                📅 Monthly PDF
-                              </a>
+                                {primary.label}
+                              </span>
                             ) : (
                               <button
-                                onClick={() => handleIssueInvoice(s)}
-                                style={{ ...ACTION_BTN, background: '#0D6EFD', color: 'white' }}
+                                onClick={primary.onClick}
+                                style={{
+                                  ...PRIMARY_BTN_BASE,
+                                  background: primary.bg,
+                                  color: primary.color,
+                                }}
                               >
-                                🧾 Issue
+                                {primary.label}
                               </button>
                             )}
-
-                            <button
-                              onClick={() => handleMarkPaid(s.trackingNumber)}
-                              style={{ ...ACTION_BTN, background: '#28A745', color: 'white' }}
-                            >
-                              💵 Paid
-                            </button>
-
                             <button
                               onClick={(e) => openActionMenu(e, s.trackingNumber)}
                               title="More actions"
-                              style={{
-                                ...ACTION_BTN,
-                                background: 'white',
-                                color: '#003366',
-                                border: '1px solid #D0D6DB',
-                                padding: '6px 10px',
-                                fontWeight: 800,
-                                fontSize: '0.9rem',
-                                lineHeight: 1
-                              }}
+                              style={MORE_BTN}
                             >
                               ⋯
                             </button>
                           </div>
-                        )}
-
-                        {tab === 'all' && (
+                        ) : tab === 'paid' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                            <button
+                              onClick={() => handleMarkUnpaid(s.trackingNumber)}
+                              style={{ ...MENU_ACTION_STYLE, background: '#FFC107', color: '#333' }}
+                            >
+                              ↩ Undo
+                            </button>
+                          </div>
+                        ) : (
                           <span style={{ color: '#ADB5BD' }}>—</span>
-                        )}
-
-                        {tab === 'paid' && (
-                          <button onClick={() => handleMarkUnpaid(s.trackingNumber)} style={{ ...ACTION_BTN, background: '#FFC107', color: '#333' }}>↩ Undo</button>
                         )}
                       </td>
                     </tr>
@@ -1152,6 +1171,7 @@ export default function BillingPanel() {
         </div>
       )}
 
+      {/* Per-row ⋯ action menu */}
       {actionMenu && menuShipment && (
         <>
           <div
@@ -1168,12 +1188,12 @@ export default function BillingPanel() {
               border: '1px solid #D0D6DB',
               borderRadius: '10px',
               boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
-              minWidth: '260px',
+              minWidth: '270px',
               overflow: 'hidden',
             }}
           >
             <div style={{ padding: '10px 14px', borderBottom: '1px solid #F1F3F5', background: '#F8F9FA' }}>
-              <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#6C757D', fontWeight: 700 }}>Actions</div>
+              <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#6C757D', fontWeight: 700 }}>More actions</div>
               <div style={{ fontFamily: 'Consolas, monospace', fontSize: '0.85rem', fontWeight: 700, color: '#003366', marginTop: '2px' }}>{menuShipment.trackingNumber}</div>
               {menuShipment.individualInvoice && (
                 <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px' }}>
@@ -1187,16 +1207,36 @@ export default function BillingPanel() {
               )}
             </div>
 
-                {menuShipment.individualInvoice ? (
+            <MenuItem
+              label="📄 Booking PDF"
+              sub="Open the booking confirmation"
+              onClick={() => {
+                setActionMenu(null);
+                window.open('/api/pdf/booking/' + menuShipment.trackingNumber + '?_v=' + Date.now(), '_blank', 'noopener');
+              }}
+            />
+
+            {menuShipment.shippingCost && parseFloat(menuShipment.shippingCost) > 0 && (
+              <MenuItem
+                label="🔄 Update Shipment Cost"
+                sub="Edit the cost breakdown"
+                onClick={() => { setActionMenu(null); openCostModal(menuShipment); }}
+              />
+            )}
+
+            {menuShipment.individualInvoice && (
               <>
                 <MenuItem
-                  label={(menuShipment.invoiceSentAt || menuShipment.individualInvoice.sentAt) ? '📤 Resend Invoice' : '📤 Send Customer'}
-                  sub={(menuShipment.invoiceSentAt || menuShipment.individualInvoice.sentAt) ? 'Invoice already sent — send again' : 'Email the invoice to the shipper'}
-                  onClick={() => { setActionMenu(null); handleSendInvoice(menuShipment.trackingNumber); }}
+                  label="📄 Individual Invoice PDF"
+                  sub={menuShipment.individualInvoice.invoiceNumber}
+                  onClick={() => {
+                    setActionMenu(null);
+                    window.open('/api/pdf/invoice/' + menuShipment.individualInvoice.invoiceId + '?_v=' + Date.now(), '_blank', 'noopener');
+                  }}
                 />
                 <MenuItem
                   label="✏️ Edit Invoice Dates"
-                  sub={'Update issue / due on ' + menuShipment.individualInvoice.invoiceNumber}
+                  sub="Change issue / due dates"
                   onClick={() => { setActionMenu(null); openEditInvModal(menuShipment); }}
                 />
                 <MenuItem
@@ -1205,50 +1245,59 @@ export default function BillingPanel() {
                   onClick={() => { setActionMenu(null); handleIssueInvoice(menuShipment); }}
                 />
               </>
-            ) : menuShipment.monthlyInvoice ? (
+            )}
+
+            {menuShipment.monthlyInvoice && (
+              <>
+                <MenuItem
+                  label="📅 Monthly Invoice PDF"
+                  sub={menuShipment.monthlyInvoice.invoiceNumber}
+                  onClick={() => {
+                    setActionMenu(null);
+                    window.open('/api/pdf/invoice/' + menuShipment.monthlyInvoice.invoiceId + '?_v=' + Date.now(), '_blank', 'noopener');
+                  }}
+                />
+                {!menuShipment.individualInvoice && (
+                  <MenuItem
+                    label="🧾 Issue Individual Invoice"
+                    sub="Create a separate invoice just for this shipment"
+                    onClick={() => { setActionMenu(null); handleIssueInvoice(menuShipment); }}
+                  />
+                )}
+              </>
+            )}
+
+            {(() => {
+              const displayInv = menuShipment.individualInvoice || menuShipment.monthlyInvoice;
+              const isSent = !!(menuShipment.invoiceSentAt || (displayInv && displayInv.sentAt));
+              if (!displayInv || !isSent) return null;
+              return (
+                <MenuItem
+                  label="📤 Resend Invoice to Customer"
+                  sub="Send the invoice email again"
+                  onClick={() => { setActionMenu(null); handleSendInvoice(menuShipment.trackingNumber); }}
+                />
+              );
+            })()}
+
+            {String(menuShipment.paymentStatus || '').toLowerCase() === 'paid' ? (
               <MenuItem
-                label="📄 Open Monthly Invoice"
-                sub={'Currently in ' + menuShipment.monthlyInvoice.invoiceNumber}
-                onClick={() => {
-                  setActionMenu(null);
-                  window.open('/api/pdf/invoice/' + menuShipment.monthlyInvoice.invoiceId + '?_v=' + Date.now(), '_blank', 'noopener');
-                }}
+                label="↩ Mark as Unpaid"
+                sub="Reverse the payment status"
+                onClick={() => { setActionMenu(null); handleMarkUnpaid(menuShipment.trackingNumber); }}
               />
             ) : (
               <MenuItem
-                label="🧾 Issue Invoice"
-                sub="No invoice exists yet for this shipment"
-                onClick={() => { setActionMenu(null); handleIssueInvoice(menuShipment); }}
+                label="💵 Mark as Paid"
+                sub="Force mark payment received"
+                onClick={() => { setActionMenu(null); handleMarkPaid(menuShipment.trackingNumber); }}
               />
             )}
-
-            {menuShipment.monthlyInvoice && menuShipment.individualInvoice && (
-              <MenuItem
-                label="📅 View Monthly Invoice"
-                sub={'This shipment is also in ' + menuShipment.monthlyInvoice.invoiceNumber}
-                onClick={() => {
-                  setActionMenu(null);
-                  window.open('/api/pdf/invoice/' + menuShipment.monthlyInvoice.invoiceId + '?_v=' + Date.now(), '_blank', 'noopener');
-                }}
-              />
-            )}
-
-            <MenuItem
-              label={menuShipment.paymentStatus === 'Paid' ? '↩ Mark as Unpaid' : '💵 Mark as Paid'}
-              sub={menuShipment.paymentStatus === 'Paid' ? 'Reverse payment status' : 'Set payment received'}
-              onClick={() => {
-                setActionMenu(null);
-                if (menuShipment.paymentStatus === 'Paid') {
-                  handleMarkUnpaid(menuShipment.trackingNumber);
-                } else {
-                  handleMarkPaid(menuShipment.trackingNumber);
-                }
-              }}
-            />
           </div>
         </>
       )}
 
+      {/* MONTHLY SUMMARY */}
       {tab === 'due' && (
         <>
           <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginTop: '50px', marginBottom: '20px' }}>📅 Monthly Summary</h2>
@@ -1315,23 +1364,8 @@ export default function BillingPanel() {
                 const invTotal = Number(inv.amount || 0).toFixed(2);
 
                 return (
-                  <div key={inv.invoiceID} style={{
-                    background: 'white',
-                    border: '1px solid #E9ECEF',
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                    overflow: 'hidden',
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '14px 18px',
-                      background: '#F8F9FA',
-                      borderBottom: isExpanded ? '1px solid #E9ECEF' : 'none',
-                      gap: '14px',
-                      flexWrap: 'wrap',
-                    }}>
+                  <div key={inv.invoiceID} style={{ background: 'white', border: '1px solid #E9ECEF', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', background: '#F8F9FA', borderBottom: isExpanded ? '1px solid #E9ECEF' : 'none', gap: '14px', flexWrap: 'wrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                         <button
                           onClick={() => toggleMonthlyExpand(inv.invoiceID)}
@@ -1355,9 +1389,7 @@ export default function BillingPanel() {
                           {isExpanded ? '▾' : '▸'}
                         </button>
                         <div>
-                          <div style={{ fontFamily: 'Consolas, monospace', fontWeight: 800, color: '#003366', fontSize: '0.95rem' }}>
-                            {inv.invoiceNumber}
-                          </div>
+                          <div style={{ fontFamily: 'Consolas, monospace', fontWeight: 800, color: '#003366', fontSize: '0.95rem' }}>{inv.invoiceNumber}</div>
                           <div style={{ fontSize: '0.8rem', color: '#6C757D', marginTop: '2px' }}>
                             {inv.month || '—'} · {inv.shipperName || '—'} · {inv.shipmentsCount || rows.length} shipment{(inv.shipmentsCount || rows.length) !== 1 ? 's' : ''}
                           </div>
@@ -1365,16 +1397,7 @@ export default function BillingPanel() {
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                        <span style={{
-                          padding: '4px 12px',
-                          borderRadius: '20px',
-                          fontWeight: 700,
-                          fontSize: '0.72rem',
-                          background: statusBg,
-                          color: statusColor,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                        }}>
+                        <span style={{ padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem', background: statusBg, color: statusColor, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           {inv.status}
                         </span>
                         <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 800, color: '#FF6B00', fontSize: '1rem' }}>
@@ -1384,7 +1407,7 @@ export default function BillingPanel() {
                           href={'/api/pdf/invoice/' + inv.invoiceID + '?_v=' + vToken}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{ ...ACTION_BTN, background: '#00A86B', color: 'white' }}
+                          style={{ ...MENU_ACTION_STYLE, background: '#00A86B', color: 'white' }}
                         >
                           📄 PDF
                         </a>
@@ -1399,27 +1422,11 @@ export default function BillingPanel() {
                           </div>
                         ) : (
                           <div style={{ overflowX: 'auto' }}>
-                            <table style={{
-                              width: '100%',
-                              borderCollapse: 'separate',
-                              borderSpacing: 0,
-                              fontSize: '0.82rem',
-                              minWidth: '900px',
-                            }}>
+                            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.82rem', minWidth: '900px' }}>
                               <thead>
                                 <tr>
                                   {['Shipper Ref', 'Tracking #', 'Mode', 'Route', 'Recipient', 'Weight', 'Amount'].map((h, idx) => (
-                                    <th key={h} style={{
-                                      padding: '12px',
-                                      textAlign: idx === 6 ? 'right' : 'left',
-                                      fontWeight: 700,
-                                      color: 'white',
-                                      background: '#002347',
-                                      fontSize: '0.72rem',
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.5px',
-                                      whiteSpace: 'nowrap',
-                                    }}>
+                                    <th key={h} style={{ padding: '12px', textAlign: idx === 6 ? 'right' : 'left', fontWeight: 700, color: 'white', background: '#002347', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
                                       {h}
                                     </th>
                                   ))}
@@ -1466,43 +1473,11 @@ export default function BillingPanel() {
         </>
       )}
 
+      {/* COST MODAL */}
       {costModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'rgba(0,0,0,0.6)',
-            zIndex: 9999,
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            WebkitOverflowScrolling: 'touch'
-          }}
-        >
-          <div
-            style={{
-              minHeight: '100%',
-              width: '100%',
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'center',
-              padding: '40px 20px 120px',
-              boxSizing: 'border-box'
-            }}
-          >
-            <div
-              style={{
-                background: 'white',
-                maxWidth: '900px',
-                width: '100%',
-                borderRadius: '16px',
-                padding: '30px',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-                boxSizing: 'border-box'
-              }}
-            >
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', zIndex: 9999, overflowY: 'auto', overflowX: 'hidden' }}>
+          <div style={{ minHeight: '100%', width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px 120px', boxSizing: 'border-box' }}>
+            <div style={{ background: 'white', maxWidth: '900px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', boxSizing: 'border-box' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                   <h2 style={{ color: '#003366', fontSize: '1.3rem', margin: 0 }}>
@@ -1519,12 +1494,7 @@ export default function BillingPanel() {
               </div>
 
               {costMsg && (
-                <div style={{
-                  background: costMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA',
-                  color: costMsg.startsWith('✅') ? '#155724' : '#721C24',
-                  borderLeft: '4px solid ' + (costMsg.startsWith('✅') ? '#28A745' : '#DC3545'),
-                  borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem'
-                }}>
+                <div style={{ background: costMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: costMsg.startsWith('✅') ? '#155724' : '#721C24', borderLeft: '4px solid ' + (costMsg.startsWith('✅') ? '#28A745' : '#DC3545'), borderRadius: '8px', padding: '12px 16px', marginBottom: '18px', fontSize: '0.9rem' }}>
                   {costMsg}
                 </div>
               )}
@@ -1571,7 +1541,6 @@ export default function BillingPanel() {
               {selectedShipment && !selectedShipment.isSpecialParcel && (
                 <div style={{ marginTop: '20px', borderTop: '1px solid #E9ECEF', paddingTop: '20px' }}>
                   <h4 style={{ fontSize: '0.95rem', color: '#003366', marginBottom: '12px' }}>🛠️ Service Charges</h4>
-
                   <div style={{ display: 'grid', gap: '12px' }}>
                     {selectedShipment.pickupService && (
                       <div>
@@ -1582,7 +1551,6 @@ export default function BillingPanel() {
                           style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                       </div>
                     )}
-
                     {selectedShipment.customService === 'sxl' && (
                       <div>
                         <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
@@ -1592,7 +1560,6 @@ export default function BillingPanel() {
                           style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                       </div>
                     )}
-
                     {selectedShipment.deliveryService === 'sxl' && (
                       <div>
                         <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
@@ -1602,7 +1569,6 @@ export default function BillingPanel() {
                           style={{ width: '100%', padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                       </div>
                     )}
-
                     {!selectedShipment.pickupService && selectedShipment.customService !== 'sxl' && selectedShipment.deliveryService !== 'sxl' && (
                       <div style={{ fontSize: '0.85rem', color: '#6C757D', fontStyle: 'italic' }}>
                         No extra services selected by customer (self-delivery + consignee handles customs & delivery).
@@ -1674,42 +1640,9 @@ export default function BillingPanel() {
       )}
 
       {editInvModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'rgba(0,0,0,0.6)',
-            zIndex: 9999,
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            WebkitOverflowScrolling: 'touch'
-          }}
-        >
-          <div
-            style={{
-              minHeight: '100%',
-              width: '100%',
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'center',
-              padding: '40px 20px 120px',
-              boxSizing: 'border-box'
-            }}
-          >
-            <div
-              style={{
-                background: 'white',
-                maxWidth: '520px',
-                width: '100%',
-                borderRadius: '16px',
-                padding: '30px',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-                boxSizing: 'border-box'
-              }}
-            >
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', zIndex: 9999, overflowY: 'auto', overflowX: 'hidden' }}>
+          <div style={{ minHeight: '100%', width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px 120px', boxSizing: 'border-box' }}>
+            <div style={{ background: 'white', maxWidth: '520px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', boxSizing: 'border-box' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                 <div>
                   <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>✏️ Edit Invoice</h2>
