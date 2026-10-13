@@ -99,7 +99,6 @@ const FROZEN_LEFT_ROUTE_ALL = COL_W_TRACKING + COL_W_MODE;
 const COL_W_ACTIONS_DUE = 460;
 const COL_W_ACTIONS_OTHER = 340;
 
-// Small inline button style used inside the Actions cell
 const ACTION_BTN = {
   padding: '6px 10px',
   border: 'none',
@@ -139,10 +138,8 @@ export default function BillingPanel() {
   const tableScrollRef = useRef(null);
   const isSyncingRef = useRef(false);
 
-  // Per-row "⋯" action menu
-  const [actionMenu, setActionMenu] = useState(null); // { trackingNumber, top, right }
+  const [actionMenu, setActionMenu] = useState(null);
 
-  // Monthly invoices: which are expanded
   const [expandedMonthly, setExpandedMonthly] = useState({});
 
   const [costModal, setCostModal] = useState(null);
@@ -215,7 +212,6 @@ export default function BillingPanel() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close the action menu if the viewport scrolls or resizes (its position is fixed)
   useEffect(() => {
     if (!actionMenu) return;
     function close() { setActionMenu(null); }
@@ -568,9 +564,9 @@ export default function BillingPanel() {
 
   async function handleIssueInvoice(s) {
     const tn = s.trackingNumber;
-    if (s.latestInvoice) {
+    if (s.individualInvoice) {
       const proceed = window.confirm(
-        'Invoice ' + s.latestInvoice.invoiceNumber + ' already exists for ' + tn + '. Issue a new one?'
+        'Individual invoice ' + s.individualInvoice.invoiceNumber + ' already exists for ' + tn + '. Issue a new one?'
       );
       if (!proceed) return;
     } else {
@@ -612,10 +608,11 @@ export default function BillingPanel() {
   }
 
   function openEditInvModal(s) {
-    if (!s.latestInvoice) return;
-    setEditInvModal({ shipment: s });
-    setEditInvIssueDate(s.latestInvoice.issueDate ? String(s.latestInvoice.issueDate).slice(0, 10) : '');
-    setEditInvDueDate(s.latestInvoice.dueDate ? String(s.latestInvoice.dueDate).slice(0, 10) : '');
+    const target = s.individualInvoice || s.monthlyInvoice;
+    if (!target) return;
+    setEditInvModal({ shipment: s, invoice: target });
+    setEditInvIssueDate(target.issueDate ? String(target.issueDate).slice(0, 10) : '');
+    setEditInvDueDate(target.dueDate ? String(target.dueDate).slice(0, 10) : '');
     setEditInvError('');
   }
 
@@ -641,7 +638,7 @@ export default function BillingPanel() {
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({
           action: 'updateInvoiceDates',
-          invoiceId: editInvModal.shipment.latestInvoice.invoiceId,
+          invoiceId: editInvModal.invoice.invoiceId,
           issueDate: editInvIssueDate || null,
           dueDate: editInvDueDate || null,
         }),
@@ -653,7 +650,7 @@ export default function BillingPanel() {
         return;
       }
       setEditInvSaving(false);
-      const invNum = editInvModal.shipment.latestInvoice.invoiceNumber;
+      const invNum = editInvModal.invoice.invoiceNumber;
       closeEditInvModal();
       setToast('✅ Invoice ' + invNum + ' dates updated');
       setTimeout(loadShipments, 400);
@@ -810,10 +807,8 @@ export default function BillingPanel() {
 
   const tableMinWidth = isDueTab ? 2400 : 1700;
 
-  // Cache-busting token — recomputed on every render
   const vToken = Date.now();
 
-  // The shipment that the currently-open action menu belongs to
   const menuShipment = actionMenu
     ? shipments.find((s) => s.trackingNumber === actionMenu.trackingNumber)
     : null;
@@ -964,8 +959,14 @@ export default function BillingPanel() {
                   const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
                   const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
                   const wasCostSaved = !!s.costSavedAt;
-                  const hasInvoice = !!s.latestInvoice;
-                  const invSent = !!s.invoiceSentAt || (s.latestInvoice && !!s.latestInvoice.sentAt);
+
+                  const hasIndividual = !!s.individualInvoice;
+                  const hasMonthly = !!s.monthlyInvoice;
+                  const displayInvoice = s.individualInvoice || s.monthlyInvoice;
+
+                  const invSent = !!s.invoiceSentAt ||
+                    (s.individualInvoice && !!s.individualInvoice.sentAt) ||
+                    (s.monthlyInvoice && !!s.monthlyInvoice.sentAt);
 
                   return (
                     <tr key={i} style={{ background: rowBg }}>
@@ -979,9 +980,9 @@ export default function BillingPanel() {
                         fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366'
                       }}>
                         {s.trackingNumber}
-                        {s.hasMonthlyInvoice && (
+                        {hasMonthly && (
                           <span
-                            title={'Included in a monthly summary invoice' + (s.latestInvoice?.type === 'monthly-summary' ? ' (' + s.latestInvoice.invoiceNumber + ')' : '')}
+                            title={'Included in monthly invoice ' + (s.monthlyInvoice?.invoiceNumber || '')}
                             style={{
                               marginLeft: '6px',
                               display: 'inline-block',
@@ -1035,17 +1036,17 @@ export default function BillingPanel() {
 
                       {showInvoiceColumns && (
                         <td style={{ ...TD_STYLE, width: 115 }}>
-                          {hasInvoice && s.latestInvoice.issueDate ? formatDate(s.latestInvoice.issueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
+                          {displayInvoice && displayInvoice.issueDate ? formatDate(displayInvoice.issueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
                         </td>
                       )}
                       {showInvoiceColumns && (
                         <td style={{ ...TD_STYLE, width: 130, fontWeight: 700, color: '#003366' }}>
-                          {hasInvoice ? s.latestInvoice.invoiceNumber : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>}
+                          {displayInvoice ? displayInvoice.invoiceNumber : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>}
                         </td>
                       )}
                       {showInvoiceColumns && (
                         <td style={{ ...TD_STYLE, width: 115 }}>
-                          {hasInvoice && s.latestInvoice.dueDate ? formatDate(s.latestInvoice.dueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
+                          {displayInvoice && displayInvoice.dueDate ? formatDate(displayInvoice.dueDate) : <span style={{ color: '#ADB5BD' }}>—</span>}
                         </td>
                       )}
 
@@ -1079,14 +1080,25 @@ export default function BillingPanel() {
                               {wasCostSaved ? '✅ Cost' : '🔄 Cost'}
                             </button>
 
-                            {hasInvoice ? (
+                            {hasIndividual ? (
                               <a
-                                href={'/api/pdf/invoice/' + s.latestInvoice.invoiceId + '?_v=' + vToken}
+                                href={'/api/pdf/invoice/' + s.individualInvoice.invoiceId + '?_v=' + vToken}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                title={'Individual invoice ' + s.individualInvoice.invoiceNumber}
                                 style={{ ...ACTION_BTN, background: '#0D6EFD', color: 'white' }}
                               >
                                 🧾 Inv PDF
+                              </a>
+                            ) : hasMonthly ? (
+                              <a
+                                href={'/api/pdf/invoice/' + s.monthlyInvoice.invoiceId + '?_v=' + vToken}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={'No individual invoice. Opens monthly invoice ' + s.monthlyInvoice.invoiceNumber}
+                                style={{ ...ACTION_BTN, background: '#6366F1', color: 'white' }}
+                              >
+                                📅 Monthly PDF
                               </a>
                             ) : (
                               <button
@@ -1140,9 +1152,6 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {/* ============================================================
-          Per-row action menu (fixed-position, anchors to the ⋯ button)
-          ============================================================ */}
       {actionMenu && menuShipment && (
         <>
           <div
@@ -1159,38 +1168,68 @@ export default function BillingPanel() {
               border: '1px solid #D0D6DB',
               borderRadius: '10px',
               boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
-              minWidth: '240px',
+              minWidth: '260px',
               overflow: 'hidden',
             }}
           >
             <div style={{ padding: '10px 14px', borderBottom: '1px solid #F1F3F5', background: '#F8F9FA' }}>
               <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#6C757D', fontWeight: 700 }}>Actions</div>
               <div style={{ fontFamily: 'Consolas, monospace', fontSize: '0.85rem', fontWeight: 700, color: '#003366', marginTop: '2px' }}>{menuShipment.trackingNumber}</div>
+              {menuShipment.individualInvoice && (
+                <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px' }}>
+                  🧾 Individual: <b>{menuShipment.individualInvoice.invoiceNumber}</b>
+                </div>
+              )}
+              {menuShipment.monthlyInvoice && (
+                <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '2px' }}>
+                  📅 Monthly: <b>{menuShipment.monthlyInvoice.invoiceNumber}</b>
+                </div>
+              )}
             </div>
 
-            {menuShipment.latestInvoice ? (
+            {menuShipment.individualInvoice ? (
               <>
                 <MenuItem
-                  label={menuShipment.invoiceSentAt || menuShipment.latestInvoice?.sentAt ? '✅ Resend Invoice' : '📤 Send Customer'}
-                  sub={menuShipment.invoiceSentAt || menuShipment.latestInvoice?.sentAt ? 'Invoice already sent — send again' : 'Email the invoice to the shipper'}
+                  label={invSent ? '📤 Resend Invoice' : '📤 Send Customer'}
+                  sub={invSent ? 'Invoice already sent — send again' : 'Email the invoice to the shipper'}
                   onClick={() => { setActionMenu(null); handleSendInvoice(menuShipment.trackingNumber); }}
                 />
                 <MenuItem
                   label="✏️ Edit Invoice Dates"
-                  sub="Change issue / due dates"
+                  sub={'Update issue / due on ' + menuShipment.individualInvoice.invoiceNumber}
                   onClick={() => { setActionMenu(null); openEditInvModal(menuShipment); }}
                 />
                 <MenuItem
                   label="🔁 Reissue Invoice"
-                  sub="Create a fresh invoice for this shipment"
+                  sub="Create a fresh individual invoice"
                   onClick={() => { setActionMenu(null); handleIssueInvoice(menuShipment); }}
                 />
               </>
+            ) : menuShipment.monthlyInvoice ? (
+              <MenuItem
+                label="📄 Open Monthly Invoice"
+                sub={'Currently in ' + menuShipment.monthlyInvoice.invoiceNumber}
+                onClick={() => {
+                  setActionMenu(null);
+                  window.open('/api/pdf/invoice/' + menuShipment.monthlyInvoice.invoiceId + '?_v=' + Date.now(), '_blank', 'noopener');
+                }}
+              />
             ) : (
               <MenuItem
                 label="🧾 Issue Invoice"
                 sub="No invoice exists yet for this shipment"
                 onClick={() => { setActionMenu(null); handleIssueInvoice(menuShipment); }}
+              />
+            )}
+
+            {menuShipment.monthlyInvoice && menuShipment.individualInvoice && (
+              <MenuItem
+                label="📅 View Monthly Invoice"
+                sub={'This shipment is also in ' + menuShipment.monthlyInvoice.invoiceNumber}
+                onClick={() => {
+                  setActionMenu(null);
+                  window.open('/api/pdf/invoice/' + menuShipment.monthlyInvoice.invoiceId + '?_v=' + Date.now(), '_blank', 'noopener');
+                }}
               />
             )}
 
@@ -1210,9 +1249,6 @@ export default function BillingPanel() {
         </>
       )}
 
-      {/* ============================================================
-          MONTHLY SUMMARY
-          ============================================================ */}
       {tab === 'due' && (
         <>
           <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginTop: '50px', marginBottom: '20px' }}>📅 Monthly Summary</h2>
@@ -1286,7 +1322,6 @@ export default function BillingPanel() {
                     boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
                     overflow: 'hidden',
                   }}>
-                    {/* Header strip */}
                     <div style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1356,7 +1391,6 @@ export default function BillingPanel() {
                       </div>
                     </div>
 
-                    {/* Expanded detail: same 7-column layout as the PDF */}
                     {isExpanded && (
                       <div style={{ padding: '4px 0 0' }}>
                         {rows.length === 0 ? (
@@ -1432,9 +1466,6 @@ export default function BillingPanel() {
         </>
       )}
 
-      {/* ============================================================
-          COST MODAL (unchanged)
-          ============================================================ */}
       {costModal && (
         <div
           style={{
@@ -1683,7 +1714,10 @@ export default function BillingPanel() {
                 <div>
                   <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>✏️ Edit Invoice</h2>
                   <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>
-                    {editInvModal.shipment.latestInvoice.invoiceNumber} · {editInvModal.shipment.trackingNumber}
+                    {editInvModal.invoice.invoiceNumber} · {editInvModal.shipment.trackingNumber}
+                  </div>
+                  <div style={{ color: '#6C757D', fontSize: '0.75rem', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700 }}>
+                    {editInvModal.invoice.type === 'monthly-summary' ? '📅 Monthly Invoice' : '🧾 Individual Invoice'}
                   </div>
                 </div>
                 <button onClick={closeEditInvModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
@@ -1726,9 +1760,6 @@ export default function BillingPanel() {
   );
 }
 
-/* ============================================================
-   Small shared components
-   ============================================================ */
 function StatCard({ num, label, color }) {
   return (
     <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', borderLeft: '4px solid ' + color }}>
