@@ -1187,11 +1187,11 @@ export default function BillingPanel() {
               )}
             </div>
 
-            {menuShipment.individualInvoice ? (
+                {menuShipment.individualInvoice ? (
               <>
                 <MenuItem
-                  label={invSent ? '📤 Resend Invoice' : '📤 Send Customer'}
-                  sub={invSent ? 'Invoice already sent — send again' : 'Email the invoice to the shipper'}
+                  label={(menuShipment.invoiceSentAt || menuShipment.individualInvoice.sentAt) ? '📤 Resend Invoice' : '📤 Send Customer'}
+                  sub={(menuShipment.invoiceSentAt || menuShipment.individualInvoice.sentAt) ? 'Invoice already sent — send again' : 'Email the invoice to the shipper'}
                   onClick={() => { setActionMenu(null); handleSendInvoice(menuShipment.trackingNumber); }}
                 />
                 <MenuItem
