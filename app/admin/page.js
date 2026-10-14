@@ -1447,7 +1447,7 @@ function ShipmentsPanel() {
                     <HeaderCell col="payment" label="Payment" width={120} />
                     <HeaderCell col="none" label="Booked" width={120} />
                     <HeaderCell col="none" label="ETA" width={125} />
-                    <HeaderCell col="none" label="Actions" width={260} frozenRight={true} />
+                    <HeaderCell col="none" label="Actions" width={260} />
                   </tr>
                 </thead>
                 <tbody>
@@ -1496,13 +1496,8 @@ function ShipmentsPanel() {
                         </td>
 
                         {/* STICKY ACTIONS CELL */}
-                        <td style={{
+                                                <td style={{
                           ...TD_STYLE,
-                          position: 'sticky',
-                          right: 0,
-                          zIndex: 4,
-                          background: rowBg,
-                          boxShadow: FROZEN_RIGHT_SHADOW,
                           width: 260,
                           minWidth: 260,
                           padding: '8px 12px',
