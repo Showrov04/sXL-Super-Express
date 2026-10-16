@@ -426,7 +426,7 @@ async function createMonthlyInvoice(session, body) {
       type: 'monthly-summary',
       tracking_numbers: tns.join(', '),
       shipper_name: shipperName,
-      month,
+            month: monthClean,
       amount: total,
       currency: 'USD',
       status: 'Issued',
