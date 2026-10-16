@@ -234,11 +234,28 @@ export async function GET(request) {
         status: s.status,
         origin: countryName(s.origin),
         destination: countryName(s.destination),
-        senderName: s.sender_name,
+                senderName: s.sender_name,
         shipperRef: s.shipper_ref || null,
         recipientName: s.recipient_name,
         bookingWeight: s.total_weight,
+        bookingCbm: parseFloat(s.total_cbm) || 0,
         actualWeight: s.actual_weight,
+        actualCbm: (() => {
+          // Same gate as admin: expose CBM only after admin has acted
+          // on the shipment (cost saved OR status moved past "Booked").
+          const statusLower = String(s.status || '').toLowerCase();
+          const adminHasActed = !!s.cost_saved_at || statusLower !== 'booked';
+          if (!adminHasActed) return 0;
+          try {
+            const bd = s.cost_breakdown;
+            if (bd) {
+              const parsed = typeof bd === 'string' ? JSON.parse(bd) : bd;
+              const fromBreakdown = parseFloat(parsed.actualCbm);
+              if (fromBreakdown > 0) return fromBreakdown;
+            }
+          } catch (e) { /* silent */ }
+          return parseFloat(s.total_cbm) || 0;
+        })(),
         weight: s.total_weight,
         shippingCost: cost > 0 ? cost : null,
         cost: cost > 0 ? cost : null,
