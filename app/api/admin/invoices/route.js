@@ -336,12 +336,12 @@ async function createIndividualInvoice(session, body) {
 
 /**
  * Create monthly summary invoice
- * Includes:
  *   GUARD 1 — reject duplicate (same shipper + month)
- *   GUARD 2 — skip tracking numbers already in any other invoice
+ *   GUARD 2 — skip TNs already in any other invoice
+ *   TASK 3 — auto-compute local amount from exchange rate
  */
 async function createMonthlyInvoice(session, body) {
-  const { shipperName, month, localCurrency, localAmount } = body;
+  const { shipperName, month, localCurrency, exchangeRate } = body;
 
   if (!shipperName || !month) {
     return NextResponse.json({ success: false, error: 'Shipper name and month required.' });
@@ -491,6 +491,15 @@ async function createMonthlyInvoice(session, body) {
   const notesText = matched.length + ' shipment' + (matched.length !== 1 ? 's' : '') +
     (skipped.length > 0 ? ' · ' + skipped.length + ' skipped (already invoiced)' : '');
 
+  // TASK 3 — auto-compute local amount from exchange rate
+  const fxRate = parseFloat(exchangeRate) || 0;
+  const localAmountComputed = (fxRate > 0 && total > 0)
+    ? Math.round(total * fxRate * 100) / 100
+    : null;
+  const localCurrencyClean = (localCurrency && localAmountComputed)
+    ? String(localCurrency).trim().toUpperCase()
+    : null;
+
   const { error: insertErr } = await serviceSupabase
     .from('invoices')
     .insert({
@@ -506,8 +515,8 @@ async function createMonthlyInvoice(session, body) {
       issue_date: issueDate.toISOString(),
       due_date: dueDate.toISOString(),
       notes: notesText,
-      local_currency: localCurrency || null,
-      local_amount: parseFloat(localAmount) || null,
+      local_currency: localCurrencyClean,
+      local_amount: localAmountComputed,
       created_by: session.userId,
     });
 
@@ -522,6 +531,10 @@ async function createMonthlyInvoice(session, body) {
     shipmentCount: matched.length,
     skippedCount: skipped.length,
     total,
+    currency: 'USD',
+    localCurrency: localCurrencyClean,
+    localAmount: localAmountComputed,
+    exchangeRate: fxRate,
   });
 }
 
