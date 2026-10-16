@@ -99,7 +99,6 @@ const FROZEN_LEFT_ROUTE_ALL = COL_W_TRACKING + COL_W_MODE;
 const COL_W_ACTIONS = 280;
 const HOVER_BG = '#EEF5FF';
 
-// Fixed-size primary button — no clipping of the ⋯ button
 const PRIMARY_BTN_BASE = {
   padding: '8px 14px',
   border: 'none',
@@ -206,7 +205,7 @@ export default function BillingPanel() {
   const [editInvSaving, setEditInvSaving] = useState(false);
   const [editInvError, setEditInvError] = useState('');
 
-    const [monthlyShipper, setMonthlyShipper] = useState('');
+  const [monthlyShipper, setMonthlyShipper] = useState('');
   const [monthlyMonth, setMonthlyMonth] = useState('');
 
   // Split monthlyMonth (YYYY-MM) into year + month components for two dropdowns
@@ -242,12 +241,14 @@ export default function BillingPanel() {
     { v: '11', label: 'November' },
     { v: '12', label: 'December' },
   ];
+
   const [monthlyLocalCurrency, setMonthlyLocalCurrency] = useState('');
   const [monthlyLocalAmount, setMonthlyLocalAmount] = useState('');
   const [monthlyGenerating, setMonthlyGenerating] = useState(false);
   const [monthlyMsg, setMonthlyMsg] = useState('');
   const [monthlyInvoices, setMonthlyInvoices] = useState([]);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [deletingInvoiceId, setDeletingInvoiceId] = useState('');
 
   useEffect(() => {
     const modalOpen = costModal || editInvModal;
@@ -682,6 +683,43 @@ export default function BillingPanel() {
     }
   }
 
+  async function handleDeleteMonthlyInvoice(inv) {
+    const statusLower = String(inv.status || '').toLowerCase();
+    if (statusLower === 'paid') {
+      window.alert('Cannot delete a paid invoice (' + inv.invoiceNumber + '). Mark it as Unpaid first.');
+      return;
+    }
+
+    const ok = window.confirm(
+      'Delete invoice ' + inv.invoiceNumber + '?\n\n' +
+      'This removes the invoice only. Shipments stay unpaid and can be reinvoiced.'
+    );
+    if (!ok) return;
+
+    setDeletingInvoiceId(inv.invoiceID);
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const res = await fetch('/api/admin/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ action: 'delete', invoiceId: inv.invoiceID }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        window.alert('Error: ' + (data.error || 'Failed'));
+        setDeletingInvoiceId('');
+        return;
+      }
+      setToast('🗑️ Invoice ' + data.deletedInvoiceNumber + ' deleted');
+      setDeletingInvoiceId('');
+      loadMonthlyInvoices();
+    } catch (err) {
+      window.alert('Error: ' + err.message);
+      setDeletingInvoiceId('');
+    }
+  }
+
   function openEditInvModal(s) {
     const target = s.individualInvoice || s.monthlyInvoice;
     if (!target) return;
@@ -763,7 +801,11 @@ export default function BillingPanel() {
         setMonthlyGenerating(false);
         return;
       }
-      setMonthlyMsg('✅ Monthly invoice ' + data.invoiceNumber + ' generated (' + data.shipmentCount + ' shipments, USD ' + Number(data.total).toFixed(2) + ')');
+      let msg = '✅ Monthly invoice ' + data.invoiceNumber + ' generated (' + data.shipmentCount + ' shipments, USD ' + Number(data.total).toFixed(2) + ')';
+      if (data.skippedCount > 0) {
+        msg += ' · ' + data.skippedCount + ' skipped (already invoiced)';
+      }
+      setMonthlyMsg(msg);
       setMonthlyGenerating(false);
       setTimeout(loadMonthlyInvoices, 500);
     } catch (err) {
@@ -799,7 +841,7 @@ export default function BillingPanel() {
   }
 
   /* ============================================================
-   *  Primary action dispatcher (only used on Due tab)
+   *  Primary action dispatcher
    * ============================================================ */
   function getPrimaryAction(s) {
     const tn = s.trackingNumber;
@@ -1131,11 +1173,7 @@ export default function BillingPanel() {
                         </td>
                       )}
 
-                      {/* ACTIONS CELL
-                       * - Due Payment tab: full actions (primary + ⋯)
-                       * - Paid tab: only "↩ Undo"
-                       * - All Shipments tab: blank (—)
-                       */}
+                      {/* ACTIONS CELL */}
                       <td style={{
                         ...TD_STYLE,
                         width: COL_W_ACTIONS,
@@ -1346,7 +1384,7 @@ export default function BillingPanel() {
                   {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-                                          <div>
+              <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Month *</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '8px' }}>
                   <select
@@ -1354,7 +1392,7 @@ export default function BillingPanel() {
                     onChange={(e) => setMonthYear(e.target.value)}
                     style={{
                       width: '100%', padding: '10px 12px',
-                      border: '2px solid ' + (monthlyMonth && !monthYear ? '#DC3545' : '#E9ECEF'),
+                      border: '2px solid #E9ECEF',
                       borderRadius: '8px', fontSize: '0.9rem',
                       fontFamily: 'inherit', boxSizing: 'border-box',
                       cursor: 'pointer', background: 'white',
@@ -1370,7 +1408,7 @@ export default function BillingPanel() {
                     onChange={(e) => setMonthNum(e.target.value)}
                     style={{
                       width: '100%', padding: '10px 12px',
-                      border: '2px solid ' + (monthlyMonth && !monthNum ? '#DC3545' : '#E9ECEF'),
+                      border: '2px solid #E9ECEF',
                       borderRadius: '8px', fontSize: '0.9rem',
                       fontFamily: 'inherit', boxSizing: 'border-box',
                       cursor: 'pointer', background: 'white',
@@ -1383,7 +1421,7 @@ export default function BillingPanel() {
                   </select>
                 </div>
                 <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px' }}>
-                  Pick a year and month. Combined value: <b>{monthlyMonth || 'YYYY-MM'}</b>
+                  Combined value: <b>{monthlyMonth || 'YYYY-MM'}</b>
                 </div>
               </div>
               <div>
@@ -1406,7 +1444,7 @@ export default function BillingPanel() {
             </div>
 
             {monthlyMsg && (
-              <div style={{ marginTop: '15px', padding: '12px 16px', borderRadius: '8px', fontSize: '0.9rem', background: monthlyMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: monthlyMsg.startsWith('✅') ? '#155724' : '#721C24' }}>
+              <div style={{ marginTop: '15px', padding: '12px 16px', borderRadius: '8px', fontSize: '0.9rem', background: monthlyMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: monthlyMsg.startsWith('✅') ? '#155724' : '#721C24', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {monthlyMsg}
               </div>
             )}
@@ -1427,6 +1465,8 @@ export default function BillingPanel() {
                 const statusLower = String(inv.status).toLowerCase();
                 const statusBg = statusLower === 'paid' ? '#D4EDDA' : (statusLower === 'issued' ? '#FFF3CD' : '#E9ECEF');
                 const statusColor = statusLower === 'paid' ? '#155724' : (statusLower === 'issued' ? '#856404' : '#495057');
+                const isPaid = statusLower === 'paid';
+                const isDeleting = deletingInvoiceId === inv.invoiceID;
 
                 const rows = Array.isArray(inv.shipments) ? inv.shipments : [];
                 const invCurrency = inv.currency || 'USD';
@@ -1466,7 +1506,7 @@ export default function BillingPanel() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{ padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem', background: statusBg, color: statusColor, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           {inv.status}
                         </span>
@@ -1481,6 +1521,22 @@ export default function BillingPanel() {
                         >
                           📄 PDF
                         </a>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMonthlyInvoice(inv)}
+                          disabled={isPaid || isDeleting}
+                          title={isPaid ? 'Cannot delete a paid invoice — mark it unpaid first' : 'Delete this invoice'}
+                          style={{
+                            ...MENU_ACTION_STYLE,
+                            background: 'transparent',
+                            color: (isPaid || isDeleting) ? '#ADB5BD' : '#DC3545',
+                            border: '2px solid ' + ((isPaid || isDeleting) ? '#E9ECEF' : '#DC3545'),
+                            cursor: (isPaid || isDeleting) ? 'not-allowed' : 'pointer',
+                            opacity: isPaid ? 0.5 : 1,
+                          }}
+                        >
+                          {isDeleting ? '...' : '🗑️'}
+                        </button>
                       </div>
                     </div>
 
