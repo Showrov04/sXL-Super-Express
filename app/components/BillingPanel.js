@@ -783,7 +783,7 @@ export default function BillingPanel() {
         label: '✅ Paid',
         bg: '#D4EDDA',
         color: '#155724',
-        onClick: null, // no handler → will trigger menu instead
+        onClick: null,
       };
     }
     if (!hasCost) {
@@ -1104,7 +1104,7 @@ export default function BillingPanel() {
                         </td>
                       )}
 
-                      {/* STICKY ACTIONS CELL */}
+                      {/* STICKY ACTIONS CELL — always shows primary + ⋯ */}
                       <td style={{
                         ...TD_STYLE,
                         position: 'sticky',
@@ -1119,56 +1119,42 @@ export default function BillingPanel() {
                         overflow: 'visible',
                         textOverflow: 'clip',
                       }}>
-                        {isDueTab ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
-                            {primary.onClick ? (
-                              <button
-                                type="button"
-                                onClick={primary.onClick}
-                                style={{
-                                  ...PRIMARY_BTN_BASE,
-                                  background: primary.bg,
-                                  color: primary.color,
-                                }}
-                              >
-                                {primary.label}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={(e) => openActionMenu(e, s.trackingNumber)}
-                                title="Click for more actions"
-                                style={{
-                                  ...PRIMARY_BTN_BASE,
-                                  background: primary.bg,
-                                  color: primary.color,
-                                }}
-                              >
-                                {primary.label}
-                              </button>
-                            )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                          {primary.onClick ? (
+                            <button
+                              type="button"
+                              onClick={primary.onClick}
+                              style={{
+                                ...PRIMARY_BTN_BASE,
+                                background: primary.bg,
+                                color: primary.color,
+                              }}
+                            >
+                              {primary.label}
+                            </button>
+                          ) : (
                             <button
                               type="button"
                               onClick={(e) => openActionMenu(e, s.trackingNumber)}
-                              title="More actions"
-                              style={MORE_BTN}
+                              title="Click for more actions"
+                              style={{
+                                ...PRIMARY_BTN_BASE,
+                                background: primary.bg,
+                                color: primary.color,
+                              }}
                             >
-                              ⋯
+                              {primary.label}
                             </button>
-                          </div>
-                        ) : tab === 'paid' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleMarkUnpaid(s.trackingNumber)}
-                              style={{ ...MENU_ACTION_STYLE, background: '#FFC107', color: '#333' }}
-                            >
-                              ↩ Undo
-                            </button>
-                          </div>
-                        ) : (
-                          <span style={{ color: '#ADB5BD' }}>—</span>
-                        )}
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => openActionMenu(e, s.trackingNumber)}
+                            title="More actions"
+                            style={MORE_BTN}
+                          >
+                            ⋯
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
