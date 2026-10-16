@@ -665,6 +665,38 @@ export default function BillingPanel() {
     }
   }
 
+  async function handleDeleteIndividualInvoice(s) {
+    const inv = s.individualInvoice;
+    if (!inv) return;
+
+    const statusLower = String(inv.status || '').toLowerCase();
+    if (statusLower === 'paid') {
+      window.alert('Cannot delete a paid invoice (' + inv.invoiceNumber + '). Mark it as Unpaid first.');
+      return;
+    }
+
+    const ok = window.confirm(
+      'Delete individual invoice ' + inv.invoiceNumber + '?\n\n' +
+      'The shipment becomes "not invoiced" and can then be included in a monthly invoice.'
+    );
+    if (!ok) return;
+
+    const token = localStorage.getItem('sxl_token');
+    try {
+      const res = await fetch('/api/admin/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ action: 'delete', invoiceId: inv.invoiceId }),
+      });
+      const data = await res.json();
+      if (!data.success) { window.alert('Error: ' + (data.error || 'Failed')); return; }
+      setToast('🗑️ Invoice ' + data.deletedInvoiceNumber + ' deleted');
+      loadShipments();
+    } catch (err) {
+      window.alert('Error: ' + err.message);
+    }
+  }
+
   async function handleSendInvoice(trackingNumber) {
     if (!window.confirm('Send invoice email to customer for ' + trackingNumber + '?')) return;
     const token = localStorage.getItem('sxl_token');
@@ -1319,6 +1351,13 @@ export default function BillingPanel() {
                   sub="Create a fresh individual invoice"
                   onClick={() => { setActionMenu(null); handleIssueInvoice(menuShipment); }}
                 />
+                {String(menuShipment.individualInvoice.status || '').toLowerCase() !== 'paid' && (
+                  <MenuItem
+                    label="🗑️ Delete Individual Invoice"
+                    sub={'Remove ' + menuShipment.individualInvoice.invoiceNumber + ' so this shipment can be added to a monthly invoice'}
+                    onClick={() => { setActionMenu(null); handleDeleteIndividualInvoice(menuShipment); }}
+                  />
+                )}
               </>
             )}
 
