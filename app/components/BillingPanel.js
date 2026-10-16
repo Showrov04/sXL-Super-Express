@@ -206,8 +206,42 @@ export default function BillingPanel() {
   const [editInvSaving, setEditInvSaving] = useState(false);
   const [editInvError, setEditInvError] = useState('');
 
-  const [monthlyShipper, setMonthlyShipper] = useState('');
+    const [monthlyShipper, setMonthlyShipper] = useState('');
   const [monthlyMonth, setMonthlyMonth] = useState('');
+
+  // Split monthlyMonth (YYYY-MM) into year + month components for two dropdowns
+  const [monthYear, monthNum] = (() => {
+    const m = String(monthlyMonth || '').match(/^(\d{4})-(\d{2})$/);
+    return m ? [m[1], m[2]] : ['', ''];
+  })();
+
+  function setMonthYear(y) {
+    if (!y) { setMonthlyMonth(''); return; }
+    const n = monthNum || String(new Date().getMonth() + 1).padStart(2, '0');
+    setMonthlyMonth(y + '-' + n);
+  }
+  function setMonthNum(n) {
+    if (!n) { setMonthlyMonth(''); return; }
+    const y = monthYear || String(new Date().getFullYear());
+    setMonthlyMonth(y + '-' + n);
+  }
+
+  const CURRENT_YEAR = new Date().getFullYear();
+  const YEAR_OPTIONS = [CURRENT_YEAR + 1, CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2];
+  const MONTH_OPTIONS = [
+    { v: '01', label: 'January' },
+    { v: '02', label: 'February' },
+    { v: '03', label: 'March' },
+    { v: '04', label: 'April' },
+    { v: '05', label: 'May' },
+    { v: '06', label: 'June' },
+    { v: '07', label: 'July' },
+    { v: '08', label: 'August' },
+    { v: '09', label: 'September' },
+    { v: '10', label: 'October' },
+    { v: '11', label: 'November' },
+    { v: '12', label: 'December' },
+  ];
   const [monthlyLocalCurrency, setMonthlyLocalCurrency] = useState('');
   const [monthlyLocalAmount, setMonthlyLocalAmount] = useState('');
   const [monthlyGenerating, setMonthlyGenerating] = useState(false);
