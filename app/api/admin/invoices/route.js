@@ -347,11 +347,23 @@ async function createMonthlyInvoice(session, body) {
     return NextResponse.json({ success: false, error: 'Shipper name and month required.' });
   }
 
+  // Validate month format YYYY-MM
+  const monthClean = String(month).trim();
+  if (!/^\d{4}-\d{2}$/.test(monthClean)) {
+    return NextResponse.json({
+      success: false,
+      error: 'Invalid month format: "' + month + '". Expected YYYY-MM (e.g., 2026-10). Please pick a month using the calendar picker.',
+    });
+  }
+
+  const shipperClean = String(shipperName).trim();
+
+  // Case-insensitive match on shipper name + status
   const { data: candidates, error: shipErr } = await serviceSupabase
     .from('shipments')
     .select('*')
-    .eq('sender_name', shipperName)
-    .eq('status', 'Delivered')
+    .ilike('sender_name', shipperClean)
+    .ilike('status', 'delivered')
     .neq('payment_status', 'Paid');
 
   if (shipErr) return NextResponse.json({ success: false, error: shipErr.message });
@@ -361,11 +373,34 @@ async function createMonthlyInvoice(session, body) {
     const d = new Date(s.booked_at);
     if (isNaN(d.getTime())) return false;
     const sMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-    return sMonth === month;
+    return sMonth === monthClean;
   });
 
   if (matched.length === 0) {
-    return NextResponse.json({ success: false, error: 'No unpaid shipments found for this shipper in ' + month });
+    // Diagnostic: tell user what months had matches so they can pick the right one
+    const count = (candidates || []).length;
+    if (count > 0) {
+      const monthsSeen = new Set();
+      (candidates || []).forEach((s) => {
+        if (s.booked_at) {
+          const d = new Date(s.booked_at);
+          if (!isNaN(d.getTime())) {
+            monthsSeen.add(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+          }
+        }
+      });
+      return NextResponse.json({
+        success: false,
+        error: 'No shipments for "' + shipperClean + '" in ' + monthClean +
+               '. Found ' + count + ' delivered+unpaid shipment(s) in: ' +
+               Array.from(monthsSeen).join(', ') + '. Try selecting one of those months.',
+      });
+    }
+    return NextResponse.json({
+      success: false,
+      error: 'No delivered+unpaid shipments found for "' + shipperClean + '". ' +
+             'Ensure shipment status is "Delivered" and payment status is not "Paid".',
+    });
   }
 
   let total = 0;
