@@ -1346,31 +1346,44 @@ export default function BillingPanel() {
                   {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-                            <div>
+                                          <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Month *</label>
-                <input
-                  type="month"
-                  value={monthlyMonth}
-                  onChange={(e) => setMonthlyMonth(e.target.value)}
-                  onClick={(e) => {
-                    try {
-                      if (e.currentTarget && typeof e.currentTarget.showPicker === 'function') {
-                        e.currentTarget.showPicker();
-                      }
-                    } catch (err) { /* fallback: native behaviour */ }
-                  }}
-                  placeholder="YYYY-MM"
-                  style={{
-                    width: '100%', padding: '10px 14px',
-                    border: '2px solid ' + (monthlyMonth && !/^\d{4}-\d{2}$/.test(monthlyMonth) ? '#DC3545' : '#E9ECEF'),
-                    borderRadius: '8px', fontSize: '0.9rem',
-                    fontFamily: 'inherit', boxSizing: 'border-box',
-                    cursor: 'pointer',
-                    background: 'white',
-                  }}
-                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '8px' }}>
+                  <select
+                    value={monthYear}
+                    onChange={(e) => setMonthYear(e.target.value)}
+                    style={{
+                      width: '100%', padding: '10px 12px',
+                      border: '2px solid ' + (monthlyMonth && !monthYear ? '#DC3545' : '#E9ECEF'),
+                      borderRadius: '8px', fontSize: '0.9rem',
+                      fontFamily: 'inherit', boxSizing: 'border-box',
+                      cursor: 'pointer', background: 'white',
+                    }}
+                  >
+                    <option value="">Year</option>
+                    {YEAR_OPTIONS.map((y) => (
+                      <option key={y} value={String(y)}>{y}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={monthNum}
+                    onChange={(e) => setMonthNum(e.target.value)}
+                    style={{
+                      width: '100%', padding: '10px 12px',
+                      border: '2px solid ' + (monthlyMonth && !monthNum ? '#DC3545' : '#E9ECEF'),
+                      borderRadius: '8px', fontSize: '0.9rem',
+                      fontFamily: 'inherit', boxSizing: 'border-box',
+                      cursor: 'pointer', background: 'white',
+                    }}
+                  >
+                    <option value="">Month</option>
+                    {MONTH_OPTIONS.map((m) => (
+                      <option key={m.v} value={m.v}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
                 <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px' }}>
-                  Click the field to open the month picker. Format: YYYY-MM.
+                  Pick a year and month. Combined value: <b>{monthlyMonth || 'YYYY-MM'}</b>
                 </div>
               </div>
               <div>
