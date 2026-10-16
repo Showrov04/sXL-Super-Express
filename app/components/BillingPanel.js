@@ -1009,7 +1009,7 @@ export default function BillingPanel() {
                   {showInvoiceColumns && <HeaderCell col="none" label="Inv Date" width={115} />}
                   {showInvoiceColumns && <HeaderCell col="invNumber" label="Inv #" width={130} />}
                   {showInvoiceColumns && <HeaderCell col="none" label="Due" width={115} />}
-                  <HeaderCell col="none" label="Actions" width={COL_W_ACTIONS} frozenRight={true} />
+                  <HeaderCell col="none" label="Actions" width={COL_W_ACTIONS} />
                 </tr>
               </thead>
               <tbody>
@@ -1105,14 +1105,9 @@ export default function BillingPanel() {
                         </td>
                       )}
 
-                      {/* STICKY ACTIONS CELL — always shows primary + ⋯ */}
+                     {/* ACTIONS CELL — not frozen (matches Active Shipment) */}
                       <td style={{
                         ...TD_STYLE,
-                        position: 'sticky',
-                        right: 0,
-                        zIndex: 4,
-                        background: rowBg,
-                        boxShadow: FROZEN_RIGHT_SHADOW,
                         width: COL_W_ACTIONS,
                         minWidth: COL_W_ACTIONS,
                         padding: '8px 12px',
