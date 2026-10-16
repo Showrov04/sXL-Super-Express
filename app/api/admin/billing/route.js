@@ -308,8 +308,23 @@ export async function GET(request) {
         weight: s.total_weight,
         bookingWeight: s.total_weight,
         bookingCbm: parseFloat(s.total_cbm) || 0,
-        actualWeight: s.actual_weight,
-        actualCbm: parseFloat(s.total_cbm) || 0,
+                actualWeight: s.actual_weight,
+        actualCbm: (() => {
+          // Only expose actual CBM once cost is confirmed by admin.
+          // Before that, `total_cbm` is just the customer's booking value,
+          // which should display as TBA in the Actual Wt column.
+          if (!s.cost_saved_at) return 0;
+          try {
+            const bd = s.cost_breakdown;
+            if (bd) {
+              const parsed = typeof bd === 'string' ? JSON.parse(bd) : bd;
+              const fromBreakdown = parseFloat(parsed.actualCbm);
+              if (fromBreakdown > 0) return fromBreakdown;
+            }
+          } catch (e) { /* silent */ }
+          // Cost was saved but no explicit actualCbm — fall back to total_cbm
+          return parseFloat(s.total_cbm) || 0;
+        })(),
         ratePerKg: s.rate_per_kg,
         shippingCost: cost > 0 ? cost : null,
         totalCbm: parseFloat(s.total_cbm) || 0,
