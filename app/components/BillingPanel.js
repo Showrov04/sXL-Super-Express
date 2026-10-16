@@ -243,7 +243,7 @@ export default function BillingPanel() {
   ];
 
   const [monthlyLocalCurrency, setMonthlyLocalCurrency] = useState('');
-  const [monthlyLocalAmount, setMonthlyLocalAmount] = useState('');
+  const [monthlyExchangeRate, setMonthlyExchangeRate] = useState('');
   const [monthlyGenerating, setMonthlyGenerating] = useState(false);
   const [monthlyMsg, setMonthlyMsg] = useState('');
   const [monthlyInvoices, setMonthlyInvoices] = useState([]);
@@ -791,8 +791,8 @@ export default function BillingPanel() {
           action: 'createMonthly',
           shipperName: monthlyShipper,
           month: monthlyMonth,
-          localCurrency: monthlyLocalCurrency,
-          localAmount: parseFloat(monthlyLocalAmount) || 0,
+          localCurrency: monthlyLocalCurrency || null,
+          exchangeRate: parseFloat(monthlyExchangeRate) || 0,
         }),
       });
       const data = await res.json();
@@ -802,8 +802,11 @@ export default function BillingPanel() {
         return;
       }
       let msg = '✅ Monthly invoice ' + data.invoiceNumber + ' generated (' + data.shipmentCount + ' shipments, USD ' + Number(data.total).toFixed(2) + ')';
+      if (data.localCurrency && data.localAmount) {
+        msg += '  ·  ' + data.localCurrency + ' ' + Number(data.localAmount).toFixed(2) + ' (1 USD = ' + data.exchangeRate + ')';
+      }
       if (data.skippedCount > 0) {
-        msg += ' · ' + data.skippedCount + ' skipped (already invoiced)';
+        msg += '  ·  ' + data.skippedCount + ' skipped (already invoiced)';
       }
       setMonthlyMsg(msg);
       setMonthlyGenerating(false);
@@ -1173,7 +1176,7 @@ export default function BillingPanel() {
                         </td>
                       )}
 
-                      {/* ACTIONS CELL */}
+                      {/* ACTIONS CELL — Due tab full, Paid tab Undo only, All tab blank */}
                       <td style={{
                         ...TD_STYLE,
                         width: COL_W_ACTIONS,
@@ -1426,13 +1429,43 @@ export default function BillingPanel() {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Local Currency (optional)</label>
-                <input type="text" value={monthlyLocalCurrency} onChange={(e) => setMonthlyLocalCurrency(e.target.value)} placeholder="e.g., BDT"
-                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <select
+                  value={monthlyLocalCurrency}
+                  onChange={(e) => setMonthlyLocalCurrency(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box', cursor: 'pointer', background: 'white' }}
+                >
+                  <option value="">-- None --</option>
+                  <option value="HKD">HKD — Hong Kong Dollar</option>
+                  <option value="BDT">BDT — Bangladeshi Taka</option>
+                  <option value="CNY">CNY — Chinese Yuan</option>
+                  <option value="EUR">EUR — Euro</option>
+                  <option value="USD">USD — US Dollar</option>
+                </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Local Amount (optional)</label>
-                <input type="number" step="0.01" value={monthlyLocalAmount} onChange={(e) => setMonthlyLocalAmount(e.target.value)} placeholder="e.g., 10000"
-                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Exchange Rate (1 USD = ?)</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={monthlyExchangeRate}
+                  onChange={(e) => setMonthlyExchangeRate(e.target.value)}
+                  placeholder="e.g., 7.80"
+                  disabled={!monthlyLocalCurrency}
+                  style={{
+                    width: '100%', padding: '10px 14px',
+                    border: '2px solid #E9ECEF', borderRadius: '8px',
+                    fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box',
+                    background: !monthlyLocalCurrency ? '#F8F9FA' : 'white',
+                    cursor: !monthlyLocalCurrency ? 'not-allowed' : 'text',
+                  }}
+                />
+                <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px' }}>
+                  {monthlyLocalCurrency
+                    ? (monthlyExchangeRate
+                        ? 'Local total will be auto-computed: USD total × ' + monthlyExchangeRate
+                        : 'Enter the rate to show the local equivalent on the invoice')
+                    : 'Pick a currency first'}
+                </div>
               </div>
             </div>
 
@@ -1513,6 +1546,11 @@ export default function BillingPanel() {
                         <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 800, color: '#FF6B00', fontSize: '1rem' }}>
                           {invCurrency} {invTotal}
                         </span>
+                        {inv.localCurrency && inv.localAmount && (
+                          <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#495057', fontSize: '0.8rem' }}>
+                            · {inv.localCurrency} {Number(inv.localAmount).toFixed(2)}
+                          </span>
+                        )}
                         <a
                           href={'/api/pdf/invoice/' + inv.invoiceID + '?_v=' + vToken}
                           target="_blank"
