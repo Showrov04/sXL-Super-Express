@@ -208,7 +208,6 @@ export default function BillingPanel() {
   const [monthlyShipper, setMonthlyShipper] = useState('');
   const [monthlyMonth, setMonthlyMonth] = useState('');
 
-  // Split monthlyMonth (YYYY-MM) into year + month components for two dropdowns
   const [monthYear, monthNum] = (() => {
     const m = String(monthlyMonth || '').match(/^(\d{4})-(\d{2})$/);
     return m ? [m[1], m[2]] : ['', ''];
@@ -245,6 +244,8 @@ export default function BillingPanel() {
   const [monthlyLocalCurrency, setMonthlyLocalCurrency] = useState('');
   const [monthlyExchangeRate, setMonthlyExchangeRate] = useState('');
   const [monthlyGenerating, setMonthlyGenerating] = useState(false);
+  const [clearingIndividual, setClearingIndividual] = useState(false);
+  const [downloadingSummary, setDownloadingSummary] = useState(false);
   const [monthlyMsg, setMonthlyMsg] = useState('');
   const [monthlyInvoices, setMonthlyInvoices] = useState([]);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
@@ -723,8 +724,8 @@ export default function BillingPanel() {
     }
 
     const ok = window.confirm(
-      'Delete invoice ' + inv.invoiceNumber + '?\n\n' +
-      'This removes the invoice only. Shipments stay unpaid and can be reinvoiced.'
+      'Delete monthly invoice ' + inv.invoiceNumber + '?\n\n' +
+      'Any INDIVIDUAL invoices linked to the same shipments will also be deleted, so you can regenerate a new monthly invoice for the same shipper and month.'
     );
     if (!ok) return;
 
@@ -743,9 +744,14 @@ export default function BillingPanel() {
         setDeletingInvoiceId('');
         return;
       }
-      setToast('🗑️ Invoice ' + data.deletedInvoiceNumber + ' deleted');
+      let msg = '🗑️ Monthly invoice ' + data.deletedInvoiceNumber + ' deleted';
+      if (data.unlinkedCount > 0) {
+        msg += ' · also unlinked ' + data.unlinkedCount + ' individual invoice(s)';
+      }
+      setToast(msg);
       setDeletingInvoiceId('');
       loadMonthlyInvoices();
+      loadShipments();
     } catch (err) {
       window.alert('Error: ' + err.message);
       setDeletingInvoiceId('');
@@ -805,6 +811,95 @@ export default function BillingPanel() {
     }
   }
 
+  async function handleClearIndividualInvoices() {
+    if (!monthlyShipper || !monthlyMonth) {
+      setMonthlyMsg('❌ Pick shipper and month first.');
+      return;
+    }
+
+    const ok = window.confirm(
+      'Delete ALL individual invoices for "' + monthlyShipper + '" in ' + monthlyMonth + '?\n\n' +
+      'Shipments stay unpaid and will be ready for monthly invoicing.'
+    );
+    if (!ok) return;
+
+    setClearingIndividual(true);
+    setMonthlyMsg('');
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const res = await fetch('/api/admin/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          action: 'clearIndividualForShipperMonth',
+          shipperName: monthlyShipper,
+          month: monthlyMonth,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setMonthlyMsg('❌ ' + (data.error || 'Failed.'));
+        setClearingIndividual(false);
+        return;
+      }
+      setMonthlyMsg('✅ Cleared ' + data.deletedCount + ' individual invoice(s): ' + data.deletedInvoiceNumbers.join(', ') + '. Now click "Generate Monthly Invoice".');
+      setClearingIndividual(false);
+    } catch (err) {
+      setMonthlyMsg('❌ Connection error.');
+      setClearingIndividual(false);
+    }
+  }
+
+  async function handleDownloadSummary() {
+    if (!monthlyShipper || !monthlyMonth) {
+      setMonthlyMsg('❌ Pick shipper and month first.');
+      return;
+    }
+
+    setDownloadingSummary(true);
+    setMonthlyMsg('');
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const params = new URLSearchParams({
+        shipper: monthlyShipper,
+        month: monthlyMonth,
+        _v: String(Date.now()),
+      });
+      const res = await fetch('/api/pdf/summary?' + params.toString(), {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+
+      if (!res.ok) {
+        let msg = 'HTTP ' + res.status;
+        try {
+          const txt = await res.text();
+          if (txt) msg = txt.slice(0, 200);
+        } catch (e) { /* silent */ }
+        setMonthlyMsg('❌ ' + msg);
+        setDownloadingSummary(false);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeShipper = String(monthlyShipper).replace(/[^a-zA-Z0-9._-]/g, '_');
+      a.download = 'sXL_Monthly_Summary_' + safeShipper + '_' + monthlyMonth + '.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setDownloadingSummary(false);
+      setMonthlyMsg('✅ Summary PDF downloaded');
+    } catch (err) {
+      setMonthlyMsg('❌ Connection error: ' + err.message);
+      setDownloadingSummary(false);
+    }
+  }
+
   async function handleGenerateMonthly(e) {
     e.preventDefault();
     setMonthlyMsg('');
@@ -843,6 +938,7 @@ export default function BillingPanel() {
       setMonthlyMsg(msg);
       setMonthlyGenerating(false);
       setTimeout(loadMonthlyInvoices, 500);
+      setTimeout(loadShipments, 500);
     } catch (err) {
       setMonthlyMsg('❌ Connection error.');
       setMonthlyGenerating(false);
@@ -875,9 +971,6 @@ export default function BillingPanel() {
     return <span style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(weight).toFixed(2)} kg</span>;
   }
 
-  /* ============================================================
-   *  Primary action dispatcher
-   * ============================================================ */
   function getPrimaryAction(s) {
     const tn = s.trackingNumber;
     const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
@@ -1141,11 +1234,31 @@ export default function BillingPanel() {
                         fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366'
                       }}>
                         {s.trackingNumber}
+                        {s.individualInvoice && (
+                          <span
+                            title={'Invoiced individually: ' + (s.individualInvoice?.invoiceNumber || '')}
+                            style={{
+                              marginLeft: '6px',
+                              display: 'inline-block',
+                              background: '#DBEAFE',
+                              color: '#1E40AF',
+                              padding: '1px 6px',
+                              borderRadius: '8px',
+                              fontSize: '0.6rem',
+                              fontWeight: 800,
+                              letterSpacing: '0.3px',
+                              verticalAlign: 'middle',
+                              cursor: 'help'
+                            }}
+                          >
+                            🧾
+                          </span>
+                        )}
                         {s.monthlyInvoice && (
                           <span
                             title={'Included in monthly invoice ' + (s.monthlyInvoice?.invoiceNumber || '')}
                             style={{
-                              marginLeft: '6px',
+                              marginLeft: '4px',
                               display: 'inline-block',
                               background: '#DBEAFE',
                               color: '#1E40AF',
@@ -1208,7 +1321,6 @@ export default function BillingPanel() {
                         </td>
                       )}
 
-                      {/* ACTIONS CELL — Due tab full, Paid tab Undo only, All tab blank */}
                       <td style={{
                         ...TD_STYLE,
                         width: COL_W_ACTIONS,
@@ -1278,7 +1390,6 @@ export default function BillingPanel() {
         </div>
       )}
 
-      {/* Per-row ⋯ action menu */}
       {actionMenu && menuShipment && (
         <>
           <div
@@ -1411,7 +1522,6 @@ export default function BillingPanel() {
         </>
       )}
 
-      {/* MONTHLY SUMMARY */}
       {tab === 'due' && (
         <>
           <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginTop: '50px', marginBottom: '20px' }}>📅 Monthly Summary</h2>
@@ -1512,7 +1622,49 @@ export default function BillingPanel() {
               <button type="submit" disabled={monthlyGenerating} style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: monthlyGenerating ? 'not-allowed' : 'pointer', opacity: monthlyGenerating ? 0.6 : 1, fontFamily: 'inherit' }}>
                 {monthlyGenerating ? 'Generating...' : '🧾 Generate Monthly Invoice'}
               </button>
+              <button
+                type="button"
+                onClick={handleDownloadSummary}
+                disabled={downloadingSummary || !monthlyShipper || !monthlyMonth}
+                title="Download a read-only summary PDF listing all invoices for this shipper + month"
+                style={{
+                  padding: '12px 24px',
+                  background: '#FF6B00',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  cursor: (downloadingSummary || !monthlyShipper || !monthlyMonth) ? 'not-allowed' : 'pointer',
+                  opacity: (downloadingSummary || !monthlyShipper || !monthlyMonth) ? 0.5 : 1,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {downloadingSummary ? 'Preparing...' : '📊 Download Summary PDF'}
+              </button>
               <button type="button" onClick={loadMonthlyInvoices} style={{ padding: '12px 20px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 Refresh List</button>
+              <button
+                type="button"
+                onClick={handleClearIndividualInvoices}
+                disabled={clearingIndividual || !monthlyShipper || !monthlyMonth}
+                title="Delete all individual invoices for this shipper + month so you can regenerate as monthly"
+                style={{
+                  padding: '12px 20px',
+                  background: 'transparent',
+                  color: '#DC3545',
+                  border: '2px solid #DC3545',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  cursor: (clearingIndividual || !monthlyShipper || !monthlyMonth) ? 'not-allowed' : 'pointer',
+                  opacity: (clearingIndividual || !monthlyShipper || !monthlyMonth) ? 0.5 : 1,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {clearingIndividual ? 'Clearing...' : '🗑️ Clear Individual Invoices'}
+              </button>
+            </div>
+
+            <div style={{ fontSize: '0.78rem', color: '#6C757D', marginTop: '10px', lineHeight: 1.6 }}>
+              <b style={{ color: '#003366' }}>📊 Download Summary PDF</b> — produces a read-only report listing existing invoices for that shipper + month. Does not create a new invoice and does not touch individual invoices.
             </div>
 
             {monthlyMsg && (
@@ -1602,7 +1754,7 @@ export default function BillingPanel() {
                           type="button"
                           onClick={() => handleDeleteMonthlyInvoice(inv)}
                           disabled={isPaid || isDeleting}
-                          title={isPaid ? 'Cannot delete a paid invoice — mark it unpaid first' : 'Delete this invoice'}
+                          title={isPaid ? 'Cannot delete a paid invoice — mark it unpaid first' : 'Delete this invoice (also unlinks individual invoices for the same shipments)'}
                           style={{
                             ...MENU_ACTION_STYLE,
                             background: 'transparent',
@@ -1676,7 +1828,6 @@ export default function BillingPanel() {
         </>
       )}
 
-      {/* COST MODAL */}
       {costModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', zIndex: 9999, overflowY: 'auto', overflowX: 'hidden' }}>
           <div style={{ minHeight: '100%', width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px 120px', boxSizing: 'border-box' }}>
@@ -1774,7 +1925,7 @@ export default function BillingPanel() {
                     )}
                     {!selectedShipment.pickupService && selectedShipment.customService !== 'sxl' && selectedShipment.deliveryService !== 'sxl' && (
                       <div style={{ fontSize: '0.85rem', color: '#6C757D', fontStyle: 'italic' }}>
-                        No extra services selected by customer (self-delivery + consignee handles customs & delivery).
+                        No extra services selected by customer.
                       </div>
                     )}
                   </div>
@@ -1808,9 +1959,6 @@ export default function BillingPanel() {
                     style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   <input type="number" step="0.0001" value={costExchangeRate} onChange={(e) => setCostExchangeRate(e.target.value)} placeholder="Exchange rate (1 USD = ?)"
                     style={{ padding: '10px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#6C757D', marginTop: '4px', fontStyle: 'italic' }}>
-                  Enter the exchange rate to also compute the local-currency total.
                 </div>
               </div>
 
