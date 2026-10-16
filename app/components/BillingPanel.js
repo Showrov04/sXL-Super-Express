@@ -97,11 +97,11 @@ const FROZEN_LEFT_TRACKING_ALL = 0;
 const FROZEN_LEFT_MODE_ALL = COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE_ALL = COL_W_TRACKING + COL_W_MODE;
 
-const COL_W_ACTIONS = 260;
+const COL_W_ACTIONS = 280;
 const HOVER_BG = '#EEF5FF';
 
 const PRIMARY_BTN_BASE = {
-  padding: '8px 12px',
+  padding: '8px 14px',
   border: 'none',
   borderRadius: '8px',
   fontWeight: 700,
@@ -114,8 +114,9 @@ const PRIMARY_BTN_BASE = {
   justifyContent: 'center',
   gap: '5px',
   lineHeight: 1.15,
-  width: '100%',
-  maxWidth: '186px',
+  minWidth: '105px',
+  maxWidth: '150px',
+  flexShrink: 0,
   boxSizing: 'border-box',
 };
 
