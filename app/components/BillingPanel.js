@@ -72,7 +72,6 @@ const TD_STYLE = {
 };
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
-const FROZEN_RIGHT_SHADOW = '-2px 0 5px -2px rgba(0,0,0,0.08)';
 
 const TOP_SCROLLBAR_STYLE = {
   overflowX: 'auto',
@@ -100,6 +99,7 @@ const FROZEN_LEFT_ROUTE_ALL = COL_W_TRACKING + COL_W_MODE;
 const COL_W_ACTIONS = 280;
 const HOVER_BG = '#EEF5FF';
 
+// Fixed-size primary button — no clipping of the ⋯ button
 const PRIMARY_BTN_BASE = {
   padding: '8px 14px',
   border: 'none',
@@ -765,9 +765,7 @@ export default function BillingPanel() {
   }
 
   /* ============================================================
-   *  Primary action dispatcher
-   *  Returns: { label, bg, color, onClick? }
-   *  If onClick is missing → the button opens the ⋯ menu instead.
+   *  Primary action dispatcher (only used on Due tab)
    * ============================================================ */
   function getPrimaryAction(s) {
     const tn = s.trackingNumber;
@@ -780,12 +778,7 @@ export default function BillingPanel() {
     const isPaid = String(s.paymentStatus || '').toLowerCase() === 'paid';
 
     if (isPaid) {
-      return {
-        label: '✅ Paid',
-        bg: '#D4EDDA',
-        color: '#155724',
-        onClick: null,
-      };
+      return { label: '✅ Paid', bg: '#D4EDDA', color: '#155724', onClick: null };
     }
     if (!hasCost) {
       return { label: '🔄 Add Cost', bg: '#FF6B00', color: 'white', onClick: () => openCostModal(s) };
@@ -799,22 +792,20 @@ export default function BillingPanel() {
     return { label: '💵 Mark Paid', bg: '#28A745', color: 'white', onClick: () => handleMarkPaid(tn) };
   }
 
-  function HeaderCell({ col, label, width, frozenLeft, hasShadow, frozenRight }) {
+  function HeaderCell({ col, label, width, frozenLeft, hasShadow }) {
     const isFilterable = ['shipperRef', 'tracking', 'mode', 'route', 'shipper', 'recipient', 'status', 'payment', 'invNumber'].includes(col);
     const activeCount = (colFilters[col] || []).length;
     const isOpen = openFilter === col;
-    const isFrozen = frozenLeft !== undefined || frozenRight === true;
+    const isFrozen = frozenLeft !== undefined;
 
     return (
       <th style={{
         ...TH_STYLE,
         background: isOpen ? '#DDE3E9' : '#E9ECEF',
         width, minWidth: width,
-        zIndex: isFrozen ? 23 : 20,
+        zIndex: isFrozen ? 22 : 20,
         ...(frozenLeft !== undefined ? { left: frozenLeft } : {}),
-        ...(frozenRight ? { right: 0 } : {}),
         ...(hasShadow ? { boxShadow: FROZEN_SHADOW } : {}),
-        ...(frozenRight ? { boxShadow: FROZEN_RIGHT_SHADOW } : {}),
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 12px' }}>
           <span>{label}{activeCount > 0 && <span style={{ marginLeft: '6px', color: '#FF6B00' }}>({activeCount})</span>}</span>
@@ -841,7 +832,7 @@ export default function BillingPanel() {
             style={{
               position: 'absolute', top: '100%',
               left: frozenLeft !== undefined ? frozenLeft : 'auto',
-              right: (frozenLeft !== undefined) ? 'auto' : 0,
+              right: frozenLeft !== undefined ? 'auto' : 0,
               minWidth: '200px', background: 'white',
               border: '1px solid #D0D6DB', borderRadius: '8px',
               boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 200,
@@ -884,6 +875,7 @@ export default function BillingPanel() {
   const showShipperRef = tab !== 'all';
   const isAllTab = tab === 'all';
   const isDueTab = tab === 'due';
+  const isPaidTab = tab === 'paid';
 
   const tableMinWidth = isDueTab ? 2400 : 1700;
 
@@ -1105,7 +1097,11 @@ export default function BillingPanel() {
                         </td>
                       )}
 
-                     {/* ACTIONS CELL — not frozen (matches Active Shipment) */}
+                      {/* ACTIONS CELL
+                       * - Due Payment tab: full actions (primary + ⋯)
+                       * - Paid tab: only "↩ Undo"
+                       * - All Shipments tab: blank (—)
+                       */}
                       <td style={{
                         ...TD_STYLE,
                         width: COL_W_ACTIONS,
@@ -1115,42 +1111,56 @@ export default function BillingPanel() {
                         overflow: 'visible',
                         textOverflow: 'clip',
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
-                          {primary.onClick ? (
-                            <button
-                              type="button"
-                              onClick={primary.onClick}
-                              style={{
-                                ...PRIMARY_BTN_BASE,
-                                background: primary.bg,
-                                color: primary.color,
-                              }}
-                            >
-                              {primary.label}
-                            </button>
-                          ) : (
+                        {isDueTab ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                            {primary.onClick ? (
+                              <button
+                                type="button"
+                                onClick={primary.onClick}
+                                style={{
+                                  ...PRIMARY_BTN_BASE,
+                                  background: primary.bg,
+                                  color: primary.color,
+                                }}
+                              >
+                                {primary.label}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => openActionMenu(e, s.trackingNumber)}
+                                title="Click for more actions"
+                                style={{
+                                  ...PRIMARY_BTN_BASE,
+                                  background: primary.bg,
+                                  color: primary.color,
+                                }}
+                              >
+                                {primary.label}
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={(e) => openActionMenu(e, s.trackingNumber)}
-                              title="Click for more actions"
-                              style={{
-                                ...PRIMARY_BTN_BASE,
-                                background: primary.bg,
-                                color: primary.color,
-                              }}
+                              title="More actions"
+                              style={MORE_BTN}
                             >
-                              {primary.label}
+                              ⋯
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={(e) => openActionMenu(e, s.trackingNumber)}
-                            title="More actions"
-                            style={MORE_BTN}
-                          >
-                            ⋯
-                          </button>
-                        </div>
+                          </div>
+                        ) : isPaidTab ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleMarkUnpaid(s.trackingNumber)}
+                              style={{ ...MENU_ACTION_STYLE, background: '#FFC107', color: '#333' }}
+                            >
+                              ↩ Undo
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#ADB5BD', display: 'inline-block', width: '100%', textAlign: 'right' }}>—</span>
+                        )}
                       </td>
                     </tr>
                   );
