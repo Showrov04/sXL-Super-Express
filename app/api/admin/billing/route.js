@@ -308,12 +308,14 @@ export async function GET(request) {
         weight: s.total_weight,
         bookingWeight: s.total_weight,
         bookingCbm: parseFloat(s.total_cbm) || 0,
-                actualWeight: s.actual_weight,
+                        actualWeight: s.actual_weight,
         actualCbm: (() => {
-          // Only expose actual CBM once cost is confirmed by admin.
-          // Before that, `total_cbm` is just the customer's booking value,
-          // which should display as TBA in the Actual Wt column.
-          if (!s.cost_saved_at) return 0;
+          // Expose CBM once admin has acted on the shipment:
+          //   - cost saved (billing modal), OR
+          //   - status moved past "Booked" (status modal)
+          const statusLower = String(s.status || '').toLowerCase();
+          const adminHasActed = !!s.cost_saved_at || statusLower !== 'booked';
+          if (!adminHasActed) return 0;
           try {
             const bd = s.cost_breakdown;
             if (bd) {
@@ -322,7 +324,6 @@ export async function GET(request) {
               if (fromBreakdown > 0) return fromBreakdown;
             }
           } catch (e) { /* silent */ }
-          // Cost was saved but no explicit actualCbm — fall back to total_cbm
           return parseFloat(s.total_cbm) || 0;
         })(),
         ratePerKg: s.rate_per_kg,
