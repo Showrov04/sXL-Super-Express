@@ -399,10 +399,152 @@ async function createMonthlyInvoice(session, body) {
     return NextResponse.json({
       success: false,
       error: 'No delivered+unpaid shipments found for "' + shipperClean + '". ' +
+             'Ensure sasync function createMonthlyInvoice(session, body) {
+  const { shipperName, month, localCurrency, localAmount } = body;
+
+  if (!shipperName || !month) {
+    return NextResponse.json({ success: false, error: 'Shipper name and month required.' });
+  }
+
+  // Validate month format YYYY-MM
+  const monthClean = String(month).trim();
+  if (!/^\d{4}-\d{2}$/.test(monthClean)) {
+    return NextResponse.json({
+      success: false,
+      error: 'Invalid month format: "' + month + '". Expected YYYY-MM (e.g., 2026-10). Please pick a month using the calendar picker.',
+    });
+  }
+
+  const shipperClean = String(shipperName).trim();
+
+  // ============================================================
+  //  GUARD 1 — Duplicate prevention (same shipper + month)
+  // ============================================================
+  const { data: existingMonthly } = await serviceSupabase
+    .from('invoices')
+    .select('invoice_number, status, amount, currency')
+    .eq('type', 'monthly-summary')
+    .ilike('shipper_name', shipperClean)
+    .eq('month', monthClean)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingMonthly) {
+    return NextResponse.json({
+      success: false,
+      error: 'A monthly invoice for "' + shipperClean + '" — ' + monthClean +
+             ' already exists: ' + existingMonthly.invoice_number +
+             ' (' + existingMonthly.status + ', ' + (existingMonthly.currency || 'USD') +
+             ' ' + Number(existingMonthly.amount || 0).toFixed(2) + '). ' +
+             'Delete it first or choose a different month.',
+      existingInvoiceNumber: existingMonthly.invoice_number,
+    });
+  }
+
+  // ============================================================
+  //  Find candidate shipments (delivered + unpaid)
+  // ============================================================
+  const { data: candidates, error: shipErr } = await serviceSupabase
+    .from('shipments')
+    .select('*')
+    .ilike('sender_name', shipperClean)
+    .ilike('status', 'delivered')
+    .neq('payment_status', 'Paid');
+
+  if (shipErr) return NextResponse.json({ success: false, error: shipErr.message });
+
+  const matchedByMonth = (candidates || []).filter((s) => {
+    if (!s.booked_at) return false;
+    const d = new Date(s.booked_at);
+    if (isNaN(d.getTime())) return false;
+    const sMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    return sMonth === monthClean;
+  });
+
+  if (matchedByMonth.length === 0) {
+    const count = (candidates || []).length;
+    if (count > 0) {
+      const monthsSeen = new Set();
+      (candidates || []).forEach((s) => {
+        if (s.booked_at) {
+          const d = new Date(s.booked_at);
+          if (!isNaN(d.getTime())) {
+            monthsSeen.add(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+          }
+        }
+      });
+      return NextResponse.json({
+        success: false,
+        error: 'No shipments for "' + shipperClean + '" in ' + monthClean +
+               '. Found ' + count + ' delivered+unpaid shipment(s) in: ' +
+               Array.from(monthsSeen).join(', ') + '. Try selecting one of those months.',
+      });
+    }
+    return NextResponse.json({
+      success: false,
+      error: 'No delivered+unpaid shipments found for "' + shipperClean + '". ' +
              'Ensure shipment status is "Delivered" and payment status is not "Paid".',
     });
   }
 
+  // ============================================================
+  //  GUARD 2 — Skip tracking numbers already in ANY invoice
+  //  (individual or monthly) so the same shipment is never
+  //  billed twice across invoices.
+  // ============================================================
+  const candidateTns = matchedByMonth.map((s) => s.tracking_number).filter(Boolean);
+
+  let existingInvoiceRows = [];
+  if (candidateTns.length > 0) {
+    const orFilter = candidateTns
+      .map((tn) => 'tracking_numbers.ilike.%' + tn + '%')
+      .join(',');
+    const { data: invRows } = await serviceSupabase
+      .from('invoices')
+      .select('invoice_number, type, month, tracking_numbers, status')
+      .or(orFilter);
+    existingInvoiceRows = invRows || [];
+  }
+
+  // Build a Map of TN → { invoiceNumber, type, month }
+  const alreadyInvoiced = {};
+  existingInvoiceRows.forEach((inv) => {
+    const list = String(inv.tracking_numbers || '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    list.forEach((tn) => {
+      if (candidateTns.includes(tn) && !alreadyInvoiced[tn]) {
+        alreadyInvoiced[tn] = {
+          invoiceNumber: inv.invoice_number,
+          type: inv.type,
+          month: inv.month,
+        };
+      }
+    });
+  });
+
+  const matched = matchedByMonth.filter((s) => !alreadyInvoiced[s.tracking_number]);
+  const skipped = matchedByMonth.filter((s) => alreadyInvoiced[s.tracking_number]);
+
+  if (matched.length === 0) {
+    const lines = skipped.slice(0, 5).map((s) =>
+      s.tracking_number + ' → ' + alreadyInvoiced[s.tracking_number].invoiceNumber +
+      ' (' + alreadyInvoiced[s.tracking_number].type + ')'
+    ).join('; ');
+    const extra = skipped.length > 5 ? ' …and ' + (skipped.length - 5) + ' more' : '';
+    return NextResponse.json({
+      success: false,
+      error: 'All ' + matchedByMonth.length + ' shipment(s) for "' + shipperClean +
+             '" in ' + monthClean + ' are already in another invoice. ' +
+             'Already invoiced: ' + lines + extra +
+             '. Delete those invoices first or mark those shipments unpaid.',
+    });
+  }
+
+  // ============================================================
+  //  Build the invoice
+  // ============================================================
   let total = 0;
   const tns = [];
   matched.forEach((s) => {
@@ -418,6 +560,9 @@ async function createMonthlyInvoice(session, body) {
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + 30);
 
+  const notesText = matched.length + ' shipment' + (matched.length !== 1 ? 's' : '') +
+    (skipped.length > 0 ? ' · ' + skipped.length + ' skipped (already invoiced)' : '');
+
   const { error: insertErr } = await serviceSupabase
     .from('invoices')
     .insert({
@@ -425,14 +570,14 @@ async function createMonthlyInvoice(session, body) {
       invoice_number: invoiceNumber,
       type: 'monthly-summary',
       tracking_numbers: tns.join(', '),
-      shipper_name: shipperName,
-            month: monthClean,
+      shipper_name: shipperClean,
+      month: monthClean,
       amount: total,
       currency: 'USD',
       status: 'Issued',
       issue_date: issueDate.toISOString(),
       due_date: dueDate.toISOString(),
-      notes: matched.length + ' shipments',
+      notes: notesText,
       local_currency: localCurrency || null,
       local_amount: parseFloat(localAmount) || null,
       created_by: session.userId,
@@ -447,6 +592,7 @@ async function createMonthlyInvoice(session, body) {
     invoiceID: invoiceId,
     invoiceNumber,
     shipmentCount: matched.length,
+    skippedCount: skipped.length,
     total,
   });
 }
