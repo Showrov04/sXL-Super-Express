@@ -56,28 +56,8 @@ async function getNextInvoiceNumber() {
 }
 
 /* ============================================================
- *  TASK — Build shipment row payload for invoices (same shape
- *  as the invoice PDF table: shipperRef, trackingNumber, mode,
- *  route, recipient, weight, amount). Used for monthly summary
- *  display in the admin Billing tab.
+ *  Country / shipment type helpers (match customer dashboard)
  * ============================================================ */
-function buildShipmentType(shipment) {
-  const mode = String(shipment.ship_mode || '').toUpperCase();
-  const load = String(shipment.sea_load_type || '').toUpperCase();
-  const pType = String(shipment.parcel_type || '').trim();
-  const pCustom = String(shipment.parcel_type_custom || '').trim();
-
-  if (mode === 'SEA') {
-    return load ? ('SEA - ' + load) : 'SEA';
-  }
-  if (mode === 'AIR') {
-    let p = pType;
-    if (p === 'Others' && pCustom) p = 'Others: ' + pCustom;
-    return p ? ('AIR - ' + p) : 'AIR';
-  }
-  return mode || '—';
-}
-
 const COUNTRY_NAMES = {
   AF: 'Afghanistan', AL: 'Albania', DZ: 'Algeria', AD: 'Andorra', AO: 'Angola',
   AR: 'Argentina', AM: 'Armenia', AU: 'Australia', AT: 'Austria', AZ: 'Azerbaijan',
@@ -126,6 +106,23 @@ function countryName(code) {
   return COUNTRY_NAMES[upper] || code;
 }
 
+function buildShipmentType(shipment) {
+  const mode = String(shipment.ship_mode || '').toUpperCase();
+  const load = String(shipment.sea_load_type || '').toUpperCase();
+  const pType = String(shipment.parcel_type || '').trim();
+  const pCustom = String(shipment.parcel_type_custom || '').trim();
+
+  if (mode === 'SEA') {
+    return load ? ('SEA - ' + load) : 'SEA';
+  }
+  if (mode === 'AIR') {
+    let p = pType;
+    if (p === 'Others' && pCustom) p = 'Others: ' + pCustom;
+    return p ? ('AIR - ' + p) : 'AIR';
+  }
+  return mode || '—';
+}
+
 /**
  * GET — list invoices (with optional type filter)
  */
@@ -155,7 +152,6 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: error.message });
     }
 
-    // Fetch shipments for each invoice (for shipper_ref, tracking, route)
     const list = await Promise.all((invoices || []).map(async (inv) => {
       const tns = String(inv.tracking_numbers || '')
         .split(',')
@@ -171,14 +167,12 @@ export async function GET(request) {
           .select('*')
           .in('tracking_number', tns);
 
-        // Preserve the original order from invoice.tracking_numbers
         const byTn = {};
         (shipments || []).forEach((r) => { byTn[r.tracking_number] = r; });
         allShipments = tns.map((tn) => byTn[tn]).filter(Boolean);
         primaryShipment = allShipments[0] || null;
       }
 
-      // TASK — build shipment rows for the monthly-summary detail table
       const shipmentRows = allShipments.map((sh) => ({
         shipperRef: sh.shipper_ref || '',
         trackingNumber: sh.tracking_number,
@@ -229,7 +223,7 @@ export async function GET(request) {
 }
 
 /**
- * POST — actions: createIndividual, createMonthly, updateStatus
+ * POST — actions: createIndividual, createMonthly, updateStatus, updateNotes, updateAmount, delete
  */
 export async function POST(request) {
   try {
@@ -255,6 +249,9 @@ export async function POST(request) {
     }
     if (action === 'updateAmount') {
       return await updateInvoiceAmount(session, body);
+    }
+    if (action === 'delete') {
+      return await deleteInvoice(session, body);
     }
 
     return NextResponse.json({ success: false, error: 'Unknown action.' });
@@ -339,6 +336,9 @@ async function createIndividualInvoice(session, body) {
 
 /**
  * Create monthly summary invoice
+ * Includes:
+ *   GUARD 1 — reject duplicate (same shipper + month)
+ *   GUARD 2 — skip tracking numbers already in any other invoice
  */
 async function createMonthlyInvoice(session, body) {
   const { shipperName, month, localCurrency, localAmount } = body;
@@ -347,86 +347,23 @@ async function createMonthlyInvoice(session, body) {
     return NextResponse.json({ success: false, error: 'Shipper name and month required.' });
   }
 
-  // Validate month format YYYY-MM
   const monthClean = String(month).trim();
   if (!/^\d{4}-\d{2}$/.test(monthClean)) {
     return NextResponse.json({
       success: false,
-      error: 'Invalid month format: "' + month + '". Expected YYYY-MM (e.g., 2026-10). Please pick a month using the calendar picker.',
+      error: 'Invalid month format: "' + month + '". Expected YYYY-MM (e.g., 2026-10).',
     });
   }
 
   const shipperClean = String(shipperName).trim();
 
-  // Case-insensitive match on shipper name + status
-  const { data: candidates, error: shipErr } = await serviceSupabase
-    .from('shipments')
-    .select('*')
-    .ilike('sender_name', shipperClean)
-    .ilike('status', 'delivered')
-    .neq('payment_status', 'Paid');
-
-  if (shipErr) return NextResponse.json({ success: false, error: shipErr.message });
-
-  const matched = (candidates || []).filter((s) => {
-    if (!s.booked_at) return false;
-    const d = new Date(s.booked_at);
-    if (isNaN(d.getTime())) return false;
-    const sMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-    return sMonth === monthClean;
-  });
-
-  if (matched.length === 0) {
-    // Diagnostic: tell user what months had matches so they can pick the right one
-    const count = (candidates || []).length;
-    if (count > 0) {
-      const monthsSeen = new Set();
-      (candidates || []).forEach((s) => {
-        if (s.booked_at) {
-          const d = new Date(s.booked_at);
-          if (!isNaN(d.getTime())) {
-            monthsSeen.add(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
-          }
-        }
-      });
-      return NextResponse.json({
-        success: false,
-        error: 'No shipments for "' + shipperClean + '" in ' + monthClean +
-               '. Found ' + count + ' delivered+unpaid shipment(s) in: ' +
-               Array.from(monthsSeen).join(', ') + '. Try selecting one of those months.',
-      });
-    }
-    return NextResponse.json({
-      success: false,
-      error: 'No delivered+unpaid shipments found for "' + shipperClean + '". ' +
-             'Ensure sasync function createMonthlyInvoice(session, body) {
-  const { shipperName, month, localCurrency, localAmount } = body;
-
-  if (!shipperName || !month) {
-    return NextResponse.json({ success: false, error: 'Shipper name and month required.' });
-  }
-
-  // Validate month format YYYY-MM
-  const monthClean = String(month).trim();
-  if (!/^\d{4}-\d{2}$/.test(monthClean)) {
-    return NextResponse.json({
-      success: false,
-      error: 'Invalid month format: "' + month + '". Expected YYYY-MM (e.g., 2026-10). Please pick a month using the calendar picker.',
-    });
-  }
-
-  const shipperClean = String(shipperName).trim();
-
-  // ============================================================
-  //  GUARD 1 — Duplicate prevention (same shipper + month)
-  // ============================================================
+  // GUARD 1 — duplicate (shipper + month)
   const { data: existingMonthly } = await serviceSupabase
     .from('invoices')
     .select('invoice_number, status, amount, currency')
     .eq('type', 'monthly-summary')
     .ilike('shipper_name', shipperClean)
     .eq('month', monthClean)
-    .limit(1)
     .maybeSingle();
 
   if (existingMonthly) {
@@ -441,9 +378,7 @@ async function createMonthlyInvoice(session, body) {
     });
   }
 
-  // ============================================================
-  //  Find candidate shipments (delivered + unpaid)
-  // ============================================================
+  // Candidate shipments (delivered + unpaid)
   const { data: candidates, error: shipErr } = await serviceSupabase
     .from('shipments')
     .select('*')
@@ -487,11 +422,7 @@ async function createMonthlyInvoice(session, body) {
     });
   }
 
-  // ============================================================
-  //  GUARD 2 — Skip tracking numbers already in ANY invoice
-  //  (individual or monthly) so the same shipment is never
-  //  billed twice across invoices.
-  // ============================================================
+  // GUARD 2 — skip TNs already in ANY invoice
   const candidateTns = matchedByMonth.map((s) => s.tracking_number).filter(Boolean);
 
   let existingInvoiceRows = [];
@@ -506,7 +437,6 @@ async function createMonthlyInvoice(session, body) {
     existingInvoiceRows = invRows || [];
   }
 
-  // Build a Map of TN → { invoiceNumber, type, month }
   const alreadyInvoiced = {};
   existingInvoiceRows.forEach((inv) => {
     const list = String(inv.tracking_numbers || '')
@@ -542,9 +472,7 @@ async function createMonthlyInvoice(session, body) {
     });
   }
 
-  // ============================================================
-  //  Build the invoice
-  // ============================================================
+  // Build the invoice
   let total = 0;
   const tns = [];
   matched.forEach((s) => {
@@ -653,4 +581,49 @@ async function updateInvoiceAmount(session, body) {
   if (error) return NextResponse.json({ success: false, error: error.message });
 
   return NextResponse.json({ success: true });
+}
+
+/* ============================================================
+ *  Delete invoice
+ *  Refuses to delete if status = Paid.
+ *  Shipments stay as-is (they remain unpaid → can be reinvoiced).
+ * ============================================================ */
+async function deleteInvoice(session, body) {
+  const { invoiceId } = body;
+  if (!invoiceId) {
+    return NextResponse.json({ success: false, error: 'Invoice ID required.' });
+  }
+
+  const { data: invoice } = await serviceSupabase
+    .from('invoices')
+    .select('invoice_number, status, type')
+    .eq('invoice_id', invoiceId)
+    .maybeSingle();
+
+  if (!invoice) {
+    return NextResponse.json({ success: false, error: 'Invoice not found.' });
+  }
+
+  const statusLower = String(invoice.status || '').toLowerCase();
+  if (statusLower === 'paid') {
+    return NextResponse.json({
+      success: false,
+      error: 'Cannot delete a paid invoice (' + invoice.invoice_number + '). ' +
+             'Mark it as Unpaid first if you really need to delete it.',
+    });
+  }
+
+  const { error: delErr } = await serviceSupabase
+    .from('invoices')
+    .delete()
+    .eq('invoice_id', invoiceId);
+
+  if (delErr) {
+    return NextResponse.json({ success: false, error: delErr.message });
+  }
+
+  return NextResponse.json({
+    success: true,
+    deletedInvoiceNumber: invoice.invoice_number,
+  });
 }
