@@ -935,12 +935,12 @@ function ShipmentsPanel() {
     setSuTracking(s.trackingNumber);
     setSuCurrentStatus(s.status || '');
     setSuNewStatus(s.status || '');
-    setSuEta(s.estimatedDelivery || '');
+        setSuEta(s.estimatedDelivery || '');
     setSuNotes('');
     setSuError('');
     setSuLocation('');
-    setSuActualWeight('');
-    setSuActualCbm('');
+    setSuActualWeight(s.actualWeight != null ? String(s.actualWeight) : '');
+    setSuActualCbm(s.actualCbm != null ? String(s.actualCbm) : '');
     setSuFetchingLocation(true);
 
     try {
