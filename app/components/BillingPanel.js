@@ -98,11 +98,8 @@ const FROZEN_LEFT_MODE_ALL = COL_W_TRACKING;
 const FROZEN_LEFT_ROUTE_ALL = COL_W_TRACKING + COL_W_MODE;
 
 const COL_W_ACTIONS = 260;
-
-// Row hover background
 const HOVER_BG = '#EEF5FF';
 
-// Primary button styling
 const PRIMARY_BTN_BASE = {
   padding: '8px 12px',
   border: 'none',
@@ -120,7 +117,6 @@ const PRIMARY_BTN_BASE = {
   width: '100%',
   maxWidth: '186px',
   boxSizing: 'border-box',
-  transition: 'filter 0.15s, transform 0.1s',
 };
 
 const MORE_BTN = {
@@ -768,7 +764,9 @@ export default function BillingPanel() {
   }
 
   /* ============================================================
-   *  Status-driven primary action
+   *  Primary action dispatcher
+   *  Returns: { label, bg, color, onClick? }
+   *  If onClick is missing → the button opens the ⋯ menu instead.
    * ============================================================ */
   function getPrimaryAction(s) {
     const tn = s.trackingNumber;
@@ -781,18 +779,23 @@ export default function BillingPanel() {
     const isPaid = String(s.paymentStatus || '').toLowerCase() === 'paid';
 
     if (isPaid) {
-      return { type: 'chip', label: '✅ Paid', bg: '#D4EDDA', color: '#155724' };
+      return {
+        label: '✅ Paid',
+        bg: '#D4EDDA',
+        color: '#155724',
+        onClick: null, // no handler → will trigger menu instead
+      };
     }
     if (!hasCost) {
-      return { type: 'btn', label: '🔄 Add Cost', bg: '#FF6B00', color: 'white', onClick: () => openCostModal(s) };
+      return { label: '🔄 Add Cost', bg: '#FF6B00', color: 'white', onClick: () => openCostModal(s) };
     }
     if (!hasInvoice) {
-      return { type: 'btn', label: '🧾 Issue Invoice', bg: '#0D6EFD', color: 'white', onClick: () => handleIssueInvoice(s) };
+      return { label: '🧾 Issue Invoice', bg: '#0D6EFD', color: 'white', onClick: () => handleIssueInvoice(s) };
     }
     if (!isSent) {
-      return { type: 'btn', label: '📤 Send Invoice', bg: '#DC3545', color: 'white', onClick: () => handleSendInvoice(tn) };
+      return { label: '📤 Send Invoice', bg: '#DC3545', color: 'white', onClick: () => handleSendInvoice(tn) };
     }
-    return { type: 'btn', label: '💵 Mark Paid', bg: '#28A745', color: 'white', onClick: () => handleMarkPaid(tn) };
+    return { label: '💵 Mark Paid', bg: '#28A745', color: 'white', onClick: () => handleMarkPaid(tn) };
   }
 
   function HeaderCell({ col, label, width, frozenLeft, hasShadow, frozenRight }) {
@@ -816,6 +819,7 @@ export default function BillingPanel() {
           <span>{label}{activeCount > 0 && <span style={{ marginLeft: '6px', color: '#FF6B00' }}>({activeCount})</span>}</span>
           {isFilterable && (
             <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); setOpenFilter(isOpen ? null : col); setFilterSearch(''); }}
               style={{
                 padding: '2px 6px',
@@ -866,8 +870,8 @@ export default function BillingPanel() {
                 })}
             </div>
             <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #F1F3F5', paddingTop: '8px' }}>
-              <button onClick={() => clearColumn(col)} style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
-              <button onClick={() => { setOpenFilter(null); setFilterSearch(''); }} style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
+              <button type="button" onClick={() => clearColumn(col)} style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+              <button type="button" onClick={() => { setOpenFilter(null); setFilterSearch(''); }} style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
             </div>
           </div>
         )}
@@ -1117,21 +1121,23 @@ export default function BillingPanel() {
                       }}>
                         {isDueTab ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
-                            {primary.type === 'chip' ? (
-                              <span
+                            {primary.onClick ? (
+                              <button
+                                type="button"
+                                onClick={primary.onClick}
                                 style={{
                                   ...PRIMARY_BTN_BASE,
                                   background: primary.bg,
                                   color: primary.color,
-                                  cursor: 'default',
                                 }}
-                                title="Payment received"
                               >
                                 {primary.label}
-                              </span>
+                              </button>
                             ) : (
                               <button
-                                onClick={primary.onClick}
+                                type="button"
+                                onClick={(e) => openActionMenu(e, s.trackingNumber)}
+                                title="Click for more actions"
                                 style={{
                                   ...PRIMARY_BTN_BASE,
                                   background: primary.bg,
@@ -1142,6 +1148,7 @@ export default function BillingPanel() {
                               </button>
                             )}
                             <button
+                              type="button"
                               onClick={(e) => openActionMenu(e, s.trackingNumber)}
                               title="More actions"
                               style={MORE_BTN}
@@ -1152,6 +1159,7 @@ export default function BillingPanel() {
                         ) : tab === 'paid' ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
                             <button
+                              type="button"
                               onClick={() => handleMarkUnpaid(s.trackingNumber)}
                               style={{ ...MENU_ACTION_STYLE, background: '#FFC107', color: '#333' }}
                             >
@@ -1368,6 +1376,7 @@ export default function BillingPanel() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', background: '#F8F9FA', borderBottom: isExpanded ? '1px solid #E9ECEF' : 'none', gap: '14px', flexWrap: 'wrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                         <button
+                          type="button"
                           onClick={() => toggleMonthlyExpand(inv.invoiceID)}
                           title={isExpanded ? 'Collapse' : 'Expand shipments'}
                           style={{
@@ -1490,7 +1499,7 @@ export default function BillingPanel() {
                     Route: {costModal.shipment.origin || '—'} → {costModal.shipment.destination || '—'} · Mode: {costModal.shipment.shipmentType || costModal.shipment.shipMode || '—'}
                   </div>
                 </div>
-                <button onClick={closeCostModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+                <button type="button" onClick={closeCostModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
               </div>
 
               {costMsg && (
@@ -1653,7 +1662,7 @@ export default function BillingPanel() {
                     {editInvModal.invoice.type === 'monthly-summary' ? '📅 Monthly Invoice' : '🧾 Individual Invoice'}
                   </div>
                 </div>
-                <button onClick={closeEditInvModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+                <button type="button" onClick={closeEditInvModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
               </div>
 
               {editInvError && (
@@ -1676,11 +1685,11 @@ export default function BillingPanel() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px', flexWrap: 'wrap' }}>
-                <button onClick={closeEditInvModal} disabled={editInvSaving}
+                <button type="button" onClick={closeEditInvModal} disabled={editInvSaving}
                   style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Cancel
                 </button>
-                <button onClick={handleSaveEditInv} disabled={editInvSaving}
+                <button type="button" onClick={handleSaveEditInv} disabled={editInvSaving}
                   style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: editInvSaving ? 'not-allowed' : 'pointer', opacity: editInvSaving ? 0.6 : 1, fontFamily: 'inherit' }}>
                   {editInvSaving ? 'Saving...' : '💾 Save Changes'}
                 </button>
@@ -1704,7 +1713,7 @@ function StatCard({ num, label, color }) {
 
 function TabButton({ active, onClick, label, count }) {
   return (
-    <button onClick={onClick} style={{
+    <button type="button" onClick={onClick} style={{
       cursor: 'pointer', padding: '12px 22px', borderRadius: '10px',
       fontWeight: 700, fontSize: '0.9rem',
       border: '2px solid ' + (active ? '#FF6B00' : '#E9ECEF'),
