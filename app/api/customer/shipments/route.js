@@ -235,6 +235,7 @@ export async function GET(request) {
         origin: countryName(s.origin),
         destination: countryName(s.destination),
         senderName: s.sender_name,
+        shipperRef: s.shipper_ref || null,
         recipientName: s.recipient_name,
         bookingWeight: s.total_weight,
         actualWeight: s.actual_weight,
