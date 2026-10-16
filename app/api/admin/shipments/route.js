@@ -345,10 +345,13 @@ export async function GET(request) {
         recipientState: s.recipient_state || null,
                 bookingWeight: s.total_weight,
         actualWeight: s.actual_weight,
-        actualCbm: (() => {
-          // Only expose actual CBM once cost is confirmed by admin.
-          // Before that, `total_cbm` is just the customer's booking value.
-          if (!s.cost_saved_at) return null;
+                actualCbm: (() => {
+          // Expose CBM once admin has acted on the shipment:
+          //   - cost saved, OR
+          //   - status moved past "Booked"
+          const statusLower = String(s.status || '').toLowerCase();
+          const adminHasActed = !!s.cost_saved_at || statusLower !== 'booked';
+          if (!adminHasActed) return null;
           try {
             const bd = s.cost_breakdown;
             if (bd) {
