@@ -6,12 +6,21 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
+const COL_W_SHIPPER_REF = 130;
 const COL_W_TRACKING = 170;
 const COL_W_MODE = 130;
 const COL_W_ROUTE = 170;
-const FROZEN_LEFT_TRACKING = 0;
-const FROZEN_LEFT_MODE = COL_W_TRACKING;
-const FROZEN_LEFT_ROUTE = COL_W_TRACKING + COL_W_MODE;
+
+// With shipper ref column (Outstanding + Paid tabs)
+const FROZEN_LEFT_REF = 0;
+const FROZEN_LEFT_TRACKING = COL_W_SHIPPER_REF;
+const FROZEN_LEFT_MODE = COL_W_SHIPPER_REF + COL_W_TRACKING;
+const FROZEN_LEFT_ROUTE = COL_W_SHIPPER_REF + COL_W_TRACKING + COL_W_MODE;
+
+// Without shipper ref column (Active + Cancelled tabs)
+const FROZEN_LEFT_TRACKING_NO_REF = 0;
+const FROZEN_LEFT_MODE_NO_REF = COL_W_TRACKING;
+const FROZEN_LEFT_ROUTE_NO_REF = COL_W_TRACKING + COL_W_MODE;
 
 const TD_STYLE = {
   padding: '10px 12px',
@@ -24,13 +33,12 @@ const TD_STYLE = {
 };
 
 const FROZEN_SHADOW = '2px 0 5px -2px rgba(0,0,0,0.08)';
+const HOVER_BG = '#EEF5FF';
 
 const DRAFT_KEY = 'sxl_booking_draft';
 const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const DRAFT_DISMISS_KEY = 'sxl_booking_draft_dismissed_at';
 
-// S.2 — Top scrollbar styling (mirrors bottom horizontal scroll of the table)
-// G.56 — make the scrollbar strip visibly tall so it renders on all OSes
 const TOP_SCROLLBAR_STYLE = {
   overflowX: 'auto',
   overflowY: 'hidden',
@@ -80,10 +88,12 @@ export default function DashboardPage() {
   });
   const [error, setError] = useState('');
 
+  const [hoveredRow, setHoveredRow] = useState(null);
+
   const [draftBanner, setDraftBanner] = useState(null);
 
   const [colFilters, setColFilters] = useState({
-    tracking: [], mode: [], shipper: [], route: [], status: [], payment: [],
+    shipperRef: [], tracking: [], mode: [], shipper: [], route: [], status: [], payment: [],
   });
   const [openFilter, setOpenFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState('');
@@ -92,7 +102,6 @@ export default function DashboardPage() {
   const downloadMenuRef = useRef(null);
   const filterDropdownRef = useRef(null);
 
-  // S.2 — refs for dual horizontal scrollbar sync
   const topScrollRef = useRef(null);
   const tableScrollRef = useRef(null);
   const isSyncingRef = useRef(false);
@@ -164,7 +173,7 @@ export default function DashboardPage() {
   }, [user, tab]);
 
   useEffect(() => {
-    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
+    setColFilters({ shipperRef: [], tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
     setOpenFilter(null);
     setFilterSearch('');
     setShowDownloadMenu(false);
@@ -184,7 +193,6 @@ export default function DashboardPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // S.2 — Sync top scrollbar <-> table scrollbar
   useEffect(() => {
     const topEl = topScrollRef.current;
     const tableEl = tableScrollRef.current;
@@ -252,6 +260,7 @@ export default function DashboardPage() {
   }
 
   function getColumnValue(s, col) {
+    if (col === 'shipperRef') return s.shipperRef || '';
     if (col === 'tracking') return s.trackingNumber || '';
     if (col === 'mode') return s.shipmentType || s.shipMode || '';
     if (col === 'shipper') return s.senderName || '';
@@ -295,7 +304,7 @@ export default function DashboardPage() {
   }
 
   function clearAllFilters() {
-    setColFilters({ tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
+    setColFilters({ shipperRef: [], tracking: [], mode: [], shipper: [], route: [], status: [], payment: [] });
   }
 
   const hasAnyFilter = Object.values(colFilters).some((arr) => arr.length > 0);
@@ -414,7 +423,7 @@ export default function DashboardPage() {
       : null;
 
   function HeaderCell({ col, label, width, frozenLeft, hasShadow }) {
-    const isFilterable = ['tracking', 'mode', 'shipper', 'route', 'status', 'payment'].includes(col);
+    const isFilterable = ['shipperRef', 'tracking', 'mode', 'shipper', 'route', 'status', 'payment'].includes(col);
     const activeCount = (colFilters[col] || []).length;
     const isOpen = openFilter === col;
 
@@ -433,6 +442,7 @@ export default function DashboardPage() {
           <span>{label}{activeCount > 0 && <span style={{ marginLeft: '6px', color: '#FF6B00' }}>({activeCount})</span>}</span>
           {isFilterable && (
             <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); setOpenFilter(isOpen ? null : col); setFilterSearch(''); }}
               style={{
                 padding: '2px 6px',
@@ -483,8 +493,8 @@ export default function DashboardPage() {
                 })}
             </div>
             <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #F1F3F5', paddingTop: '8px' }}>
-              <button onClick={() => clearColumn(col)} style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
-              <button onClick={() => { setOpenFilter(null); setFilterSearch(''); }} style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
+              <button type="button" onClick={() => clearColumn(col)} style={{ flex: 1, padding: '6px 10px', background: '#F8F9FA', color: '#343A40', border: '1px solid #E9ECEF', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+              <button type="button" onClick={() => { setOpenFilter(null); setFilterSearch(''); }} style={{ flex: 1, padding: '6px 10px', background: '#003366', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Done</button>
             </div>
           </div>
         )}
@@ -504,6 +514,10 @@ export default function DashboardPage() {
       </>
     );
   }
+
+  // Shipper Ref column is only shown on Outstanding Payment + Paid & Completed tabs
+  const showShipperRef = tab === 'awaiting' || tab === 'paid';
+  const tableMinWidth = showShipperRef ? 1780 : 1650;
 
   return (
     <>
@@ -623,6 +637,7 @@ export default function DashboardPage() {
           }}>
             {hasAnyFilter && (
               <button
+                type="button"
                 onClick={clearAllFilters}
                 style={{ padding: '10px 16px', background: '#FFF5EB', color: '#FF6B00', border: '2px solid #FF6B00', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}
               >
@@ -632,6 +647,7 @@ export default function DashboardPage() {
 
             <div style={{ position: 'relative', marginLeft: 'auto' }} ref={downloadMenuRef}>
               <button
+                type="button"
                 onClick={() => setShowDownloadMenu(!showDownloadMenu)}
                 style={{
                   padding: '10px 16px', background: '#003366', color: 'white',
@@ -648,8 +664,8 @@ export default function DashboardPage() {
                   background: 'white', border: '1px solid #E9ECEF', borderRadius: '8px',
                   boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 100, minWidth: '160px', overflow: 'hidden'
                 }}>
-                  <button onClick={() => handleDownload('pdf')} style={{ display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366', borderBottom: '1px solid #F1F3F5' }}>📄 PDF (.pdf)</button>
-                  <button onClick={() => handleDownload('csv')} style={{ display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366' }}>📊 Excel / CSV (.csv)</button>
+                  <button type="button" onClick={() => handleDownload('pdf')} style={{ display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366', borderBottom: '1px solid #F1F3F5' }}>📄 PDF (.pdf)</button>
+                  <button type="button" onClick={() => handleDownload('csv')} style={{ display: 'block', width: '100%', padding: '12px 16px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, color: '#003366' }}>📊 Excel / CSV (.csv)</button>
                 </div>
               )}
             </div>
@@ -678,24 +694,40 @@ export default function DashboardPage() {
         {!loading && !error && filtered.length > 0 && (
           <>
             <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', position: 'relative' }}>
-                  {/* S.2 — TOP horizontal scrollbar (mirrors the table's own scrollbar)
-                  G.56 — ghost div height matches the strip height so the scrollbar has room */}
               <div
                 ref={topScrollRef}
                 style={TOP_SCROLLBAR_STYLE}
                 aria-hidden="true"
               >
-                {/* Ghost div — same width as table minWidth so top scrollbar has room to drag */}
-                <div style={{ width: '1650px', height: '1px' }} />
+                <div style={{ width: tableMinWidth + 'px', height: '1px' }} />
               </div>
 
               <div ref={tableScrollRef} style={{ overflow: 'auto', maxHeight: '70vh' }}>
-                <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: '1650px', tableLayout: 'fixed', width: '100%' }}>
+                <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.85rem', minWidth: tableMinWidth + 'px', tableLayout: 'fixed', width: '100%' }}>
                   <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                     <tr>
-                      <HeaderCell col="tracking" label="Tracking #" width={COL_W_TRACKING} frozenLeft={FROZEN_LEFT_TRACKING} />
-                      <HeaderCell col="mode" label="Mode" width={COL_W_MODE} frozenLeft={FROZEN_LEFT_MODE} />
-                      <HeaderCell col="route" label="Route" width={COL_W_ROUTE} frozenLeft={FROZEN_LEFT_ROUTE} hasShadow={true} />
+                      {showShipperRef && (
+                        <HeaderCell col="shipperRef" label="Shipper Ref" width={COL_W_SHIPPER_REF} frozenLeft={FROZEN_LEFT_REF} />
+                      )}
+                      <HeaderCell
+                        col="tracking"
+                        label="Tracking #"
+                        width={COL_W_TRACKING}
+                        frozenLeft={showShipperRef ? FROZEN_LEFT_TRACKING : FROZEN_LEFT_TRACKING_NO_REF}
+                      />
+                      <HeaderCell
+                        col="mode"
+                        label="Mode"
+                        width={COL_W_MODE}
+                        frozenLeft={showShipperRef ? FROZEN_LEFT_MODE : FROZEN_LEFT_MODE_NO_REF}
+                      />
+                      <HeaderCell
+                        col="route"
+                        label="Route"
+                        width={COL_W_ROUTE}
+                        frozenLeft={showShipperRef ? FROZEN_LEFT_ROUTE : FROZEN_LEFT_ROUTE_NO_REF}
+                        hasShadow={true}
+                      />
                       <HeaderCell col="shipper" label="Shipper" width={150} />
                       <HeaderCell col="none" label="Recipient" width={150} />
                       <HeaderCell col="status" label="Status" width={140} />
@@ -717,15 +749,40 @@ export default function DashboardPage() {
                       const isCancellationPending = statusLower.includes('cancellation');
                       const isCancelled = statusLower === 'cancelled';
                       const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
-                      const rowBg = i % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
+                      const isHovered = hoveredRow === s.trackingNumber;
+                      const rowBg = isHovered ? HOVER_BG : (i % 2 === 0 ? '#FFFFFF' : '#FAFBFC');
                       const frozenTd = { ...TD_STYLE, background: rowBg, position: 'sticky', zIndex: 3 };
                       const rowHasFiles = hasFiles(s);
 
                       return (
-                        <tr key={i} style={{ background: rowBg }}>
-                          <td style={{ ...frozenTd, left: FROZEN_LEFT_TRACKING, width: COL_W_TRACKING, minWidth: COL_W_TRACKING, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{s.trackingNumber}</td>
-                          <td style={{ ...frozenTd, left: FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{renderModeCell(s)}</td>
-                          <td style={{ ...frozenTd, left: FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '-'} → {s.destination || '-'}</td>
+                        <tr
+                          key={i}
+                          onMouseEnter={() => setHoveredRow(s.trackingNumber)}
+                          onMouseLeave={() => setHoveredRow(null)}
+                          style={{ background: rowBg, transition: 'background 0.12s ease' }}
+                        >
+                          {showShipperRef && (
+                            <td style={{ ...frozenTd, left: FROZEN_LEFT_REF, width: COL_W_SHIPPER_REF, minWidth: COL_W_SHIPPER_REF, fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>
+                              {s.shipperRef || '—'}
+                            </td>
+                          )}
+                          <td style={{
+                            ...frozenTd,
+                            left: showShipperRef ? FROZEN_LEFT_TRACKING : FROZEN_LEFT_TRACKING_NO_REF,
+                            width: COL_W_TRACKING, minWidth: COL_W_TRACKING,
+                            fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366'
+                          }}>{s.trackingNumber}</td>
+                          <td style={{
+                            ...frozenTd,
+                            left: showShipperRef ? FROZEN_LEFT_MODE : FROZEN_LEFT_MODE_NO_REF,
+                            width: COL_W_MODE, minWidth: COL_W_MODE
+                          }}>{renderModeCell(s)}</td>
+                          <td style={{
+                            ...frozenTd,
+                            left: showShipperRef ? FROZEN_LEFT_ROUTE : FROZEN_LEFT_ROUTE_NO_REF,
+                            width: COL_W_ROUTE, minWidth: COL_W_ROUTE,
+                            boxShadow: FROZEN_SHADOW
+                          }}>{s.origin || '-'} → {s.destination || '-'}</td>
                           <td style={{ ...TD_STYLE, width: 150 }}>{s.senderName || '-'}</td>
                           <td style={{ ...TD_STYLE, width: 150 }}>{s.recipientName || '-'}</td>
                           <td style={{ ...TD_STYLE, width: 140 }}>
@@ -751,10 +808,10 @@ export default function DashboardPage() {
                             <Link href={'/track?tn=' + s.trackingNumber} style={{ padding: '5px 10px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>View</Link>
                             <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>PDF</a>
                             {rowHasFiles && (
-                              <button onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
+                              <button type="button" onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
                             )}
                             {tab === 'active' && isBooked && (
-                              <button onClick={() => { setCancelModal({ trackingNumber: s.trackingNumber }); setCancelReason(''); setCancelError(''); }} style={{ padding: '5px 10px', background: 'transparent', color: '#DC3545', border: '2px solid #DC3545', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                              <button type="button" onClick={() => { setCancelModal({ trackingNumber: s.trackingNumber }); setCancelReason(''); setCancelError(''); }} style={{ padding: '5px 10px', background: 'transparent', color: '#DC3545', border: '2px solid #DC3545', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
                             )}
                             {isCancellationPending && (
                               <span style={{ padding: '5px 10px', background: '#F8D7DA', color: '#721C24', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, fontStyle: 'italic' }}>Pending</span>
@@ -783,7 +840,7 @@ export default function DashboardPage() {
           <div style={{ background: 'white', maxWidth: '500px', width: '100%', borderRadius: '16px', padding: '30px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>Request Cancellation</h2>
-              <button onClick={() => setCancelModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+              <button type="button" onClick={() => setCancelModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
             </div>
             <div style={{ background: '#FFF5EB', padding: '12px 15px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9rem', borderLeft: '3px solid #FF6B00' }}>
               Tracking: <b>{cancelModal.trackingNumber}</b>
@@ -795,8 +852,8 @@ export default function DashboardPage() {
             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>Reason for Cancellation *</label>
             <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="e.g., Incorrect address, changed mind, shipment delayed too long..." style={{ width: '100%', padding: '12px', fontSize: '0.9rem', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', minHeight: '100px', resize: 'vertical', boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-              <button onClick={() => setCancelModal(null)} disabled={cancelLoading} style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-              <button onClick={submitCancel} disabled={cancelLoading} style={{ padding: '12px 24px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: cancelLoading ? 'not-allowed' : 'pointer', opacity: cancelLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
+              <button type="button" onClick={() => setCancelModal(null)} disabled={cancelLoading} style={{ padding: '12px 24px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              <button type="button" onClick={submitCancel} disabled={cancelLoading} style={{ padding: '12px 24px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: cancelLoading ? 'not-allowed' : 'pointer', opacity: cancelLoading ? 0.6 : 1, fontFamily: 'inherit' }}>
                 {cancelLoading ? 'Submitting...' : 'Submit Request'}
               </button>
             </div>
@@ -812,7 +869,7 @@ export default function DashboardPage() {
                 <h2 style={{ color: '#003366', fontSize: '1.25rem', margin: 0 }}>📎 Uploaded Documents</h2>
                 <div style={{ color: '#6C757D', fontSize: '0.85rem', marginTop: '4px' }}>{filesModal.trackingNumber}</div>
               </div>
-              <button onClick={() => setFilesModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
+              <button type="button" onClick={() => setFilesModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6C757D' }}>✕</button>
             </div>
 
             <div style={{ marginBottom: '20px' }}>
@@ -848,7 +905,7 @@ export default function DashboardPage() {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setFilesModal(null)} style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+              <button type="button" onClick={() => setFilesModal(null)} style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
             </div>
           </div>
         </div>
@@ -861,7 +918,7 @@ export default function DashboardPage() {
 
 function TabButton({ active, onClick, label, count, badgeBg, badgeColor }) {
   return (
-    <button onClick={onClick} style={{ cursor: 'pointer', padding: '12px 22px', borderRadius: '10px', fontWeight: 700, fontSize: '0.9rem', border: '2px solid ' + (active ? '#FF6B00' : '#E9ECEF'), background: active ? '#FFF5EB' : 'white', color: active ? '#FF6B00' : '#343A40', fontFamily: 'inherit' }}>
+    <button type="button" onClick={onClick} style={{ cursor: 'pointer', padding: '12px 22px', borderRadius: '10px', fontWeight: 700, fontSize: '0.9rem', border: '2px solid ' + (active ? '#FF6B00' : '#E9ECEF'), background: active ? '#FFF5EB' : 'white', color: active ? '#FF6B00' : '#343A40', fontFamily: 'inherit' }}>
       {label}{' '}
       <span style={{ background: active ? '#FF6B00' : badgeBg, color: active ? 'white' : badgeColor, padding: '2px 8px', borderRadius: '10px', marginLeft: '6px', fontSize: '0.8rem' }}>{count}</span>
     </button>
