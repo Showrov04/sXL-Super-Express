@@ -343,9 +343,22 @@ export async function GET(request) {
         recipientAddress: s.recipient_address || null,
         recipientCity: s.recipient_city || null,
         recipientState: s.recipient_state || null,
-        bookingWeight: s.total_weight,
+                bookingWeight: s.total_weight,
         actualWeight: s.actual_weight,
-        actualCbm: parseFloat(s.total_cbm) || null,
+        actualCbm: (() => {
+          // Only expose actual CBM once cost is confirmed by admin.
+          // Before that, `total_cbm` is just the customer's booking value.
+          if (!s.cost_saved_at) return null;
+          try {
+            const bd = s.cost_breakdown;
+            if (bd) {
+              const parsed = typeof bd === 'string' ? JSON.parse(bd) : bd;
+              const fromBreakdown = parseFloat(parsed.actualCbm);
+              if (fromBreakdown > 0) return fromBreakdown;
+            }
+          } catch (e) { /* silent */ }
+          return parseFloat(s.total_cbm) || null;
+        })(),
         bookingCbm: parseFloat(s.total_cbm) || null,
         weight: s.total_weight,
         shippingCost: cost > 0 ? cost : null,
