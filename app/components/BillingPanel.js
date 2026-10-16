@@ -1312,10 +1312,32 @@ export default function BillingPanel() {
                   {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              <div>
+                            <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Month *</label>
-                <input type="month" value={monthlyMonth} onChange={(e) => setMonthlyMonth(e.target.value)}
-                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <input
+                  type="month"
+                  value={monthlyMonth}
+                  onChange={(e) => setMonthlyMonth(e.target.value)}
+                  onClick={(e) => {
+                    try {
+                      if (e.currentTarget && typeof e.currentTarget.showPicker === 'function') {
+                        e.currentTarget.showPicker();
+                      }
+                    } catch (err) { /* fallback: native behaviour */ }
+                  }}
+                  placeholder="YYYY-MM"
+                  style={{
+                    width: '100%', padding: '10px 14px',
+                    border: '2px solid ' + (monthlyMonth && !/^\d{4}-\d{2}$/.test(monthlyMonth) ? '#DC3545' : '#E9ECEF'),
+                    borderRadius: '8px', fontSize: '0.9rem',
+                    fontFamily: 'inherit', boxSizing: 'border-box',
+                    cursor: 'pointer',
+                    background: 'white',
+                  }}
+                />
+                <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px' }}>
+                  Click the field to open the month picker. Format: YYYY-MM.
+                </div>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Local Currency (optional)</label>
