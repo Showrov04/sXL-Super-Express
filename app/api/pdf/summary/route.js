@@ -140,6 +140,21 @@ function monthLabel(m) {
   return (months[idx] || mo) + ' ' + y;
 }
 
+function formatDateForCsv(d) {
+  if (!d) return '';
+  try {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return String(d);
+    return date.toISOString().split('T')[0];
+  } catch (e) { return ''; }
+}
+
+function escapeCsv(val) {
+  if (val === null || val === undefined) return '""';
+  const str = String(val);
+  return '"' + str.replace(/"/g, '""') + '"';
+}
+
 export async function GET(request) {
   try {
     const session = await requireAdmin(request);
@@ -153,6 +168,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const shipperName = String(searchParams.get('shipper') || '').trim();
     const month = String(searchParams.get('month') || '').trim();
+    const format = String(searchParams.get('format') || 'pdf').toLowerCase();
 
     if (!shipperName || !month) {
       return new NextResponse('Shipper and month are required.', {
@@ -291,10 +307,56 @@ export async function GET(request) {
     const uniqueInvoiceNumbers = new Set(rows.map((r) => r.invoiceNumber).filter(Boolean));
     const invoiceCount = uniqueInvoiceNumbers.size;
 
-    // 7. Contact settings
-    const contact = await loadCompanyContact();
+    const safeShipper = shipperName.replace(/[^a-zA-Z0-9._-]/g, '_');
 
-    // 8. Generate PDF
+    // 7. Handle CSV Format
+    if (format === 'csv') {
+      const headers = [
+        'Shipper Ref', 'Shipment Date', 'Tracking #', 'Mode', 'Route', 
+        'Recipient', 'Weight (kg)', 'CBM', 'Amount', 'Currency', 'Invoice #'
+      ];
+      let csv = headers.map(escapeCsv).join(',') + '\n';
+
+      rows.forEach(r => {
+        const rowData = [
+          r.shipperRef,
+          formatDateForCsv(r.shipmentDate),
+          r.trackingNumber,
+          r.mode,
+          r.route,
+          r.recipient,
+          r.actualWeight,
+          r.actualCbm > 0 ? r.actualCbm : '',
+          r.amount.toFixed(2),
+          r.currency,
+          r.invoiceNumber
+        ];
+        csv += rowData.map(escapeCsv).join(',') + '\n';
+      });
+
+      // Add Total row
+      csv += [
+        '', '', '', '', '', '', '', '',
+        total.toFixed(2),
+        'USD',
+        ''
+      ].map(escapeCsv).join(',') + '\n';
+
+      const filename = 'sXL_Monthly_Summary_' + safeShipper + '_' + month + '.csv';
+      const buffer = Buffer.from('\uFEFF' + csv, 'utf-8'); // BOM for Excel UTF-8
+
+      return new NextResponse(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          ...NO_CACHE_HEADERS,
+        },
+      });
+    }
+
+    // 8. Handle PDF Format (Default)
+    const contact = await loadCompanyContact();
     const summary = {
       shipperName,
       month,
@@ -307,8 +369,6 @@ export async function GET(request) {
     };
 
     const pdfBytes = await generateMonthlySummaryPDF(summary, contact);
-
-    const safeShipper = shipperName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const filename = 'sXL_Monthly_Summary_' + safeShipper + '_' + month + '.pdf';
 
     return new NextResponse(Buffer.from(pdfBytes), {
@@ -321,8 +381,8 @@ export async function GET(request) {
     });
 
   } catch (err) {
-    console.error('[PDF Summary] Exception:', err.message);
-    return new NextResponse('Summary PDF generation failed: ' + err.message, {
+    console.error('[Summary API] Exception:', err.message);
+    return new NextResponse('Summary generation failed: ' + err.message, {
       status: 500,
       headers: NO_CACHE_HEADERS,
     });
