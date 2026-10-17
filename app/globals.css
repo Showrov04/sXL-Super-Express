@@ -501,3 +501,56 @@ body {
 a {
   transition: color 0.2s ease, opacity 0.2s ease !important;
 }
+/* ============================================================
+   PREMIUM UI EFFECTS - TASK 4
+   ============================================================ */
+
+/* 10. Modal Background Fade-in */
+@keyframes sxlModalOverlayIn {
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to { opacity: 1; backdrop-filter: blur(3px); }
+}
+
+/* 11. Modal Box Pop-in (Scale & Slide) */
+@keyframes sxlModalBoxIn {
+  0% { opacity: 0; transform: scale(0.95) translateY(15px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 12. Dropdown Menu Pop-in */
+@keyframes sxlDropdownIn {
+  0% { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Apply modal background blur/fade based on inline z-index */
+div[style*="zIndex: 9999"] {
+  animation: sxlModalOverlayIn 0.3s ease-out forwards !important;
+}
+
+/* Apply box animation to the inner white container of the modal */
+div[style*="zIndex: 9999"] > div > div {
+  animation: sxlModalBoxIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+}
+
+/* Apply dropdown animation to action menus and filters */
+div[style*="boxShadow: '0 12px 32px"] /* Action Menus */
+{
+  animation: sxlDropdownIn 0.2s ease-out forwards !important;
+  transform-origin: top right;
+}
+
+div[style*="boxShadow: '0 8px 24px"] /* Filter Dropdowns */
+{
+  animation: sxlDropdownIn 0.2s ease-out forwards !important;
+  transform-origin: top left;
+}
+
+/* Smooth hover for menu items inside dropdowns */
+button[style*="textAlign: 'left'"] {
+  transition: background-color 0.15s ease, padding-left 0.15s ease !important;
+}
+button[style*="textAlign: 'left'"]:hover {
+  padding-left: 20px !important; /* Slight slide effect */
+  background-color: #F8F9FA !important;
+}
