@@ -94,20 +94,23 @@ const SERVICES = [
   }
 ];
 
-// 12 High-quality realistic Sea & Air images with strict type (air/sea)
+// 12 High-quality verified Pexels images (Sea & Air)
 const HERO_IMAGES = [
-  { src: 'https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Cargo Ship
-  { src: 'https://images.unsplash.com/photo-1559297434-fae8a1916a79?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Cargo Plane
-  { src: 'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Containers
-  { src: 'https://images.unsplash.com/photo-1583209814683-c023dd293cc6?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Cargo Plane Parked
-  { src: 'https://images.unsplash.com/photo-1565514020179-026b92b84bb6?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Port Cranes
-  { src: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Airplane Wing
-  { src: 'https://images.unsplash.com/photo-1605745341112-85968b19335b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Docked Ship
-  { src: 'https://images.unsplash.com/photo-1542296332-2e4473faf563?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Airport Tarmac
-  { src: 'https://images.unsplash.com/photo-1506976785307-8732e854ad03?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Ship Bow
-  { src: 'https://images.unsplash.com/photo-1529074963764-98f45c47344b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Airport View
-  { src: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Bulk Ship
-  { src: 'https://images.unsplash.com/photo-1540962351504-03099e0a754b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Airplane engine/tarmac
+  // Sea Freight
+  { src: 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Cargo Ship
+  { src: 'https://images.pexels.com/photos/1117210/pexels-photo-1117210.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Container Ship
+  { src: 'https://images.pexels.com/photos/906982/pexels-photo-906982.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Port Cranes
+  { src: 'https://images.pexels.com/photos/262353/pexels-photo-262353.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Cargo Ship
+  { src: 'https://images.pexels.com/photos/753331/pexels-photo-753331.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Ship Deck
+  { src: 'https://images.pexels.com/photos/2226458/pexels-photo-2226458.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Containers
+  
+  // Air Freight
+  { src: 'https://images.pexels.com/photos/358319/pexels-photo-358319.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Cargo Plane
+  { src: 'https://images.pexels.com/photos/163792/model-planes-airplane-aircraft-163792.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Airplane
+  { src: 'https://images.pexels.com/photos/46148/aircraft-jet-landing-cloud-46148.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Jet Landing
+  { src: 'https://images.pexels.com/photos/209841/pexels-photo-209841.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Plane in sky
+  { src: 'https://images.pexels.com/photos/1152975/pexels-photo-1152975.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Airplane wing
+  { src: 'https://images.pexels.com/photos/2026324/pexels-photo-2026324.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Cargo plane tarmac
 ];
 
 export default function Home() {
