@@ -94,20 +94,20 @@ const SERVICES = [
   }
 ];
 
-// 12 High-quality realistic logistics images
+// 12 High-quality realistic Sea & Air images
 const HERO_IMAGES = [
-  'https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?q=80&w=2070&auto=format&fit=crop', // Cargo Ship
-  'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=2074&auto=format&fit=crop', // Airplane Wing
-  'https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070&auto=format&fit=crop', // Logistics Trucks
-  'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?q=80&w=2070&auto=format&fit=crop', // Cargo Containers
-  'https://images.unsplash.com/photo-1587293852726-70cdb56c2866?q=80&w=2070&auto=format&fit=crop', // Warehouse
-  'https://images.unsplash.com/photo-1559297434-fae8a1916a79?q=80&w=2070&auto=format&fit=crop', // Cargo Plane
+  'https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?q=80&w=2070&auto=format&fit=crop', // Cargo Ship at Sea
+  'https://images.unsplash.com/photo-1559297434-fae8a1916a79?q=80&w=2070&auto=format&fit=crop', // Air Cargo Plane
+  'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?q=80&w=2070&auto=format&fit=crop', // Shipping Containers
+  'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=2074&auto=format&fit=crop', // Airplane Wing in Sky
   'https://images.unsplash.com/photo-1565514020179-026b92b84bb6?q=80&w=2070&auto=format&fit=crop', // Port Cranes
-  'https://images.unsplash.com/photo-1616401784845-180882ba9ba8?q=80&w=2070&auto=format&fit=crop', // Warehouse Shelves
-  'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?q=80&w=2070&auto=format&fit=crop', // Truck Highway
-  'https://images.unsplash.com/photo-1542296332-2e4473faf563?q=80&w=2070&auto=format&fit=crop', // Airport Tarmac
-  'https://images.unsplash.com/photo-1506976785307-8732e854ad03?q=80&w=2070&auto=format&fit=crop', // Ship Bow
-  'https://images.unsplash.com/photo-1580674684081-7617fbf3d745?q=80&w=2070&auto=format&fit=crop', // Logistics Worker
+  'https://images.unsplash.com/photo-1542296332-2e4473faf563?q=80&w=2070&auto=format&fit=crop', // Airplane on Tarmac
+  'https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070&auto=format&fit=crop', // Bulk Cargo Ship
+  'https://images.unsplash.com/photo-1583209814683-c023dd293cc6?q=80&w=2070&auto=format&fit=crop', // Cargo Plane Parked
+  'https://images.unsplash.com/photo-1605745341112-85968b19335b?q=80&w=2070&auto=format&fit=crop', // Docked Cargo Ship
+  'https://images.unsplash.com/photo-1464037866556-6812c9d1c72e?q=80&w=2070&auto=format&fit=crop', // Airplane Taking Off
+  'https://images.unsplash.com/photo-1506976785307-8732e854ad03?q=80&w=2070&auto=format&fit=crop', // Ship Bow Cutting Water
+  'https://images.unsplash.com/photo-1529074963764-98f45c47344b?q=80&w=2070&auto=format&fit=crop', // Airport View
 ];
 
 export default function Home() {
@@ -184,14 +184,14 @@ export default function Home() {
           background-position: center;
           opacity: 0;
           z-index: 1;
-          /* 12 images * 6s each = 72s total loop */
-          animation: sxl-fade-pan 72s infinite;
+          /* 12 images * 8s each = 96s total loop */
+          animation: sxl-fade-pan 96s infinite;
         }
 
         @keyframes sxl-fade-pan {
           0% { opacity: 0; transform: scale(1) translate(0, 0); }
-          1.38% { opacity: 1; }
-          6.94% { opacity: 1; transform: scale(1.06) translate(-1%, -1%); }
+          1% { opacity: 1; }
+          7.33% { opacity: 1; transform: scale(1.06) translate(-1%, -1%); }
           8.33% { opacity: 0; transform: scale(1.08) translate(-1.5%, -1.5%); }
           100% { opacity: 0; transform: scale(1.08) translate(-1.5%, -1.5%); }
         }
@@ -199,8 +199,8 @@ export default function Home() {
         .sxl-hero-overlay {
           position: absolute;
           top: 0; left: 0; width: 100%; height: 100%;
-          /* Light overlay to show images clearly */
-          background: linear-gradient(135deg, rgba(0, 35, 71, 0.40) 0%, rgba(0, 51, 102, 0.50) 100%);
+          /* Light top, slightly darker bottom for text readability */
+          background: linear-gradient(to bottom, rgba(0, 15, 30, 0.3) 0%, rgba(0, 20, 40, 0.7) 100%);
           z-index: 2;
         }
 
@@ -279,7 +279,7 @@ export default function Home() {
             className="sxl-hero-bg-img"
             style={{
               backgroundImage: `url('${src}')`,
-              animationDelay: `${i * 6}s`,
+              animationDelay: `${i * 8}s`,
             }}
           />
         ))}
@@ -293,7 +293,7 @@ export default function Home() {
             marginBottom: '15px',
             letterSpacing: '-1px',
             lineHeight: 1.1,
-            textShadow: '0 2px 10px rgba(0,0,0,0.5)'
+            textShadow: '0 2px 15px rgba(0,0,0,0.8)'
           }}>
             Ship <span style={{ color: '#FF6B00' }}>Faster.</span> Track <span style={{ color: '#FF6B00' }}>Smarter.</span>
           </h1>
@@ -304,7 +304,7 @@ export default function Home() {
             maxWidth: '700px',
             marginLeft: 'auto',
             marginRight: 'auto',
-            textShadow: '0 1px 5px rgba(0,0,0,0.4)'
+            textShadow: '0 1px 8px rgba(0,0,0,0.8)'
           }}>
             Courier, Air &amp; Sea Freight, and Internal Cargo — worldwide delivery you can trust.
           </p>
@@ -313,7 +313,7 @@ export default function Home() {
             background: 'white',
             borderRadius: '10px',
             padding: '10px',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
             display: 'flex',
             gap: '10px',
             maxWidth: '700px',
@@ -361,7 +361,7 @@ export default function Home() {
             <div style={{
               marginTop: '15px',
               padding: '12px 20px',
-              background: 'rgba(220,53,69,0.2)',
+              background: 'rgba(220,53,69,0.4)',
               border: '1px solid #DC3545',
               borderRadius: '8px',
               color: '#FFE5E5',
