@@ -263,7 +263,7 @@ export async function GET(request) {
         }
       });
     });
-
+    const shipperAccount = monthShipments.length > 0 ? (monthShipments[0].booked_by || '') : '';
     let localTotal = 0;
     let localCurrency = '';
 
@@ -370,8 +370,9 @@ export async function GET(request) {
     }
 
     const contact = await loadCompanyContact();
-    const summary = {
+        const summary = {
       shipperName,
+      shipperAccount,
       month,
       monthLabel: monthLabel(month),
       generatedAt: new Date().toISOString(),
