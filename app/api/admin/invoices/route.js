@@ -434,49 +434,6 @@ async function deleteInvoice(session, body) {
     });
   }
 
-  let unlinkedIndividuals = [];
-
-  if (invoice.type === 'monthly-summary') {
-    const tns = String(invoice.tracking_numbers || '')
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
-
-    if (tns.length > 0) {
-      const orFilter = tns
-        .map((tn) => 'tracking_numbers.ilike.%' + tn + '%')
-        .join(',');
-
-      const { data: linkedIndividuals } = await serviceSupabase
-        .from('invoices')
-        .select('invoice_id, invoice_number, status')
-        .eq('type', 'individual')
-        .or(orFilter);
-
-      const paidLinked = (linkedIndividuals || []).filter(
-        (i) => String(i.status).toLowerCase() === 'paid'
-      );
-
-      if (paidLinked.length > 0) {
-        return NextResponse.json({
-          success: false,
-          error: 'Cannot delete — some individual invoices linked to this monthly are Paid: ' +
-                 paidLinked.map((i) => i.invoice_number).join(', ') +
-                 '. Mark them Unpaid first.',
-        });
-      }
-
-      if (linkedIndividuals && linkedIndividuals.length > 0) {
-        const ids = linkedIndividuals.map((i) => i.invoice_id);
-        await serviceSupabase
-          .from('invoices')
-          .delete()
-          .in('invoice_id', ids);
-        unlinkedIndividuals = linkedIndividuals.map((i) => i.invoice_number);
-      }
-    }
-  }
-
   const { error: delErr } = await serviceSupabase
     .from('invoices')
     .delete()
@@ -490,8 +447,6 @@ async function deleteInvoice(session, body) {
     success: true,
     deletedInvoiceNumber: invoice.invoice_number,
     deletedType: invoice.type,
-    unlinkedIndividuals,
-    unlinkedCount: unlinkedIndividuals.length,
   });
 }
 
