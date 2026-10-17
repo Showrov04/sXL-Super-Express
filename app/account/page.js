@@ -118,7 +118,8 @@ export default function AccountPage() {
     if (!token) { router.push('/login'); return; }
 
     try {
-      const res = await fetch('/api/customer/profile', {
+      // Adding a timestamp param ensures the browser doesn't cache the GET request
+      const res = await fetch('/api/customer/profile?_t=' + Date.now(), {
         headers: { Authorization: 'Bearer ' + token },
       });
       const data = await res.json();
@@ -296,7 +297,6 @@ export default function AccountPage() {
     }
   }
 
-  // G.35 — Now uses the profile API with action: 'changePassword'
   async function handlePasswordChange(e) {
     e.preventDefault();
     setPwdMsg('');
