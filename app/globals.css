@@ -431,3 +431,34 @@ a[role="button"]:active,
 .sxl-page-enter {
   animation: sxlFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+/* ============================================================
+   PREMIUM UI EFFECTS - TASK 2
+   ============================================================ */
+
+/* 4. Custom Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F8F9FA;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CED4DA;
+  border-radius: 8px;
+  border: 2px solid #F8F9FA; /* Creates a nice padding effect inside the track */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FF6B00; /* Turns orange when you grab it */
+}
+
+/* 5. Smooth Table Row Hover (For Dashboard & Admin) */
+table tr, 
+table td {
+  transition: background-color 0.2s ease, color 0.2s ease !important;
+}
