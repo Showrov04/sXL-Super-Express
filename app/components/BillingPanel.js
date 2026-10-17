@@ -181,6 +181,10 @@ export default function BillingPanel() {
 
   const [actionMenu, setActionMenu] = useState(null);
 
+  const [stmtShipper, setStmtShipper] = useState('');
+  const [stmtMonth, setStmtMonth] = useState('');
+  const [stmtDownloading, setStmtDownloading] = useState(false);
+
   const [costModal, setCostModal] = useState(null);
   const [costTn, setCostTn] = useState('');
   const [costActualWeight, setCostActualWeight] = useState('');
@@ -703,6 +707,50 @@ export default function BillingPanel() {
     }
   }
 
+  async function handleDownloadStatement(e, format) {
+    e.preventDefault();
+    if (!stmtShipper || !stmtMonth) {
+      alert('Please select a Shipper and Month.');
+      return;
+    }
+
+    setStmtDownloading(true);
+    const token = localStorage.getItem('sxl_token');
+
+    try {
+      const params = new URLSearchParams({
+        shipper: stmtShipper,
+        month: stmtMonth,
+        format: format,
+        _v: String(Date.now()),
+      });
+      const res = await fetch('/api/pdf/summary?' + params.toString(), {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+
+      if (!res.ok) {
+        alert('Error generating ' + format.toUpperCase() + '. HTTP ' + res.status);
+        setStmtDownloading(false);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeShipper = String(stmtShipper).replace(/[^a-zA-Z0-9._-]/g, '_');
+      a.download = 'sXL_Statement_' + safeShipper + '_' + stmtMonth + '.' + format;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setStmtDownloading(false);
+    } catch (err) {
+      alert('Connection error: ' + err.message);
+      setStmtDownloading(false);
+    }
+  }
+
   function renderActualCell(s) {
     const mode = String(s.shipMode || '').toUpperCase();
     if (mode === 'SEA') {
@@ -1213,6 +1261,42 @@ export default function BillingPanel() {
             )}
           </div>
         </>
+      )}
+
+      {isDueTab && (
+        <div style={{ marginTop: '40px', background: 'white', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', border: '1px solid #E9ECEF' }}>
+          <div style={{ marginBottom: '20px' }}>
+            <h2 style={{ color: '#003366', fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>📄 Statement of Account</h2>
+            <p style={{ color: '#6C757D', fontSize: '0.9rem', margin: '4px 0 0 0' }}>
+              Generate a professional summary of shipments and invoices for a customer. This does not create or delete any invoices.
+            </p>
+          </div>
+          
+          <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: '1 1 200px' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Shipper</label>
+              <select value={stmtShipper} onChange={(e) => setStmtShipper(e.target.value)} style={{ width: '100%', padding: '12px 14px', border: '1px solid #D0D6DB', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}>
+                <option value="">-- Select Shipper --</option>
+                {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            
+            <div style={{ flex: '1 1 200px' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Month</label>
+              <input type="month" value={stmtMonth} onChange={(e) => setStmtMonth(e.target.value)} style={{ width: '100%', padding: '11px 14px', border: '1px solid #D0D6DB', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button type="button" onClick={(e) => handleDownloadStatement(e, 'pdf')} disabled={stmtDownloading} style={{ padding: '12px 20px', background: '#DC3545', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: stmtDownloading ? 'not-allowed' : 'pointer', opacity: stmtDownloading ? 0.6 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {stmtDownloading ? '⏳...' : '📄 Download PDF'}
+              </button>
+              
+              <button type="button" onClick={(e) => handleDownloadStatement(e, 'csv')} disabled={stmtDownloading} style={{ padding: '12px 20px', background: '#28A745', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: stmtDownloading ? 'not-allowed' : 'pointer', opacity: stmtDownloading ? 0.6 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {stmtDownloading ? '⏳...' : '📊 Download Excel (CSV)'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {costModal && (
