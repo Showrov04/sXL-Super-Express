@@ -155,6 +155,29 @@ export default function Home() {
       <style>{`
         html { scroll-behavior: smooth; }
 
+        /* ---------- Hero Background Animation ---------- */
+        @keyframes sxl-bg-pan {
+          0% { transform: scale(1) translate(0, 0); }
+          50% { transform: scale(1.08) translate(-1%, -1%); }
+          100% { transform: scale(1) translate(0, 0); }
+        }
+        .sxl-hero-bg {
+          position: absolute;
+          top: 0; left: 0; width: 100%; height: 100%;
+          /* Realistic logistics image (ship, port, plane) */
+          background-image: url('https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?q=80&w=2070&auto=format&fit=crop');
+          background-size: cover;
+          background-position: center;
+          animation: sxl-bg-pan 25s ease-in-out infinite;
+          z-index: 1;
+        }
+        .sxl-hero-overlay {
+          position: absolute;
+          top: 0; left: 0; width: 100%; height: 100%;
+          background: linear-gradient(135deg, rgba(0, 35, 71, 0.88) 0%, rgba(0, 51, 102, 0.75) 100%);
+          z-index: 2;
+        }
+
         /* ---------- Services cards ---------- */
         .sxl-service-card {
           transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
@@ -220,29 +243,34 @@ export default function Home() {
       <Header />
 
       <section style={{
-        background: 'linear-gradient(135deg, #003366 0%, #002347 100%)',
         color: 'white',
-        padding: '80px 20px',
+        padding: '110px 20px',
         position: 'relative',
         overflow: 'hidden'
       }}>
-        <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 2 }}>
+        {/* Dynamic Background and Overlay */}
+        <div className="sxl-hero-bg" />
+        <div className="sxl-hero-overlay" />
+
+        <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 3 }}>
           <h1 style={{
             fontSize: '3rem',
             fontWeight: 800,
             marginBottom: '15px',
             letterSpacing: '-1px',
-            lineHeight: 1.1
+            lineHeight: 1.1,
+            textShadow: '0 2px 10px rgba(0,0,0,0.3)'
           }}>
             Ship <span style={{ color: '#FF6B00' }}>Faster.</span> Track <span style={{ color: '#FF6B00' }}>Smarter.</span>
           </h1>
           <p style={{
             fontSize: '1.15rem',
-            opacity: 0.85,
+            opacity: 0.95,
             marginBottom: '40px',
             maxWidth: '700px',
             marginLeft: 'auto',
-            marginRight: 'auto'
+            marginRight: 'auto',
+            textShadow: '0 1px 5px rgba(0,0,0,0.2)'
           }}>
             Courier, Air &amp; Sea Freight, and Internal Cargo — worldwide delivery you can trust.
           </p>
@@ -251,7 +279,7 @@ export default function Home() {
             background: 'white',
             borderRadius: '10px',
             padding: '10px',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
             display: 'flex',
             gap: '10px',
             maxWidth: '700px',
@@ -322,7 +350,8 @@ export default function Home() {
               href="#services"
               style={{
                 padding: '12px 24px',
-                background: 'transparent',
+                background: 'rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(4px)',
                 color: 'white',
                 border: '2px solid rgba(255,255,255,0.4)',
                 borderRadius: '8px',
@@ -338,7 +367,8 @@ export default function Home() {
               href="#contact"
               style={{
                 padding: '12px 24px',
-                background: 'transparent',
+                background: 'rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(4px)',
                 color: 'white',
                 border: '2px solid rgba(255,255,255,0.4)',
                 borderRadius: '8px',
