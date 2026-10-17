@@ -305,11 +305,7 @@ export default function BillingPanel() {
 
       const names = {};
       (data.shipments || []).forEach((s) => { if (s.shipperName) names[s.shipperName] = true; });
-      setShipperList((prev) => {
-        const merged = { ...Object.fromEntries(prev.map((n) => [n, true])) };
-        Object.keys(names).forEach((n) => { merged[n] = true; });
-        return Object.keys(merged).sort();
-      });
+      setShipperList(Object.keys(names).sort());
 
       setLoading(false);
     } catch (err) {
@@ -382,6 +378,23 @@ export default function BillingPanel() {
     });
     return list;
   }, [shipments, colFilters]);
+  const stmtAvailableMonths = useMemo(() => {
+    if (!stmtShipper) return [];
+    const months = new Set();
+    shipments.forEach((s) => {
+      if (s.shipperName === stmtShipper) {
+        const dateVal = s.shipmentDate || s.bookedAt;
+        if (dateVal) {
+          const d = new Date(dateVal);
+          if (!isNaN(d.getTime())) {
+            const m = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+            months.add(m);
+          }
+        }
+      }
+    });
+    return Array.from(months).sort().reverse();
+  }, [shipments, stmtShipper]);
 
   const filteredTotal = useMemo(() => {
     if (tab === 'due') {
@@ -1275,15 +1288,28 @@ export default function BillingPanel() {
           <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ flex: '1 1 200px' }}>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Shipper</label>
-              <select value={stmtShipper} onChange={(e) => setStmtShipper(e.target.value)} style={{ width: '100%', padding: '12px 14px', border: '1px solid #D0D6DB', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }}>
+                            <select value={stmtShipper} onChange={(e) => { setStmtShipper(e.target.value); setStmtMonth(''); }} style={{ width: '100%', padding: '12px 14px', border: '1px solid #D0D6DB', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', outline: 'none' }}>
                 <option value="">-- Select Shipper --</option>
                 {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
             
-            <div style={{ flex: '1 1 200px' }}>
+                        <div style={{ flex: '1 1 200px' }}>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Month</label>
-              <input type="month" value={stmtMonth} onChange={(e) => setStmtMonth(e.target.value)} style={{ width: '100%', padding: '11px 14px', border: '1px solid #D0D6DB', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+              <select 
+                value={stmtMonth} 
+                onChange={(e) => setStmtMonth(e.target.value)} 
+                disabled={!stmtShipper}
+                style={{ width: '100%', padding: '12px 14px', border: '1px solid #D0D6DB', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', background: !stmtShipper ? '#F8F9FA' : 'white', outline: 'none' }}
+              >
+                <option value="">-- Select Month --</option>
+                {stmtAvailableMonths.map((m) => {
+                  const [y, mo] = m.split('-');
+                  const date = new Date(parseInt(y), parseInt(mo) - 1, 1);
+                  const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                  return <option key={m} value={m}>{label}</option>;
+                })}
+              </select>
             </div>
 
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
