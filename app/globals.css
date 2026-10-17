@@ -598,5 +598,20 @@ div[style*="zIndex: 99999"] {
   transform: scale(1.08);
   color: #FF6B00 !important;
 }
+/* ============================================================
+   PREMIUM UI EFFECTS - TASK 6A (Skeleton Loader)
+   ============================================================ */
+
+@keyframes sxl-skeleton-pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.6; }
+}
+
+.sxl-skeleton {
+  background-color: #E9ECEF;
+  border-radius: 6px;
+  animation: sxl-skeleton-pulse 1.5s ease-in-out infinite;
+}
 
 
