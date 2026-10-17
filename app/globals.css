@@ -462,3 +462,42 @@ table tr,
 table td {
   transition: background-color 0.2s ease, color 0.2s ease !important;
 }
+/* ============================================================
+   PREMIUM UI EFFECTS - TASK 3
+   ============================================================ */
+
+/* 6. Branded Text Selection (Orange) */
+::selection {
+  background-color: #FF6B00 !important;
+  color: #ffffff !important;
+}
+::-moz-selection {
+  background-color: #FF6B00 !important;
+  color: #ffffff !important;
+}
+
+/* 7. Smooth Image Loading (Fade-in) */
+img {
+  transition: opacity 0.4s ease-in-out !important;
+}
+img[loading] {
+  opacity: 0.5;
+}
+img.loaded {
+  opacity: 1;
+}
+
+/* 8. Global Body Fade-In on Page Load */
+@keyframes sxlBodyFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+body {
+  animation: sxlBodyFadeIn 0.6s ease-out forwards;
+}
+
+/* 9. Premium Link Hover Underline */
+a {
+  transition: color 0.2s ease, opacity 0.2s ease !important;
+}
