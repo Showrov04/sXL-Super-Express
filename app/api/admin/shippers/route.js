@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
-import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +8,12 @@ const serviceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+const SALT = 'sXL_Super_Express_2025_salt';
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password + SALT).digest('hex');
+}
 
 async function requireAdmin(request) {
   const authHeader = request.headers.get('authorization') || '';
@@ -30,14 +35,7 @@ async function requireAdmin(request) {
 
   return { userId: session.user_id, role: session.role };
 }
-const SALT = 'sXL_Super_Express_2025_salt';
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password + SALT).digest('hex');
-}
-
-// Derive a short form (initials) from company name — up to 4 letters
-function shortFormFrom(name) {
 // Derive a short form (initials) from company name — up to 4 letters
 function shortFormFrom(name) {
   if (!name || !String(name).trim()) return 'SXL';
@@ -80,7 +78,7 @@ export async function GET(request) {
         suspendedAt: isActive ? null : u.suspended_at || null,
         createdAt: u.created_at || null,
         
-        // NEW FIELDS FOR AUTO-FILL
+        // Fields for auto-fill
         companyAddress: u.company_address || '',
         companyCity: u.company_city || '',
         companyState: u.company_state || '',
@@ -138,7 +136,7 @@ export async function POST(request) {
         return NextResponse.json({ success: false, error: 'Email is already in use by another shipper.' });
       }
 
-            const updateData = {
+      const updateData = {
         company_name: companyName,
         contact_person: contactPerson || null,
         phone: phone || null,
@@ -150,9 +148,11 @@ export async function POST(request) {
         company_bin: companyBin || null,
       };
 
-               // If password is provided, hash it before saving using the same method as login
+      // If password is provided, hash it before saving using the same method as login
+      let credentialsChanged = false;
       if (password && password.trim().length > 0) {
         updateData.password_hash = hashPassword(password.trim());
+        credentialsChanged = true;
       }
 
       const { error: updErr } = await serviceSupabase
@@ -164,8 +164,7 @@ export async function POST(request) {
         return NextResponse.json({ success: false, error: updErr.message });
       }
 
-      // Log out all devices if credentials changed
-      const credentialsChanged = (password && password.trim().length > 0); // You can also check if email changed by fetching original
+      // Log out all devices if password changed
       if (credentialsChanged) {
         await serviceSupabase.from('sessions').delete().eq('user_id', shipperID);
       }
