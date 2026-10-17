@@ -244,7 +244,6 @@ export default function BillingPanel() {
   const [monthlyLocalCurrency, setMonthlyLocalCurrency] = useState('');
   const [monthlyExchangeRate, setMonthlyExchangeRate] = useState('');
   const [monthlyGenerating, setMonthlyGenerating] = useState(false);
-  const [clearingIndividual, setClearingIndividual] = useState(false);
   const [downloadingSummary, setDownloadingSummary] = useState(false);
   const [monthlyMsg, setMonthlyMsg] = useState('');
   const [monthlyInvoices, setMonthlyInvoices] = useState([]);
@@ -725,7 +724,7 @@ export default function BillingPanel() {
 
     const ok = window.confirm(
       'Delete monthly invoice ' + inv.invoiceNumber + '?\n\n' +
-      'Any INDIVIDUAL invoices linked to the same shipments will also be deleted, so you can regenerate a new monthly invoice for the same shipper and month.'
+      'The individual invoices linked to the same shipments will NOT be deleted.'
     );
     if (!ok) return;
 
@@ -745,9 +744,6 @@ export default function BillingPanel() {
         return;
       }
       let msg = '🗑️ Monthly invoice ' + data.deletedInvoiceNumber + ' deleted';
-      if (data.unlinkedCount > 0) {
-        msg += ' · also unlinked ' + data.unlinkedCount + ' individual invoice(s)';
-      }
       setToast(msg);
       setDeletingInvoiceId('');
       loadMonthlyInvoices();
@@ -808,46 +804,6 @@ export default function BillingPanel() {
     } catch (err) {
       setEditInvError('Connection error: ' + err.message);
       setEditInvSaving(false);
-    }
-  }
-
-  async function handleClearIndividualInvoices() {
-    if (!monthlyShipper || !monthlyMonth) {
-      setMonthlyMsg('❌ Pick shipper and month first.');
-      return;
-    }
-
-    const ok = window.confirm(
-      'Delete ALL individual invoices for "' + monthlyShipper + '" in ' + monthlyMonth + '?\n\n' +
-      'Shipments stay unpaid and will be ready for monthly invoicing.'
-    );
-    if (!ok) return;
-
-    setClearingIndividual(true);
-    setMonthlyMsg('');
-    const token = localStorage.getItem('sxl_token');
-
-    try {
-      const res = await fetch('/api/admin/invoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({
-          action: 'clearIndividualForShipperMonth',
-          shipperName: monthlyShipper,
-          month: monthlyMonth,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        setMonthlyMsg('❌ ' + (data.error || 'Failed.'));
-        setClearingIndividual(false);
-        return;
-      }
-      setMonthlyMsg('✅ Cleared ' + data.deletedCount + ' individual invoice(s): ' + data.deletedInvoiceNumbers.join(', ') + '. Now click "Generate Monthly Invoice".');
-      setClearingIndividual(false);
-    } catch (err) {
-      setMonthlyMsg('❌ Connection error.');
-      setClearingIndividual(false);
     }
   }
 
@@ -1622,8 +1578,6 @@ export default function BillingPanel() {
               }} title="Refresh List">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.96 6.61 2.54L21 8"/><path d="M21 3v5h-5"/></svg>
               </button>
-
-      
             </div>
 
             {monthlyMsg && (
@@ -1713,7 +1667,7 @@ export default function BillingPanel() {
                           type="button"
                           onClick={() => handleDeleteMonthlyInvoice(inv)}
                           disabled={isPaid || isDeleting}
-                          title={isPaid ? 'Cannot delete a paid invoice — mark it unpaid first' : 'Delete this invoice (also unlinks individual invoices for the same shipments)'}
+                          title={isPaid ? 'Cannot delete a paid invoice — mark it unpaid first' : 'Delete this invoice (individual invoices will NOT be deleted)'}
                           style={{
                             ...MENU_ACTION_STYLE,
                             background: 'transparent',
