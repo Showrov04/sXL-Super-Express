@@ -317,21 +317,24 @@ async function createMonthlyInvoice(session, body) {
     existingInvoiceRows = invRows || [];
   }
 
-  const alreadyInvoiced = {};
+    const alreadyInvoiced = {};
   existingInvoiceRows.forEach((inv) => {
-    const list = String(inv.tracking_numbers || '')
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
-    list.forEach((tn) => {
-      if (candidateTns.includes(tn) && !alreadyInvoiced[tn]) {
-        alreadyInvoiced[tn] = {
-          invoiceNumber: inv.invoice_number,
-          type: inv.type,
-          month: inv.month,
-        };
-      }
-    });
+    // ONLY block if the shipment is already in ANOTHER monthly invoice
+    if (inv.type === 'monthly-summary') {
+      const list = String(inv.tracking_numbers || '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      list.forEach((tn) => {
+        if (candidateTns.includes(tn) && !alreadyInvoiced[tn]) {
+          alreadyInvoiced[tn] = {
+            invoiceNumber: inv.invoice_number,
+            type: inv.type,
+            month: inv.month,
+          };
+        }
+      });
+    }
   });
 
   const matched = matchedByMonth.filter((s) => !alreadyInvoiced[s.tracking_number]);
