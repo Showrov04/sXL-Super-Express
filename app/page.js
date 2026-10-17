@@ -165,7 +165,7 @@ export default function Home() {
           position: absolute;
           top: 0; left: 0; width: 100%; height: 100%;
           /* Realistic logistics image (ship, port, plane) */
-          background-image: url('https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?q=80&w=2070&auto=format&fit=crop');
+          background-image: url('https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?q=80&w=2070&auto=format&fit=crop');
           background-size: cover;
           background-position: center;
           animation: sxl-bg-pan 25s ease-in-out infinite;
@@ -174,7 +174,8 @@ export default function Home() {
         .sxl-hero-overlay {
           position: absolute;
           top: 0; left: 0; width: 100%; height: 100%;
-          background: linear-gradient(135deg, rgba(0, 35, 71, 0.88) 0%, rgba(0, 51, 102, 0.75) 100%);
+          /* Less opaque overlay so the image shows through */
+          background: linear-gradient(135deg, rgba(0, 35, 71, 0.7) 0%, rgba(0, 51, 102, 0.6) 100%);
           z-index: 2;
         }
 
