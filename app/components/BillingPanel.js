@@ -1422,7 +1422,7 @@ export default function BillingPanel() {
               />
             )}
 
-            {menuShipment.individualInvoice && (
+            {menuShipment.individualInvoice ? (
               <>
                 <MenuItem
                   label="📄 Individual Invoice PDF"
@@ -1450,26 +1450,12 @@ export default function BillingPanel() {
                   />
                 )}
               </>
-            )}
-
-            {menuShipment.monthlyInvoice && (
-              <>
-                <MenuItem
-                  label="📅 Monthly Invoice PDF"
-                  sub={menuShipment.monthlyInvoice.invoiceNumber}
-                  onClick={() => {
-                    setActionMenu(null);
-                    window.open('/api/pdf/invoice/' + menuShipment.monthlyInvoice.invoiceId + '?_v=' + Date.now(), '_blank', 'noopener');
-                  }}
-                />
-                {!menuShipment.individualInvoice && (
-                  <MenuItem
-                    label="🧾 Issue Individual Invoice"
-                    sub="Create a separate invoice just for this shipment"
-                    onClick={() => { setActionMenu(null); handleIssueInvoice(menuShipment); }}
-                  />
-                )}
-              </>
+            ) : (
+              <MenuItem
+                label="🧾 Issue Individual Invoice"
+                sub="Create a separate invoice just for this shipment"
+                onClick={() => { setActionMenu(null); handleIssueInvoice(menuShipment); }}
+              />
             )}
 
             {(() => {
