@@ -977,10 +977,27 @@ export default function BillingPanel() {
 
       {error && <div style={{ background: '#F8D7DA', color: '#721C24', borderLeft: '4px solid #DC3545', borderRadius: '10px', padding: '15px 20px', marginBottom: '20px' }}>❌ {error}</div>}
 
-      {loading && (
-        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-          <div style={{ width: '45px', height: '45px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 15px' }} />
-          <p style={{ color: '#6C757D' }}>Loading billing data...</p>
+            {loading && (
+        <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E9ECEF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+          <div style={{ padding: '15px', borderBottom: '1px solid #E9ECEF', background: '#F8F9FA', display: 'flex', gap: '15px' }}>
+            <div className="sxl-skeleton" style={{ width: '130px', height: '20px' }} />
+            <div className="sxl-skeleton" style={{ width: '100px', height: '20px' }} />
+            <div className="sxl-skeleton" style={{ width: '160px', height: '20px' }} />
+            <div className="sxl-skeleton" style={{ width: '120px', height: '20px' }} />
+            <div className="sxl-skeleton" style={{ flex: 1, height: '20px' }} />
+          </div>
+          <div style={{ padding: '15px' }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} style={{ display: 'flex', gap: '15px', marginBottom: '15px', alignItems: 'center' }}>
+                <div className="sxl-skeleton" style={{ width: '130px', height: '40px' }} />
+                <div className="sxl-skeleton" style={{ width: '100px', height: '40px' }} />
+                <div className="sxl-skeleton" style={{ width: '160px', height: '40px' }} />
+                <div className="sxl-skeleton" style={{ width: '120px', height: '40px' }} />
+                <div className="sxl-skeleton" style={{ flex: 1, height: '40px' }} />
+                <div className="sxl-skeleton" style={{ width: '150px', height: '40px' }} />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
