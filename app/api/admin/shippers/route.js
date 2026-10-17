@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -141,9 +142,10 @@ export async function POST(request) {
         company_bin: companyBin || null,
       };
 
-      // If password is provided, update it (Note: Add bcrypt hashing here if your auth uses it)
+            // If password is provided, hash it before saving
       if (password && password.trim().length > 0) {
-        updateData.password_hash = password.trim(); // Assuming simple string storage. Update this line if you use bcrypt/hash
+        const salt = await bcrypt.genSalt(10);
+        updateData.password_hash = await bcrypt.hash(password.trim(), salt);
       }
 
       const { error: updErr } = await serviceSupabase
