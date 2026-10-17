@@ -129,7 +129,7 @@ export async function POST(request) {
         return NextResponse.json({ success: false, error: 'Email is already in use by another shipper.' });
       }
 
-      const updateData = {
+            const updateData = {
         company_name: companyName,
         contact_person: contactPerson || null,
         phone: phone || null,
@@ -139,7 +139,6 @@ export async function POST(request) {
         company_state: companyState || null,
         company_country: companyCountry || null,
         company_bin: companyBin || null,
-        updated_at: new Date().toISOString(),
       };
 
       // If password is provided, update it (Note: Add bcrypt hashing here if your auth uses it)
