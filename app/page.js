@@ -94,23 +94,16 @@ const SERVICES = [
   }
 ];
 
-// 12 High-quality verified Pexels images (Sea & Air)
+// 6 Strictly verified Sea & Air Cargo images with reliable URLs
 const HERO_IMAGES = [
   // Sea Freight
-  { src: 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Cargo Ship
-  { src: 'https://images.pexels.com/photos/1117210/pexels-photo-1117210.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Container Ship
-  { src: 'https://images.pexels.com/photos/906982/pexels-photo-906982.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Port Cranes
-  { src: 'https://images.pexels.com/photos/262353/pexels-photo-262353.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Cargo Ship
-  { src: 'https://images.pexels.com/photos/753331/pexels-photo-753331.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Ship Deck
-  { src: 'https://images.pexels.com/photos/2226458/pexels-photo-2226458.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'sea' }, // Containers
-  
+  { src: 'https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?auto=format&fit=crop&w=2070&q=80&v=5', type: 'sea' }, // Massive Cargo Ship
+  { src: 'https://images.unsplash.com/photo-1565514020179-026b92b84bb6?auto=format&fit=crop&w=2070&q=80&v=5', type: 'sea' }, // Port Cranes
+  { src: 'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?auto=format&fit=crop&w=2070&q=80&v=5', type: 'sea' }, // Shipping Containers
   // Air Freight
-  { src: 'https://images.pexels.com/photos/358319/pexels-photo-358319.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Cargo Plane
-  { src: 'https://images.pexels.com/photos/163792/model-planes-airplane-aircraft-163792.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Airplane
-  { src: 'https://images.pexels.com/photos/46148/aircraft-jet-landing-cloud-46148.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Jet Landing
-  { src: 'https://images.pexels.com/photos/209841/pexels-photo-209841.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Plane in sky
-  { src: 'https://images.pexels.com/photos/1152975/pexels-photo-1152975.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Airplane wing
-  { src: 'https://images.pexels.com/photos/2026324/pexels-photo-2026324.jpeg?auto=compress&cs=tinysrgb&w=1920&v=3', type: 'air' }, // Cargo plane tarmac
+  { src: 'https://images.unsplash.com/photo-1559297434-fae8a1916a79?auto=format&fit=crop&w=2070&q=80&v=5', type: 'air' }, // Cargo Plane
+  { src: 'https://images.unsplash.com/photo-1583209814683-c023dd293cc6?auto=format&fit=crop&w=2070&q=80&v=5', type: 'air' }, // Cathay Cargo Style Plane
+  { src: 'https://images.unsplash.com/photo-1542296332-2e4473faf563?auto=format&fit=crop&w=2070&q=80&v=5', type: 'air' }, // Cargo Plane on Tarmac
 ];
 
 export default function Home() {
@@ -174,7 +167,7 @@ export default function Home() {
       <style>{`
         html { scroll-behavior: smooth; }
 
-        /* ---------- Hero Background Crossfade & Pan (12 Images) ---------- */
+        /* ---------- Hero Background Crossfade & Pan ---------- */
         .sxl-hero-section {
           position: relative;
           overflow: hidden;
@@ -191,35 +184,35 @@ export default function Home() {
         
         /* Distinct Animations for Sea and Air */
         .sxl-hero-sea {
-          animation: sxl-fade-sea 96s infinite;
+          animation: sxl-fade-sea 48s infinite;
         }
         .sxl-hero-air {
-          animation: sxl-fade-air 96s infinite;
+          animation: sxl-fade-air 48s infinite;
         }
 
         /* Sea: Gentle vertical bob and zoom */
         @keyframes sxl-fade-sea {
           0% { opacity: 0; transform: scale(1.05) translateY(-2%); }
-          1% { opacity: 1; }
-          7.33% { opacity: 1; transform: scale(1.1) translateY(2%); }
-          8.33% { opacity: 0; transform: scale(1.1) translateY(2%); }
+          2% { opacity: 1; }
+          14.66% { opacity: 1; transform: scale(1.1) translateY(2%); }
+          16.66% { opacity: 0; transform: scale(1.1) translateY(2%); }
           100% { opacity: 0; transform: scale(1.05) translateY(-2%); }
         }
 
         /* Air: Smooth horizontal pan like flying */
         @keyframes sxl-fade-air {
           0% { opacity: 0; transform: scale(1.05) translateX(3%); }
-          1% { opacity: 1; }
-          7.33% { opacity: 1; transform: scale(1.05) translateX(-3%); }
-          8.33% { opacity: 0; transform: scale(1.05) translateX(-3%); }
+          2% { opacity: 1; }
+          14.66% { opacity: 1; transform: scale(1.05) translateX(-3%); }
+          16.66% { opacity: 0; transform: scale(1.05) translateX(-3%); }
           100% { opacity: 0; transform: scale(1.05) translateX(3%); }
         }
 
         .sxl-hero-overlay {
           position: absolute;
           top: 0; left: 0; width: 100%; height: 100%;
-          /* Darker overlay to ensure text readability while showing images */
-          background: linear-gradient(to bottom, rgba(0, 15, 30, 0.6) 0%, rgba(0, 20, 40, 0.8) 100%);
+          /* Much lighter overlay to show images clearly */
+          background: linear-gradient(to bottom, rgba(0, 20, 40, 0.3) 0%, rgba(0, 20, 40, 0.6) 100%);
           z-index: 2;
         }
 
@@ -312,7 +305,7 @@ export default function Home() {
             marginBottom: '15px',
             letterSpacing: '-1px',
             lineHeight: 1.1,
-            textShadow: '0 2px 15px rgba(0,0,0,0.8)'
+            textShadow: '0 4px 15px rgba(0,0,0,0.9)'
           }}>
             Ship <span style={{ color: '#FF6B00' }}>Faster.</span> Track <span style={{ color: '#FF6B00' }}>Smarter.</span>
           </h1>
@@ -323,7 +316,7 @@ export default function Home() {
             maxWidth: '700px',
             marginLeft: 'auto',
             marginRight: 'auto',
-            textShadow: '0 1px 8px rgba(0,0,0,0.8)'
+            textShadow: '0 2px 10px rgba(0,0,0,0.9)'
           }}>
             Courier, Air &amp; Sea Freight, and Internal Cargo — worldwide delivery you can trust.
           </p>
