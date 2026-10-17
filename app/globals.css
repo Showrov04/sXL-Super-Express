@@ -613,5 +613,28 @@ div[style*="zIndex: 99999"] {
   border-radius: 6px;
   animation: sxl-skeleton-pulse 1.5s ease-in-out infinite;
 }
+/* ============================================================
+   PREMIUM UI EFFECTS - TASK 3 (Card Elevation)
+   ============================================================ */
 
+/* Upgrade all standard cards to an ultra-soft, floating shadow */
+div[style*="box-shadow: 0 4px 20px"] {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.02) !important;
+  transition: box-shadow 0.3s ease, transform 0.3s ease !important;
+}
+
+/* Add a gentle lift effect when hovering over any major card */
+div[style*="box-shadow: 0 4px 20px"]:hover {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Ensure all inputs inside cards look perfectly flat against the white background */
+div[style*="box-shadow: 0 4px 20px"] input,
+div[style*="box-shadow: 0 4px 20px"] select {
+  background-color: #F8F9FA !important;
+}
+div[style*="box-shadow: 0 4px 20px"] input:focus,
+div[style*="box-shadow: 0 4px 20px"] select:focus {
+  background-color: #FFFFFF !important;
+}
 
