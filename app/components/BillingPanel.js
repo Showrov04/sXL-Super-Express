@@ -180,7 +180,6 @@ export default function BillingPanel() {
   const isSyncingRef = useRef(false);
 
   const [actionMenu, setActionMenu] = useState(null);
-  const [expandedMonthly, setExpandedMonthly] = useState({});
 
   const [costModal, setCostModal] = useState(null);
   const [costTn, setCostTn] = useState('');
@@ -205,51 +204,6 @@ export default function BillingPanel() {
   const [editInvSaving, setEditInvSaving] = useState(false);
   const [editInvError, setEditInvError] = useState('');
 
-  const [monthlyShipper, setMonthlyShipper] = useState('');
-  const [monthlyMonth, setMonthlyMonth] = useState('');
-
-  const [monthYear, monthNum] = (() => {
-    const m = String(monthlyMonth || '').match(/^(\d{4})-(\d{2})$/);
-    return m ? [m[1], m[2]] : ['', ''];
-  })();
-
-  function setMonthYear(y) {
-    if (!y) { setMonthlyMonth(''); return; }
-    const n = monthNum || String(new Date().getMonth() + 1).padStart(2, '0');
-    setMonthlyMonth(y + '-' + n);
-  }
-  function setMonthNum(n) {
-    if (!n) { setMonthlyMonth(''); return; }
-    const y = monthYear || String(new Date().getFullYear());
-    setMonthlyMonth(y + '-' + n);
-  }
-
-  const CURRENT_YEAR = new Date().getFullYear();
-  const YEAR_OPTIONS = [CURRENT_YEAR + 1, CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2];
-  const MONTH_OPTIONS = [
-    { v: '01', label: 'January' },
-    { v: '02', label: 'February' },
-    { v: '03', label: 'March' },
-    { v: '04', label: 'April' },
-    { v: '05', label: 'May' },
-    { v: '06', label: 'June' },
-    { v: '07', label: 'July' },
-    { v: '08', label: 'August' },
-    { v: '09', label: 'September' },
-    { v: '10', label: 'October' },
-    { v: '11', label: 'November' },
-    { v: '12', label: 'December' },
-  ];
-
-  const [monthlyLocalCurrency, setMonthlyLocalCurrency] = useState('');
-  const [monthlyExchangeRate, setMonthlyExchangeRate] = useState('');
-  const [monthlyGenerating, setMonthlyGenerating] = useState(false);
-  const [downloadingSummary, setDownloadingSummary] = useState(false);
-  const [monthlyMsg, setMonthlyMsg] = useState('');
-  const [monthlyInvoices, setMonthlyInvoices] = useState([]);
-  const [monthlyLoading, setMonthlyLoading] = useState(false);
-  const [deletingInvoiceId, setDeletingInvoiceId] = useState('');
-
   useEffect(() => {
     const modalOpen = costModal || editInvModal;
     if (modalOpen) {
@@ -262,11 +216,6 @@ export default function BillingPanel() {
 
   useEffect(() => {
     loadShipments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
-
-  useEffect(() => {
-    if (tab === 'due') loadMonthlyInvoices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -365,20 +314,6 @@ export default function BillingPanel() {
     }
   }
 
-  async function loadMonthlyInvoices() {
-    setMonthlyLoading(true);
-    const token = localStorage.getItem('sxl_token');
-    if (!token) { setMonthlyLoading(false); return; }
-    try {
-      const res = await fetch('/api/admin/invoices?type=monthly-summary', {
-        headers: { Authorization: 'Bearer ' + token },
-      });
-      const data = await res.json();
-      if (data.success) setMonthlyInvoices(data.invoices || []);
-    } catch (e) { /* silent */ }
-    setMonthlyLoading(false);
-  }
-
   function applyFilters(e) {
     if (e) e.preventDefault();
     loadShipments();
@@ -398,7 +333,7 @@ export default function BillingPanel() {
     if (col === 'recipient') return s.recipientName || '';
     if (col === 'status') return s.status || '';
     if (col === 'payment') return s.paymentStatus || '';
-    if (col === 'invNumber') return s.latestInvoice ? (s.latestInvoice.invoiceNumber || '') : '';
+    if (col === 'invNumber') return s.individualInvoice ? (s.individualInvoice.invoiceNumber || '') : '';
     return '';
   }
 
@@ -677,7 +612,7 @@ export default function BillingPanel() {
 
     const ok = window.confirm(
       'Delete individual invoice ' + inv.invoiceNumber + '?\n\n' +
-      'The shipment becomes "not invoiced" and can then be included in a monthly invoice.'
+      'The shipment becomes "not invoiced".'
     );
     if (!ok) return;
 
@@ -715,47 +650,8 @@ export default function BillingPanel() {
     }
   }
 
-  async function handleDeleteMonthlyInvoice(inv) {
-    const statusLower = String(inv.status || '').toLowerCase();
-    if (statusLower === 'paid') {
-      window.alert('Cannot delete a paid invoice (' + inv.invoiceNumber + '). Mark it as Unpaid first.');
-      return;
-    }
-
-    const ok = window.confirm(
-      'Delete monthly invoice ' + inv.invoiceNumber + '?\n\n' +
-      'The individual invoices linked to the same shipments will NOT be deleted.'
-    );
-    if (!ok) return;
-
-    setDeletingInvoiceId(inv.invoiceID);
-    const token = localStorage.getItem('sxl_token');
-
-    try {
-      const res = await fetch('/api/admin/invoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ action: 'delete', invoiceId: inv.invoiceID }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        window.alert('Error: ' + (data.error || 'Failed'));
-        setDeletingInvoiceId('');
-        return;
-      }
-      let msg = '🗑️ Monthly invoice ' + data.deletedInvoiceNumber + ' deleted';
-      setToast(msg);
-      setDeletingInvoiceId('');
-      loadMonthlyInvoices();
-      loadShipments();
-    } catch (err) {
-      window.alert('Error: ' + err.message);
-      setDeletingInvoiceId('');
-    }
-  }
-
   function openEditInvModal(s) {
-    const target = s.individualInvoice || s.monthlyInvoice;
+    const target = s.individualInvoice;
     if (!target) return;
     setEditInvModal({ shipment: s, invoice: target });
     setEditInvIssueDate(target.issueDate ? String(target.issueDate).slice(0, 10) : '');
@@ -807,100 +703,6 @@ export default function BillingPanel() {
     }
   }
 
-  async function handleDownloadSummary() {
-    if (!monthlyShipper || !monthlyMonth) {
-      setMonthlyMsg('❌ Pick shipper and month first.');
-      return;
-    }
-
-    setDownloadingSummary(true);
-    setMonthlyMsg('');
-    const token = localStorage.getItem('sxl_token');
-
-    try {
-      const params = new URLSearchParams({
-        shipper: monthlyShipper,
-        month: monthlyMonth,
-        _v: String(Date.now()),
-      });
-      const res = await fetch('/api/pdf/summary?' + params.toString(), {
-        headers: { Authorization: 'Bearer ' + token },
-      });
-
-      if (!res.ok) {
-        let msg = 'HTTP ' + res.status;
-        try {
-          const txt = await res.text();
-          if (txt) msg = txt.slice(0, 200);
-        } catch (e) { /* silent */ }
-        setMonthlyMsg('❌ ' + msg);
-        setDownloadingSummary(false);
-        return;
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const safeShipper = String(monthlyShipper).replace(/[^a-zA-Z0-9._-]/g, '_');
-      a.download = 'sXL_Monthly_Summary_' + safeShipper + '_' + monthlyMonth + '.pdf';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      setDownloadingSummary(false);
-      setMonthlyMsg('✅ Summary PDF downloaded');
-    } catch (err) {
-      setMonthlyMsg('❌ Connection error: ' + err.message);
-      setDownloadingSummary(false);
-    }
-  }
-
-  async function handleGenerateMonthly(e) {
-    e.preventDefault();
-    setMonthlyMsg('');
-    if (!monthlyShipper || !monthlyMonth) {
-      setMonthlyMsg('❌ Please select shipper and month.');
-      return;
-    }
-
-    setMonthlyGenerating(true);
-    const token = localStorage.getItem('sxl_token');
-    try {
-      const res = await fetch('/api/admin/invoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({
-          action: 'createMonthly',
-          shipperName: monthlyShipper,
-          month: monthlyMonth,
-          localCurrency: monthlyLocalCurrency || null,
-          exchangeRate: parseFloat(monthlyExchangeRate) || 0,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        setMonthlyMsg('❌ ' + (data.error || 'Failed.'));
-        setMonthlyGenerating(false);
-        return;
-      }
-      let msg = '✅ Monthly invoice ' + data.invoiceNumber + ' generated (' + data.shipmentCount + ' shipments, USD ' + Number(data.total).toFixed(2) + ')';
-      if (data.localCurrency && data.localAmount) {
-        msg += '  ·  ' + data.localCurrency + ' ' + Number(data.localAmount).toFixed(2) + ' (1 USD = ' + data.exchangeRate + ')';
-      }
-      if (data.skippedCount > 0) {
-        msg += '  ·  ' + data.skippedCount + ' skipped (already invoiced)';
-      }
-      setMonthlyMsg(msg);
-      setMonthlyGenerating(false);
-      setTimeout(loadMonthlyInvoices, 500);
-      setTimeout(loadShipments, 500);
-    } catch (err) {
-      setMonthlyMsg('❌ Connection error.');
-      setMonthlyGenerating(false);
-    }
-  }
-
   function renderActualCell(s) {
     const mode = String(s.shipMode || '').toUpperCase();
     if (mode === 'SEA') {
@@ -931,9 +733,7 @@ export default function BillingPanel() {
     const tn = s.trackingNumber;
     const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
     const hasIndividual = !!s.individualInvoice;
-    const hasMonthly = !!s.monthlyInvoice;
-    const hasInvoice = hasIndividual || hasMonthly;
-    const displayInvoice = s.individualInvoice || s.monthlyInvoice;
+    const displayInvoice = s.individualInvoice;
     const isSent = !!(s.invoiceSentAt || (displayInvoice && displayInvoice.sentAt));
     const isPaid = String(s.paymentStatus || '').toLowerCase() === 'paid';
 
@@ -943,7 +743,7 @@ export default function BillingPanel() {
     if (!hasCost) {
       return { label: '🔄 Add Cost', bg: '#FF6B00', color: 'white', onClick: () => openCostModal(s) };
     }
-    if (!hasInvoice) {
+    if (!hasIndividual) {
       return { label: '🧾 Issue Invoice', bg: '#0D6EFD', color: 'white', onClick: () => handleIssueInvoice(s) };
     }
     if (!isSent) {
@@ -1053,10 +853,6 @@ export default function BillingPanel() {
       top: rect.bottom + 4,
       right: Math.max(8, window.innerWidth - rect.right),
     });
-  }
-
-  function toggleMonthlyExpand(invoiceID) {
-    setExpandedMonthly((prev) => ({ ...prev, [invoiceID]: !prev[invoiceID] }));
   }
 
   return (
@@ -1190,26 +986,6 @@ export default function BillingPanel() {
                         fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366'
                       }}>
                         {s.trackingNumber}
-                        {s.monthlyInvoice && (
-                          <span
-                            title={'Included in monthly invoice ' + (s.monthlyInvoice?.invoiceNumber || '')}
-                            style={{
-                              marginLeft: '4px',
-                              display: 'inline-block',
-                              background: '#DBEAFE',
-                              color: '#1E40AF',
-                              padding: '1px 6px',
-                              borderRadius: '8px',
-                              fontSize: '0.6rem',
-                              fontWeight: 800,
-                              letterSpacing: '0.3px',
-                              verticalAlign: 'middle',
-                              cursor: 'help'
-                            }}
-                          >
-                            📅
-                          </span>
-                        )}
                       </td>
                       <td style={{ ...frozenTd, left: isAllTab ? FROZEN_LEFT_MODE_ALL : FROZEN_LEFT_MODE, width: COL_W_MODE, minWidth: COL_W_MODE }}>{renderModeCell(s)}</td>
                       <td style={{ ...frozenTd, left: isAllTab ? FROZEN_LEFT_ROUTE_ALL : FROZEN_LEFT_ROUTE, width: COL_W_ROUTE, minWidth: COL_W_ROUTE, boxShadow: FROZEN_SHADOW }}>{s.origin || '—'} → {s.destination || '—'}</td>
@@ -1237,22 +1013,22 @@ export default function BillingPanel() {
 
                       {showInvoiceColumns && (
                         <td style={{ ...TD_STYLE, width: 115 }}>
-                          {(s.individualInvoice || s.monthlyInvoice) && (s.individualInvoice || s.monthlyInvoice).issueDate
-                            ? formatDate((s.individualInvoice || s.monthlyInvoice).issueDate)
+                          {s.individualInvoice && s.individualInvoice.issueDate
+                            ? formatDate(s.individualInvoice.issueDate)
                             : <span style={{ color: '#ADB5BD' }}>—</span>}
                         </td>
                       )}
                       {showInvoiceColumns && (
                         <td style={{ ...TD_STYLE, width: 130, fontWeight: 700, color: '#003366' }}>
-                          {(s.individualInvoice || s.monthlyInvoice)
-                            ? (s.individualInvoice || s.monthlyInvoice).invoiceNumber
+                          {s.individualInvoice
+                            ? s.individualInvoice.invoiceNumber
                             : <span style={{ color: '#ADB5BD', fontStyle: 'italic' }}>—</span>}
                         </td>
                       )}
                       {showInvoiceColumns && (
                         <td style={{ ...TD_STYLE, width: 115 }}>
-                          {(s.individualInvoice || s.monthlyInvoice) && (s.individualInvoice || s.monthlyInvoice).dueDate
-                            ? formatDate((s.individualInvoice || s.monthlyInvoice).dueDate)
+                          {s.individualInvoice && s.individualInvoice.dueDate
+                            ? formatDate(s.individualInvoice.dueDate)
                             : <span style={{ color: '#ADB5BD' }}>—</span>}
                         </td>
                       )}
@@ -1354,11 +1130,6 @@ export default function BillingPanel() {
                   🧾 Individual: <b>{menuShipment.individualInvoice.invoiceNumber}</b>
                 </div>
               )}
-              {menuShipment.monthlyInvoice && (
-                <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '2px' }}>
-                  📅 Monthly: <b>{menuShipment.monthlyInvoice.invoiceNumber}</b>
-                </div>
-              )}
             </div>
 
             <MenuItem
@@ -1401,7 +1172,7 @@ export default function BillingPanel() {
                 {String(menuShipment.individualInvoice.status || '').toLowerCase() !== 'paid' && (
                   <MenuItem
                     label="🗑️ Delete Individual Invoice"
-                    sub={'Remove ' + menuShipment.individualInvoice.invoiceNumber + ' so this shipment can be added to a monthly invoice'}
+                    sub={'Remove ' + menuShipment.individualInvoice.invoiceNumber}
                     onClick={() => { setActionMenu(null); handleDeleteIndividualInvoice(menuShipment); }}
                   />
                 )}
@@ -1415,7 +1186,7 @@ export default function BillingPanel() {
             )}
 
             {(() => {
-              const displayInv = menuShipment.individualInvoice || menuShipment.monthlyInvoice;
+              const displayInv = menuShipment.individualInvoice;
               const isSent = !!(menuShipment.invoiceSentAt || (displayInv && displayInv.sentAt));
               if (!displayInv || !isSent) return null;
               return (
@@ -1441,303 +1212,6 @@ export default function BillingPanel() {
               />
             )}
           </div>
-        </>
-      )}
-
-      {tab === 'due' && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '50px', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-              <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>📅 Monthly Summary</h2>
-              <p style={{ color: '#6C757D', fontSize: '0.9rem', margin: '4px 0 0 0' }}>Generate, download, and manage monthly invoices for shippers.</p>
-            </div>
-          </div>
-
-          <form onSubmit={handleGenerateMonthly} style={{ background: 'white', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', marginBottom: '25px', border: '1px solid #E9ECEF' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '25px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Shipper *</label>
-                <select value={monthlyShipper} onChange={(e) => setMonthlyShipper(e.target.value)}
-                  style={{ width: '100%', padding: '12px 14px', border: '1px solid #D0D6DB', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}>
-                  <option value="">-- Select Shipper --</option>
-                  {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Month *</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '8px' }}>
-                  <select
-                    value={monthYear}
-                    onChange={(e) => setMonthYear(e.target.value)}
-                    style={{
-                      width: '100%', padding: '12px 14px',
-                      border: '1px solid #D0D6DB',
-                      borderRadius: '8px', fontSize: '0.9rem',
-                      fontFamily: 'inherit', boxSizing: 'border-box',
-                      cursor: 'pointer', background: 'white', outline: 'none'
-                    }}
-                  >
-                    <option value="">Year</option>
-                    {YEAR_OPTIONS.map((y) => (
-                      <option key={y} value={String(y)}>{y}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={monthNum}
-                    onChange={(e) => setMonthNum(e.target.value)}
-                    style={{
-                      width: '100%', padding: '12px 14px',
-                      border: '1px solid #D0D6DB',
-                      borderRadius: '8px', fontSize: '0.9rem',
-                      fontFamily: 'inherit', boxSizing: 'border-box',
-                      cursor: 'pointer', background: 'white', outline: 'none'
-                    }}
-                  >
-                    <option value="">Month</option>
-                    {MONTH_OPTIONS.map((m) => (
-                      <option key={m.v} value={m.v}>{m.label}</option>
-                    ))}
-                  </select>
-                </div>
-                {monthlyMonth && (
-                  <div style={{ fontSize: '0.72rem', color: '#00A86B', marginTop: '6px', fontWeight: 600 }}>
-                    Selected: <b>{monthlyMonth}</b>
-                  </div>
-                )}
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Local Currency (optional)</label>
-                <select
-                  value={monthlyLocalCurrency}
-                  onChange={(e) => setMonthlyLocalCurrency(e.target.value)}
-                  style={{ width: '100%', padding: '12px 14px', border: '1px solid #D0D6DB', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box', cursor: 'pointer', background: 'white', outline: 'none' }}
-                >
-                  <option value="">-- None --</option>
-                  <option value="HKD">HKD — Hong Kong Dollar</option>
-                  <option value="BDT">BDT — Bangladeshi Taka</option>
-                  <option value="CNY">CNY — Chinese Yuan</option>
-                  <option value="EUR">EUR — Euro</option>
-                  <option value="USD">USD — US Dollar</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Exchange Rate (1 USD = ?)</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  value={monthlyExchangeRate}
-                  onChange={(e) => setMonthlyExchangeRate(e.target.value)}
-                  placeholder="e.g., 7.80"
-                  disabled={!monthlyLocalCurrency}
-                  style={{
-                    width: '100%', padding: '12px 14px',
-                    border: '1px solid #D0D6DB', borderRadius: '8px',
-                    fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box',
-                    background: !monthlyLocalCurrency ? '#F8F9FA' : 'white',
-                    cursor: !monthlyLocalCurrency ? 'not-allowed' : 'text',
-                    outline: 'none'
-                  }}
-                />
-                {monthlyLocalCurrency && monthlyExchangeRate && (
-                  <div style={{ fontSize: '0.72rem', color: '#00A86B', marginTop: '6px', fontWeight: 600 }}>
-                    Auto-compute: USD total × {monthlyExchangeRate}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid #F1F3F5', paddingTop: '20px' }}>
-              <button type="submit" disabled={monthlyGenerating} style={{
-                padding: '12px 24px', background: '#003366', color: 'white',
-                border: 'none', borderRadius: '8px', fontWeight: 700,
-                cursor: monthlyGenerating ? 'not-allowed' : 'pointer',
-                opacity: monthlyGenerating ? 0.6 : 1, fontFamily: 'inherit',
-                display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,51,102,0.2)'
-              }}>
-                {monthlyGenerating ? '⏳ Generating...' : '🧾 Generate Monthly Invoice'}
-              </button>
-
-              <button type="button" onClick={handleDownloadSummary} disabled={downloadingSummary || !monthlyShipper || !monthlyMonth}
-                title="Produces a read-only report listing existing invoices for that shipper + month. Does not create a new invoice."
-                style={{
-                  padding: '12px 20px', background: 'white', color: '#003366',
-                  border: '2px solid #003366', borderRadius: '8px', fontWeight: 700,
-                  cursor: (downloadingSummary || !monthlyShipper || !monthlyMonth) ? 'not-allowed' : 'pointer',
-                  opacity: (downloadingSummary || !monthlyShipper || !monthlyMonth) ? 0.5 : 1, fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', gap: '8px'
-                }}>
-                {downloadingSummary ? '⏳ Preparing...' : '📊 Summary PDF'}
-              </button>
-
-              <div style={{ flex: 1 }}></div>
-
-              <button type="button" onClick={loadMonthlyInvoices} style={{
-                padding: '10px', background: '#F8F9FA', color: '#6C757D',
-                border: '1px solid #E9ECEF', borderRadius: '8px', fontWeight: 700,
-                cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }} title="Refresh List">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.96 6.61 2.54L21 8"/><path d="M21 3v5h-5"/></svg>
-              </button>
-            </div>
-
-            {monthlyMsg && (
-              <div style={{ marginTop: '20px', padding: '14px 18px', borderRadius: '8px', fontSize: '0.9rem', background: monthlyMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: monthlyMsg.startsWith('✅') ? '#155724' : '#721C24', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontWeight: 600 }}>
-                {monthlyMsg}
-              </div>
-            )}
-          </form>
-
-          {monthlyLoading ? (
-            <div style={{ textAlign: 'center', padding: '30px' }}>
-              <div style={{ width: '40px', height: '40px', border: '4px solid #E9ECEF', borderTopColor: '#FF6B00', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
-            </div>
-          ) : monthlyInvoices.length === 0 ? (
-            <div style={{ background: '#D1ECF1', color: '#0C5460', borderLeft: '4px solid #17A2B8', borderRadius: '10px', padding: '20px' }}>
-              No monthly summary invoices yet. Generate one above.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {monthlyInvoices.map((inv) => {
-                const isExpanded = !!expandedMonthly[inv.invoiceID];
-                const statusLower = String(inv.status).toLowerCase();
-                const statusBg = statusLower === 'paid' ? '#D4EDDA' : (statusLower === 'issued' ? '#FFF3CD' : '#E9ECEF');
-                const statusColor = statusLower === 'paid' ? '#155724' : (statusLower === 'issued' ? '#856404' : '#495057');
-                const isPaid = statusLower === 'paid';
-                const isDeleting = deletingInvoiceId === inv.invoiceID;
-
-                const rows = Array.isArray(inv.shipments) ? inv.shipments : [];
-                const invCurrency = inv.currency || 'USD';
-                const invTotal = Number(inv.amount || 0).toFixed(2);
-
-                return (
-                  <div key={inv.invoiceID} style={{ background: 'white', border: '1px solid #E9ECEF', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', background: '#F8F9FA', borderBottom: isExpanded ? '1px solid #E9ECEF' : 'none', gap: '14px', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={() => toggleMonthlyExpand(inv.invoiceID)}
-                          title={isExpanded ? 'Collapse' : 'Expand shipments'}
-                          style={{
-                            width: '28px', height: '28px',
-                            borderRadius: '8px',
-                            border: '1px solid #D0D6DB',
-                            background: 'white',
-                            cursor: 'pointer',
-                            fontFamily: 'inherit',
-                            fontSize: '0.8rem',
-                            fontWeight: 800,
-                            color: '#003366',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            lineHeight: 1,
-                          }}
-                        >
-                          {isExpanded ? '▾' : '▸'}
-                        </button>
-                        <div>
-                          <div style={{ fontFamily: 'Consolas, monospace', fontWeight: 800, color: '#003366', fontSize: '0.95rem' }}>{inv.invoiceNumber}</div>
-                          <div style={{ fontSize: '0.8rem', color: '#6C757D', marginTop: '2px' }}>
-                            {inv.month || '—'} · {inv.shipperName || '—'} · {inv.shipmentsCount || rows.length} shipment{(inv.shipmentsCount || rows.length) !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ padding: '4px 12px', borderRadius: '20px', fontWeight: 700, fontSize: '0.72rem', background: statusBg, color: statusColor, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          {inv.status}
-                        </span>
-                        <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 800, color: '#FF6B00', fontSize: '1rem' }}>
-                          {invCurrency} {invTotal}
-                        </span>
-                        {inv.localCurrency && inv.localAmount && (
-                          <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#495057', fontSize: '0.8rem' }}>
-                            · {inv.localCurrency} {Number(inv.localAmount).toFixed(2)}
-                          </span>
-                        )}
-                        <a
-                          href={'/api/pdf/invoice/' + inv.invoiceID + '?_v=' + vToken}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ ...MENU_ACTION_STYLE, background: '#00A86B', color: 'white' }}
-                        >
-                          📄 PDF
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMonthlyInvoice(inv)}
-                          disabled={isPaid || isDeleting}
-                          title={isPaid ? 'Cannot delete a paid invoice — mark it unpaid first' : 'Delete this invoice (individual invoices will NOT be deleted)'}
-                          style={{
-                            ...MENU_ACTION_STYLE,
-                            background: 'transparent',
-                            color: (isPaid || isDeleting) ? '#ADB5BD' : '#DC3545',
-                            border: '2px solid ' + ((isPaid || isDeleting) ? '#E9ECEF' : '#DC3545'),
-                            cursor: (isPaid || isDeleting) ? 'not-allowed' : 'pointer',
-                            opacity: isPaid ? 0.5 : 1,
-                          }}
-                        >
-                          {isDeleting ? '...' : '🗑️'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {isExpanded && (
-                      <div style={{ padding: '4px 0 0' }}>
-                        {rows.length === 0 ? (
-                          <div style={{ padding: '18px 20px', color: '#6C757D', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                            No shipment data available for this invoice.
-                          </div>
-                        ) : (
-                          <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.82rem', minWidth: '900px' }}>
-                              <thead>
-                                <tr>
-                                  {['Shipper Ref', 'Tracking #', 'Mode', 'Route', 'Recipient', 'Weight', 'Amount'].map((h, idx) => (
-                                    <th key={h} style={{ padding: '12px', textAlign: idx === 6 ? 'right' : 'left', fontWeight: 700, color: 'white', background: '#002347', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
-                                      {h}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {rows.map((r, idx) => {
-                                  const rowBg = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
-                                  return (
-                                    <tr key={(r.trackingNumber || '') + idx} style={{ background: rowBg }}>
-                                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap', color: '#343A40' }}>{r.shipperRef || '—'}</td>
-                                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap', fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366' }}>{r.trackingNumber}</td>
-                                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>{r.mode || '—'}</td>
-                                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>{r.route || '—'}</td>
-                                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>{r.recipient || '—'}</td>
-                                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap' }}>{r.weight ? r.weight + ' kg' : '—'}</td>
-                                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #F1F3F5', whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 700, color: '#343A40' }}>
-                                        {Number(r.amount || 0).toFixed(2)}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                              <tfoot>
-                                <tr>
-                                  <td colSpan={6} style={{ padding: '12px', textAlign: 'right', fontWeight: 800, color: '#003366', background: '#FFF5EB', borderTop: '2px solid #FF6B00', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    Total Amount Due
-                                  </td>
-                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 800, color: '#FF6B00', background: '#FFF5EB', borderTop: '2px solid #FF6B00', fontSize: '1rem', fontFamily: 'Consolas, monospace' }}>
-                                    {invCurrency} {invTotal}
-                                  </td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </>
       )}
 
