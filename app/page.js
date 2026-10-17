@@ -155,27 +155,50 @@ export default function Home() {
       <style>{`
         html { scroll-behavior: smooth; }
 
-        /* ---------- Hero Background Animation ---------- */
-        @keyframes sxl-bg-pan {
-          0% { transform: scale(1) translate(0, 0); }
-          50% { transform: scale(1.08) translate(-1%, -1%); }
-          100% { transform: scale(1) translate(0, 0); }
+        /* ---------- Hero Background Crossfade & Pan ---------- */
+        .sxl-hero-section {
+          position: relative;
+          overflow: hidden;
+          background-color: #003366; /* Fallback */
         }
-        .sxl-hero-bg {
+        .sxl-hero-bg-img {
           position: absolute;
           top: 0; left: 0; width: 100%; height: 100%;
-          /* Realistic logistics image (ship, port, plane) */
-          background-image: url('https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?q=80&w=2070&auto=format&fit=crop');
           background-size: cover;
           background-position: center;
-          animation: sxl-bg-pan 25s ease-in-out infinite;
+          opacity: 0;
           z-index: 1;
+          animation: sxl-fade-pan 24s infinite;
         }
+        .sxl-bg-1 {
+          /* Sea Freight - Cargo Ship */
+          background-image: url('https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?q=80&w=2070&auto=format&fit=crop');
+          animation-delay: 0s;
+        }
+        .sxl-bg-2 {
+          /* Air Freight - Airplane Wing/Sky */
+          background-image: url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=2074&auto=format&fit=crop');
+          animation-delay: 8s;
+        }
+        .sxl-bg-3 {
+          /* Internal Cargo - Logistics / Trucks */
+          background-image: url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070&auto=format&fit=crop');
+          animation-delay: 16s;
+        }
+        
+        @keyframes sxl-fade-pan {
+          0% { opacity: 0; transform: scale(1) translate(0, 0); }
+          5% { opacity: 1; }
+          33% { opacity: 1; transform: scale(1.08) translate(-1%, -1%); }
+          38% { opacity: 0; transform: scale(1.1) translate(-1.5%, -1.5%); }
+          100% { opacity: 0; transform: scale(1.1) translate(-1.5%, -1.5%); }
+        }
+
         .sxl-hero-overlay {
           position: absolute;
           top: 0; left: 0; width: 100%; height: 100%;
-          /* Less opaque overlay so the image shows through */
-          background: linear-gradient(135deg, rgba(0, 35, 71, 0.7) 0%, rgba(0, 51, 102, 0.6) 100%);
+          /* Less opaque overlay so the images show through */
+          background: linear-gradient(135deg, rgba(0, 35, 71, 0.75) 0%, rgba(0, 51, 102, 0.65) 100%);
           z-index: 2;
         }
 
@@ -243,14 +266,14 @@ export default function Home() {
 
       <Header />
 
-      <section style={{
+      <section className="sxl-hero-section" style={{
         color: 'white',
         padding: '110px 20px',
-        position: 'relative',
-        overflow: 'hidden'
       }}>
-        {/* Dynamic Background and Overlay */}
-        <div className="sxl-hero-bg" />
+        {/* Dynamic Crossfading Backgrounds */}
+        <div className="sxl-hero-bg-img sxl-bg-1" />
+        <div className="sxl-hero-bg-img sxl-bg-2" />
+        <div className="sxl-hero-bg-img sxl-bg-3" />
         <div className="sxl-hero-overlay" />
 
         <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 3 }}>
