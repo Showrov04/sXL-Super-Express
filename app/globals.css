@@ -574,3 +574,29 @@ button[style*="textAlign: 'left'"]:hover {
 div[style*="zIndex: 99999"] {
   animation: sxlToastIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
 }
+/* ============================================================
+   PREMIUM UI EFFECTS - TASK 2A (Stat Cards)
+   ============================================================ */
+
+.sxl-stat-card {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  cursor: default;
+}
+
+.sxl-stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1) !important;
+}
+
+.sxl-stat-num {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: left center;
+}
+
+.sxl-stat-card:hover .sxl-stat-num {
+  transform: scale(1.08);
+  color: #FF6B00 !important;
+}
+
+
