@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
 
@@ -29,7 +30,14 @@ async function requireAdmin(request) {
 
   return { userId: session.user_id, role: session.role };
 }
+const SALT = 'sXL_Super_Express_2025_salt';
 
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password + SALT).digest('hex');
+}
+
+// Derive a short form (initials) from company name — up to 4 letters
+function shortFormFrom(name) {
 // Derive a short form (initials) from company name — up to 4 letters
 function shortFormFrom(name) {
   if (!name || !String(name).trim()) return 'SXL';
@@ -142,10 +150,9 @@ export async function POST(request) {
         company_bin: companyBin || null,
       };
 
-            // If password is provided, hash it before saving
+               // If password is provided, hash it before saving using the same method as login
       if (password && password.trim().length > 0) {
-        const salt = await bcrypt.genSalt(10);
-        updateData.password_hash = await bcrypt.hash(password.trim(), salt);
+        updateData.password_hash = hashPassword(password.trim());
       }
 
       const { error: updErr } = await serviceSupabase
