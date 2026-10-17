@@ -1234,26 +1234,6 @@ export default function BillingPanel() {
                         fontFamily: 'Consolas, monospace', fontWeight: 700, color: '#003366'
                       }}>
                         {s.trackingNumber}
-                        {s.individualInvoice && (
-                          <span
-                            title={'Invoiced individually: ' + (s.individualInvoice?.invoiceNumber || '')}
-                            style={{
-                              marginLeft: '6px',
-                              display: 'inline-block',
-                              background: '#DBEAFE',
-                              color: '#1E40AF',
-                              padding: '1px 6px',
-                              borderRadius: '8px',
-                              fontSize: '0.6rem',
-                              fontWeight: 800,
-                              letterSpacing: '0.3px',
-                              verticalAlign: 'middle',
-                              cursor: 'help'
-                            }}
-                          >
-                            🧾
-                          </span>
-                        )}
                         {s.monthlyInvoice && (
                           <span
                             title={'Included in monthly invoice ' + (s.monthlyInvoice?.invoiceNumber || '')}
