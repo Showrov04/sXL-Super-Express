@@ -1490,30 +1490,35 @@ export default function BillingPanel() {
 
       {tab === 'due' && (
         <>
-          <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, marginTop: '50px', marginBottom: '20px' }}>📅 Monthly Summary</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '50px', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <h2 style={{ color: '#003366', fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>📅 Monthly Summary</h2>
+              <p style={{ color: '#6C757D', fontSize: '0.9rem', margin: '4px 0 0 0' }}>Generate, download, and manage monthly invoices for shippers.</p>
+            </div>
+          </div>
 
-          <form onSubmit={handleGenerateMonthly} style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', marginBottom: '20px', borderLeft: '5px solid #003366' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '15px' }}>
+          <form onSubmit={handleGenerateMonthly} style={{ background: 'white', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', marginBottom: '25px', border: '1px solid #E9ECEF' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '25px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Shipper *</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Shipper *</label>
                 <select value={monthlyShipper} onChange={(e) => setMonthlyShipper(e.target.value)}
-                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                  style={{ width: '100%', padding: '12px 14px', border: '1px solid #D0D6DB', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}>
                   <option value="">-- Select Shipper --</option>
                   {shipperList.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Month *</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Month *</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '8px' }}>
                   <select
                     value={monthYear}
                     onChange={(e) => setMonthYear(e.target.value)}
                     style={{
-                      width: '100%', padding: '10px 12px',
-                      border: '2px solid #E9ECEF',
+                      width: '100%', padding: '12px 14px',
+                      border: '1px solid #D0D6DB',
                       borderRadius: '8px', fontSize: '0.9rem',
                       fontFamily: 'inherit', boxSizing: 'border-box',
-                      cursor: 'pointer', background: 'white',
+                      cursor: 'pointer', background: 'white', outline: 'none'
                     }}
                   >
                     <option value="">Year</option>
@@ -1525,11 +1530,11 @@ export default function BillingPanel() {
                     value={monthNum}
                     onChange={(e) => setMonthNum(e.target.value)}
                     style={{
-                      width: '100%', padding: '10px 12px',
-                      border: '2px solid #E9ECEF',
+                      width: '100%', padding: '12px 14px',
+                      border: '1px solid #D0D6DB',
                       borderRadius: '8px', fontSize: '0.9rem',
                       fontFamily: 'inherit', boxSizing: 'border-box',
-                      cursor: 'pointer', background: 'white',
+                      cursor: 'pointer', background: 'white', outline: 'none'
                     }}
                   >
                     <option value="">Month</option>
@@ -1538,16 +1543,18 @@ export default function BillingPanel() {
                     ))}
                   </select>
                 </div>
-                <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px' }}>
-                  Combined value: <b>{monthlyMonth || 'YYYY-MM'}</b>
-                </div>
+                {monthlyMonth && (
+                  <div style={{ fontSize: '0.72rem', color: '#00A86B', marginTop: '6px', fontWeight: 600 }}>
+                    Selected: <b>{monthlyMonth}</b>
+                  </div>
+                )}
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Local Currency (optional)</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Local Currency (optional)</label>
                 <select
                   value={monthlyLocalCurrency}
                   onChange={(e) => setMonthlyLocalCurrency(e.target.value)}
-                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box', cursor: 'pointer', background: 'white' }}
+                  style={{ width: '100%', padding: '12px 14px', border: '1px solid #D0D6DB', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box', cursor: 'pointer', background: 'white', outline: 'none' }}
                 >
                   <option value="">-- None --</option>
                   <option value="HKD">HKD — Hong Kong Dollar</option>
@@ -1558,7 +1565,7 @@ export default function BillingPanel() {
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>Exchange Rate (1 USD = ?)</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#003366', marginBottom: '8px' }}>Exchange Rate (1 USD = ?)</label>
                 <input
                   type="number"
                   step="0.0001"
@@ -1567,74 +1574,70 @@ export default function BillingPanel() {
                   placeholder="e.g., 7.80"
                   disabled={!monthlyLocalCurrency}
                   style={{
-                    width: '100%', padding: '10px 14px',
-                    border: '2px solid #E9ECEF', borderRadius: '8px',
+                    width: '100%', padding: '12px 14px',
+                    border: '1px solid #D0D6DB', borderRadius: '8px',
                     fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box',
                     background: !monthlyLocalCurrency ? '#F8F9FA' : 'white',
                     cursor: !monthlyLocalCurrency ? 'not-allowed' : 'text',
+                    outline: 'none'
                   }}
                 />
-                <div style={{ fontSize: '0.72rem', color: '#6C757D', marginTop: '4px' }}>
-                  {monthlyLocalCurrency
-                    ? (monthlyExchangeRate
-                        ? 'Local total will be auto-computed: USD total × ' + monthlyExchangeRate
-                        : 'Enter the rate to show the local equivalent on the invoice')
-                    : 'Pick a currency first'}
-                </div>
+                {monthlyLocalCurrency && monthlyExchangeRate && (
+                  <div style={{ fontSize: '0.72rem', color: '#00A86B', marginTop: '6px', fontWeight: 600 }}>
+                    Auto-compute: USD total × {monthlyExchangeRate}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button type="submit" disabled={monthlyGenerating} style={{ padding: '12px 24px', background: '#003366', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: monthlyGenerating ? 'not-allowed' : 'pointer', opacity: monthlyGenerating ? 0.6 : 1, fontFamily: 'inherit' }}>
-                {monthlyGenerating ? 'Generating...' : '🧾 Generate Monthly Invoice'}
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid #F1F3F5', paddingTop: '20px' }}>
+              <button type="submit" disabled={monthlyGenerating} style={{
+                padding: '12px 24px', background: '#003366', color: 'white',
+                border: 'none', borderRadius: '8px', fontWeight: 700,
+                cursor: monthlyGenerating ? 'not-allowed' : 'pointer',
+                opacity: monthlyGenerating ? 0.6 : 1, fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,51,102,0.2)'
+              }}>
+                {monthlyGenerating ? '⏳ Generating...' : '🧾 Generate Monthly Invoice'}
               </button>
-              <button
-                type="button"
-                onClick={handleDownloadSummary}
-                disabled={downloadingSummary || !monthlyShipper || !monthlyMonth}
-                title="Download a read-only summary PDF listing all invoices for this shipper + month"
+
+              <button type="button" onClick={handleDownloadSummary} disabled={downloadingSummary || !monthlyShipper || !monthlyMonth}
+                title="Produces a read-only report listing existing invoices for that shipper + month. Does not create a new invoice."
                 style={{
-                  padding: '12px 24px',
-                  background: '#FF6B00',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 700,
+                  padding: '12px 20px', background: 'white', color: '#003366',
+                  border: '2px solid #003366', borderRadius: '8px', fontWeight: 700,
                   cursor: (downloadingSummary || !monthlyShipper || !monthlyMonth) ? 'not-allowed' : 'pointer',
-                  opacity: (downloadingSummary || !monthlyShipper || !monthlyMonth) ? 0.5 : 1,
-                  fontFamily: 'inherit',
-                }}
-              >
-                {downloadingSummary ? 'Preparing...' : '📊 Download Summary PDF'}
+                  opacity: (downloadingSummary || !monthlyShipper || !monthlyMonth) ? 0.5 : 1, fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', gap: '8px'
+                }}>
+                {downloadingSummary ? '⏳ Preparing...' : '📊 Summary PDF'}
               </button>
-              <button type="button" onClick={loadMonthlyInvoices} style={{ padding: '12px 20px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>🔄 Refresh List</button>
-              <button
-                type="button"
-                onClick={handleClearIndividualInvoices}
-                disabled={clearingIndividual || !monthlyShipper || !monthlyMonth}
+
+              <div style={{ flex: 1 }}></div>
+
+              <button type="button" onClick={loadMonthlyInvoices} style={{
+                padding: '10px', background: '#F8F9FA', color: '#6C757D',
+                border: '1px solid #E9ECEF', borderRadius: '8px', fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }} title="Refresh List">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.96 6.61 2.54L21 8"/><path d="M21 3v5h-5"/></svg>
+              </button>
+
+              <button type="button" onClick={handleClearIndividualInvoices} disabled={clearingIndividual || !monthlyShipper || !monthlyMonth}
                 title="Delete all individual invoices for this shipper + month so you can regenerate as monthly"
                 style={{
-                  padding: '12px 20px',
-                  background: 'transparent',
-                  color: '#DC3545',
-                  border: '2px solid #DC3545',
-                  borderRadius: '8px',
-                  fontWeight: 700,
+                  padding: '12px 20px', background: 'transparent', color: '#DC3545',
+                  border: '2px solid transparent', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem',
                   cursor: (clearingIndividual || !monthlyShipper || !monthlyMonth) ? 'not-allowed' : 'pointer',
-                  opacity: (clearingIndividual || !monthlyShipper || !monthlyMonth) ? 0.5 : 1,
-                  fontFamily: 'inherit',
-                }}
-              >
-                {clearingIndividual ? 'Clearing...' : '🗑️ Clear Individual Invoices'}
+                  opacity: (clearingIndividual || !monthlyShipper || !monthlyMonth) ? 0.5 : 1, fontFamily: 'inherit',
+                  textDecoration: 'underline'
+                }}>
+                {clearingIndividual ? '⏳ Clearing...' : 'Clear Individual Invoices'}
               </button>
-            </div>
-
-            <div style={{ fontSize: '0.78rem', color: '#6C757D', marginTop: '10px', lineHeight: 1.6 }}>
-              <b style={{ color: '#003366' }}>📊 Download Summary PDF</b> — produces a read-only report listing existing invoices for that shipper + month. Does not create a new invoice and does not touch individual invoices.
             </div>
 
             {monthlyMsg && (
-              <div style={{ marginTop: '15px', padding: '12px 16px', borderRadius: '8px', fontSize: '0.9rem', background: monthlyMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: monthlyMsg.startsWith('✅') ? '#155724' : '#721C24', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              <div style={{ marginTop: '20px', padding: '14px 18px', borderRadius: '8px', fontSize: '0.9rem', background: monthlyMsg.startsWith('✅') ? '#D4EDDA' : '#F8D7DA', color: monthlyMsg.startsWith('✅') ? '#155724' : '#721C24', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontWeight: 600 }}>
                 {monthlyMsg}
               </div>
             )}
