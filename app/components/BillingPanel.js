@@ -1623,17 +1623,7 @@ export default function BillingPanel() {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.96 6.61 2.54L21 8"/><path d="M21 3v5h-5"/></svg>
               </button>
 
-              <button type="button" onClick={handleClearIndividualInvoices} disabled={clearingIndividual || !monthlyShipper || !monthlyMonth}
-                title="Delete all individual invoices for this shipper + month so you can regenerate as monthly"
-                style={{
-                  padding: '12px 20px', background: 'transparent', color: '#DC3545',
-                  border: '2px solid transparent', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem',
-                  cursor: (clearingIndividual || !monthlyShipper || !monthlyMonth) ? 'not-allowed' : 'pointer',
-                  opacity: (clearingIndividual || !monthlyShipper || !monthlyMonth) ? 0.5 : 1, fontFamily: 'inherit',
-                  textDecoration: 'underline'
-                }}>
-                {clearingIndividual ? '⏳ Clearing...' : 'Clear Individual Invoices'}
-              </button>
+      
             </div>
 
             {monthlyMsg && (
