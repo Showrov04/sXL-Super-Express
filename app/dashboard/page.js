@@ -117,7 +117,7 @@ export default function DashboardPage() {
     if (!stored || !token) { router.push('/login'); return; }
     try { setUser(JSON.parse(stored)); } catch (e) { router.push('/login'); }
 
-    loadCompanyName();
+    loadLatestProfile();
     checkForDraftBanner();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
@@ -150,16 +150,29 @@ export default function DashboardPage() {
     setDraftBanner(null);
   }
 
-  async function loadCompanyName() {
+  async function loadLatestProfile() {
     const token = localStorage.getItem('sxl_token');
     if (!token) return;
     try {
-      const res = await fetch('/api/customer/profile', {
+      const res = await fetch('/api/customer/profile?_t=' + Date.now(), {
         headers: { Authorization: 'Bearer ' + token },
       });
       const data = await res.json();
-      if (data.success && data.profile && data.profile.companyName) {
-        setCompanyName(data.profile.companyName);
+      if (data.success && data.profile) {
+        if (data.profile.companyName) {
+          setCompanyName(data.profile.companyName);
+        }
+        
+        // Also update the user name and local storage if it changed
+        if (data.profile.contactPerson || data.profile.companyName) {
+          setUser(prev => {
+            if (!prev) return prev;
+            const newName = data.profile.contactPerson || prev.name;
+            const updated = { ...prev, name: newName, companyName: data.profile.companyName };
+            localStorage.setItem('sxl_user', JSON.stringify(updated));
+            return updated;
+          });
+        }
       }
     } catch (e) { /* silent */ }
   }
@@ -413,11 +426,6 @@ export default function DashboardPage() {
     return { bg: '#FFF3CD', color: '#856404' };
   }
 
-  /* ============================================================
-   *  Actual Wt cell — shows weight and/or CBM for SEA,
-   *  weight only for AIR, TBA if nothing saved yet.
-   *  Matches admin panel behaviour exactly.
-   * ============================================================ */
   function renderActualCell(s) {
     const mode = String(s.shipMode || '').toUpperCase();
     const isSeaRow = mode === 'SEA';
