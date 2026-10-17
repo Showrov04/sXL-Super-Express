@@ -413,51 +413,6 @@ async function createMonthlyInvoice(session, body) {
   });
 }
 
-async function deleteInvoice(session, body) {
-  const { invoiceId } = body;
-  if (!invoiceId) {
-    return NextResponse.json({ success: false, error: 'Invoice ID required.' });
-  }
-
-  const { data: invoice } = await serviceSupabase
-    .from('invoices')
-    .select('invoice_id, invoice_number, status, type, tracking_numbers')
-    .eq('invoice_id', invoiceId)
-    .maybeSingle();
-
-  if (!invoice) {
-    return NextResponse.json({ success: false, error: 'Invoice not found.' });
-  }
-
-  const statusLower = String(invoice.status || '').toLowerCase();
-  if (statusLower === 'paid') {
-    return NextResponse.json({
-      success: false,
-      error: 'Cannot delete a paid invoice (' + invoice.invoice_number + '). Mark it as Unpaid first.',
-    });
-  }
-
-  const { error: delErr } = await serviceSupabase
-    .from('invoices')
-    .delete()
-    .eq('invoice_id', invoiceId);
-
-  if (delErr) {
-    return NextResponse.json({ success: false, error: delErr.message });
-  }
-
-  return NextResponse.json({
-    success: true,
-    deletedInvoiceNumber: invoice.invoice_number,
-    deletedType: invoice.type,
-  });
-}
-
-async function clearIndividualForShipperMonth(session, body) {
-  const { shipperName, month } = body;
-  if (!shipperName || !month) {
-    return NextResponse.json({ success: false, error: 'Shipper name and month required.' });
-  }
 
   const monthClean = String(month).trim();
   if (!/^\d{4}-\d{2}$/.test(monthClean)) {
