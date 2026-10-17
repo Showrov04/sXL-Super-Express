@@ -94,16 +94,20 @@ const SERVICES = [
   }
 ];
 
-// 6 Strictly verified Sea & Air Cargo images with reliable URLs
+// Your selected 12 images with types assigned for specific animations
 const HERO_IMAGES = [
-  // Sea Freight
-  { src: 'https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?auto=format&fit=crop&w=2070&q=80&v=5', type: 'sea' }, // Massive Cargo Ship
-  { src: 'https://images.unsplash.com/photo-1565514020179-026b92b84bb6?auto=format&fit=crop&w=2070&q=80&v=5', type: 'sea' }, // Port Cranes
-  { src: 'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?auto=format&fit=crop&w=2070&q=80&v=5', type: 'sea' }, // Shipping Containers
-  // Air Freight
-  { src: 'https://images.unsplash.com/photo-1559297434-fae8a1916a79?auto=format&fit=crop&w=2070&q=80&v=5', type: 'air' }, // Cargo Plane
-  { src: 'https://images.unsplash.com/photo-1583209814683-c023dd293cc6?auto=format&fit=crop&w=2070&q=80&v=5', type: 'air' }, // Cathay Cargo Style Plane
-  { src: 'https://images.unsplash.com/photo-1542296332-2e4473faf563?auto=format&fit=crop&w=2070&q=80&v=5', type: 'air' }, // Cargo Plane on Tarmac
+  { src: 'https://images.unsplash.com/photo-1559297434-fae8a1916a79?auto=format&fit=crop&w=2070&q=80&v=6', type: 'air' },
+  { src: 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg?auto=compress&cs=tinysrgb&w=1920&v=6', type: 'sea' },
+  { src: 'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?auto=format&fit=crop&w=2070&q=80&v=6', type: 'sea' },
+  { src: 'https://images.pexels.com/photos/753331/pexels-photo-753331.jpeg?auto=compress&cs=tinysrgb&w=1920&v=6', type: 'sea' },
+  { src: 'https://images.unsplash.com/photo-1542296332-2e4473faf563?auto=format&fit=crop&w=2070&q=80&v=6', type: 'air' },
+  { src: 'https://images.pexels.com/photos/33805250/pexels-photo-33805250.jpeg?auto=compress&cs=tinysrgb&w=1920&v=6', type: 'sea' },
+  { src: 'https://images.pexels.com/photos/29461603/pexels-photo-29461603.jpeg?auto=compress&cs=tinysrgb&w=1920&v=6', type: 'sea' },
+  { src: 'https://images.pexels.com/photos/1117210/pexels-photo-1117210.jpeg?auto=compress&cs=tinysrgb&w=1920&v=6', type: 'sea' },
+  { src: 'https://images.pexels.com/photos/906982/pexels-photo-906982.jpeg?auto=compress&cs=tinysrgb&w=1920&v=6', type: 'sea' },
+  { src: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=2070&q=80&v=6', type: 'sea' },
+  { src: 'https://images.pexels.com/photos/262353/pexels-photo-262353.jpeg?auto=compress&cs=tinysrgb&w=1920&v=6', type: 'sea' },
+  { src: 'https://images.pexels.com/photos/2226458/pexels-photo-2226458.jpeg?auto=compress&cs=tinysrgb&w=1920&v=6', type: 'sea' },
 ];
 
 export default function Home() {
@@ -167,7 +171,7 @@ export default function Home() {
       <style>{`
         html { scroll-behavior: smooth; }
 
-        /* ---------- Hero Background Crossfade & Pan ---------- */
+        /* ---------- Hero Background Crossfade & Pan (12 Images) ---------- */
         .sxl-hero-section {
           position: relative;
           overflow: hidden;
@@ -184,35 +188,35 @@ export default function Home() {
         
         /* Distinct Animations for Sea and Air */
         .sxl-hero-sea {
-          animation: sxl-fade-sea 48s infinite;
+          animation: sxl-sail-sea 96s infinite;
         }
         .sxl-hero-air {
-          animation: sxl-fade-air 48s infinite;
+          animation: sxl-fly-air 96s infinite;
         }
 
-        /* Sea: Gentle vertical bob and zoom */
-        @keyframes sxl-fade-sea {
+        /* Sea: Gentle vertical bob and zoom (Sailing effect) */
+        @keyframes sxl-sail-sea {
           0% { opacity: 0; transform: scale(1.05) translateY(-2%); }
-          2% { opacity: 1; }
-          14.66% { opacity: 1; transform: scale(1.1) translateY(2%); }
-          16.66% { opacity: 0; transform: scale(1.1) translateY(2%); }
+          1% { opacity: 1; }
+          7.33% { opacity: 1; transform: scale(1.1) translateY(2%); }
+          8.33% { opacity: 0; transform: scale(1.1) translateY(2%); }
           100% { opacity: 0; transform: scale(1.05) translateY(-2%); }
         }
 
-        /* Air: Smooth horizontal pan like flying */
-        @keyframes sxl-fade-air {
-          0% { opacity: 0; transform: scale(1.05) translateX(3%); }
-          2% { opacity: 1; }
-          14.66% { opacity: 1; transform: scale(1.05) translateX(-3%); }
-          16.66% { opacity: 0; transform: scale(1.05) translateX(-3%); }
-          100% { opacity: 0; transform: scale(1.05) translateX(3%); }
+        /* Air: Smooth horizontal pan (Flying effect) */
+        @keyframes sxl-fly-air {
+          0% { opacity: 0; transform: scale(1.05) translateX(4%); }
+          1% { opacity: 1; }
+          7.33% { opacity: 1; transform: scale(1.05) translateX(-4%); }
+          8.33% { opacity: 0; transform: scale(1.05) translateX(-4%); }
+          100% { opacity: 0; transform: scale(1.05) translateX(4%); }
         }
 
         .sxl-hero-overlay {
           position: absolute;
           top: 0; left: 0; width: 100%; height: 100%;
-          /* Much lighter overlay to show images clearly */
-          background: linear-gradient(to bottom, rgba(0, 20, 40, 0.3) 0%, rgba(0, 20, 40, 0.6) 100%);
+          /* VERY LIGHT overlay so the images are bright and visible */
+          background: linear-gradient(to bottom, rgba(0, 15, 30, 0.15) 0%, rgba(0, 20, 40, 0.4) 100%);
           z-index: 2;
         }
 
