@@ -94,20 +94,20 @@ const SERVICES = [
   }
 ];
 
-// 12 High-quality realistic Sea & Air images
+// 12 High-quality realistic Sea & Air images with strict type (air/sea)
 const HERO_IMAGES = [
-  'https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?q=80&w=2070&auto=format&fit=crop', // Cargo Ship at Sea
-  'https://images.unsplash.com/photo-1559297434-fae8a1916a79?q=80&w=2070&auto=format&fit=crop', // Air Cargo Plane
-  'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?q=80&w=2070&auto=format&fit=crop', // Shipping Containers
-  'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=2074&auto=format&fit=crop', // Airplane Wing in Sky
-  'https://images.unsplash.com/photo-1565514020179-026b92b84bb6?q=80&w=2070&auto=format&fit=crop', // Port Cranes
-  'https://images.unsplash.com/photo-1542296332-2e4473faf563?q=80&w=2070&auto=format&fit=crop', // Airplane on Tarmac
-  'https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070&auto=format&fit=crop', // Bulk Cargo Ship
-  'https://images.unsplash.com/photo-1583209814683-c023dd293cc6?q=80&w=2070&auto=format&fit=crop', // Cargo Plane Parked
-  'https://images.unsplash.com/photo-1605745341112-85968b19335b?q=80&w=2070&auto=format&fit=crop', // Docked Cargo Ship
-  'https://images.unsplash.com/photo-1464037866556-6812c9d1c72e?q=80&w=2070&auto=format&fit=crop', // Airplane Taking Off
-  'https://images.unsplash.com/photo-1506976785307-8732e854ad03?q=80&w=2070&auto=format&fit=crop', // Ship Bow Cutting Water
-  'https://images.unsplash.com/photo-1529074963764-98f45c47344b?q=80&w=2070&auto=format&fit=crop', // Airport View
+  { src: 'https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Cargo Ship
+  { src: 'https://images.unsplash.com/photo-1559297434-fae8a1916a79?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Cargo Plane
+  { src: 'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Containers
+  { src: 'https://images.unsplash.com/photo-1583209814683-c023dd293cc6?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Cargo Plane Parked
+  { src: 'https://images.unsplash.com/photo-1565514020179-026b92b84bb6?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Port Cranes
+  { src: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Airplane Wing
+  { src: 'https://images.unsplash.com/photo-1605745341112-85968b19335b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Docked Ship
+  { src: 'https://images.unsplash.com/photo-1542296332-2e4473faf563?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Airport Tarmac
+  { src: 'https://images.unsplash.com/photo-1506976785307-8732e854ad03?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Ship Bow
+  { src: 'https://images.unsplash.com/photo-1529074963764-98f45c47344b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Airport View
+  { src: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'sea' }, // Bulk Ship
+  { src: 'https://images.unsplash.com/photo-1540962351504-03099e0a754b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80', type: 'air' }, // Airplane engine/tarmac
 ];
 
 export default function Home() {
@@ -184,23 +184,39 @@ export default function Home() {
           background-position: center;
           opacity: 0;
           z-index: 1;
-          /* 12 images * 8s each = 96s total loop */
-          animation: sxl-fade-pan 96s infinite;
+        }
+        
+        /* Distinct Animations for Sea and Air */
+        .sxl-hero-sea {
+          animation: sxl-fade-sea 96s infinite;
+        }
+        .sxl-hero-air {
+          animation: sxl-fade-air 96s infinite;
         }
 
-        @keyframes sxl-fade-pan {
-          0% { opacity: 0; transform: scale(1) translate(0, 0); }
+        /* Sea: Gentle vertical bob and zoom */
+        @keyframes sxl-fade-sea {
+          0% { opacity: 0; transform: scale(1.05) translateY(-2%); }
           1% { opacity: 1; }
-          7.33% { opacity: 1; transform: scale(1.06) translate(-1%, -1%); }
-          8.33% { opacity: 0; transform: scale(1.08) translate(-1.5%, -1.5%); }
-          100% { opacity: 0; transform: scale(1.08) translate(-1.5%, -1.5%); }
+          7.33% { opacity: 1; transform: scale(1.1) translateY(2%); }
+          8.33% { opacity: 0; transform: scale(1.1) translateY(2%); }
+          100% { opacity: 0; transform: scale(1.05) translateY(-2%); }
+        }
+
+        /* Air: Smooth horizontal pan like flying */
+        @keyframes sxl-fade-air {
+          0% { opacity: 0; transform: scale(1.05) translateX(3%); }
+          1% { opacity: 1; }
+          7.33% { opacity: 1; transform: scale(1.05) translateX(-3%); }
+          8.33% { opacity: 0; transform: scale(1.05) translateX(-3%); }
+          100% { opacity: 0; transform: scale(1.05) translateX(3%); }
         }
 
         .sxl-hero-overlay {
           position: absolute;
           top: 0; left: 0; width: 100%; height: 100%;
-          /* Light top, slightly darker bottom for text readability */
-          background: linear-gradient(to bottom, rgba(0, 15, 30, 0.3) 0%, rgba(0, 20, 40, 0.7) 100%);
+          /* Darker overlay to ensure text readability while showing images */
+          background: linear-gradient(to bottom, rgba(0, 15, 30, 0.6) 0%, rgba(0, 20, 40, 0.8) 100%);
           z-index: 2;
         }
 
@@ -272,13 +288,13 @@ export default function Home() {
         color: 'white',
         padding: '110px 20px',
       }}>
-        {/* Dynamic Crossfading Backgrounds (12 images mapped) */}
-        {HERO_IMAGES.map((src, i) => (
+        {/* Dynamic Crossfading Backgrounds with alternating animations */}
+        {HERO_IMAGES.map((img, i) => (
           <div
             key={i}
-            className="sxl-hero-bg-img"
+            className={`sxl-hero-bg-img ${img.type === 'air' ? 'sxl-hero-air' : 'sxl-hero-sea'}`}
             style={{
-              backgroundImage: `url('${src}')`,
+              backgroundImage: `url('${img.src}')`,
               animationDelay: `${i * 8}s`,
             }}
           />
