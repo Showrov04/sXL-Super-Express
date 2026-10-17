@@ -94,6 +94,22 @@ const SERVICES = [
   }
 ];
 
+// 12 High-quality realistic logistics images
+const HERO_IMAGES = [
+  'https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?q=80&w=2070&auto=format&fit=crop', // Cargo Ship
+  'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=2074&auto=format&fit=crop', // Airplane Wing
+  'https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070&auto=format&fit=crop', // Logistics Trucks
+  'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?q=80&w=2070&auto=format&fit=crop', // Cargo Containers
+  'https://images.unsplash.com/photo-1587293852726-70cdb56c2866?q=80&w=2070&auto=format&fit=crop', // Warehouse
+  'https://images.unsplash.com/photo-1559297434-fae8a1916a79?q=80&w=2070&auto=format&fit=crop', // Cargo Plane
+  'https://images.unsplash.com/photo-1565514020179-026b92b84bb6?q=80&w=2070&auto=format&fit=crop', // Port Cranes
+  'https://images.unsplash.com/photo-1616401784845-180882ba9ba8?q=80&w=2070&auto=format&fit=crop', // Warehouse Shelves
+  'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?q=80&w=2070&auto=format&fit=crop', // Truck Highway
+  'https://images.unsplash.com/photo-1542296332-2e4473faf563?q=80&w=2070&auto=format&fit=crop', // Airport Tarmac
+  'https://images.unsplash.com/photo-1506976785307-8732e854ad03?q=80&w=2070&auto=format&fit=crop', // Ship Bow
+  'https://images.unsplash.com/photo-1580674684081-7617fbf3d745?q=80&w=2070&auto=format&fit=crop', // Logistics Worker
+];
+
 export default function Home() {
   const router = useRouter();
   const [trackInput, setTrackInput] = useState('');
@@ -155,7 +171,7 @@ export default function Home() {
       <style>{`
         html { scroll-behavior: smooth; }
 
-        /* ---------- Hero Background Crossfade & Pan ---------- */
+        /* ---------- Hero Background Crossfade & Pan (12 Images) ---------- */
         .sxl-hero-section {
           position: relative;
           overflow: hidden;
@@ -168,37 +184,23 @@ export default function Home() {
           background-position: center;
           opacity: 0;
           z-index: 1;
-          animation: sxl-fade-pan 24s infinite;
+          /* 12 images * 6s each = 72s total loop */
+          animation: sxl-fade-pan 72s infinite;
         }
-        .sxl-bg-1 {
-          /* Sea Freight - Cargo Ship */
-          background-image: url('https://images.unsplash.com/photo-1586528116311-ad8ed7c669b0?q=80&w=2070&auto=format&fit=crop');
-          animation-delay: 0s;
-        }
-        .sxl-bg-2 {
-          /* Air Freight - Airplane Wing/Sky */
-          background-image: url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=2074&auto=format&fit=crop');
-          animation-delay: 8s;
-        }
-        .sxl-bg-3 {
-          /* Internal Cargo - Logistics / Trucks */
-          background-image: url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070&auto=format&fit=crop');
-          animation-delay: 16s;
-        }
-        
+
         @keyframes sxl-fade-pan {
           0% { opacity: 0; transform: scale(1) translate(0, 0); }
-          5% { opacity: 1; }
-          33% { opacity: 1; transform: scale(1.08) translate(-1%, -1%); }
-          38% { opacity: 0; transform: scale(1.1) translate(-1.5%, -1.5%); }
-          100% { opacity: 0; transform: scale(1.1) translate(-1.5%, -1.5%); }
+          1.38% { opacity: 1; }
+          6.94% { opacity: 1; transform: scale(1.06) translate(-1%, -1%); }
+          8.33% { opacity: 0; transform: scale(1.08) translate(-1.5%, -1.5%); }
+          100% { opacity: 0; transform: scale(1.08) translate(-1.5%, -1.5%); }
         }
 
         .sxl-hero-overlay {
           position: absolute;
           top: 0; left: 0; width: 100%; height: 100%;
-          /* Less opaque overlay so the images show through */
-          background: linear-gradient(135deg, rgba(0, 35, 71, 0.75) 0%, rgba(0, 51, 102, 0.65) 100%);
+          /* Light overlay to show images clearly */
+          background: linear-gradient(135deg, rgba(0, 35, 71, 0.40) 0%, rgba(0, 51, 102, 0.50) 100%);
           z-index: 2;
         }
 
@@ -270,10 +272,18 @@ export default function Home() {
         color: 'white',
         padding: '110px 20px',
       }}>
-        {/* Dynamic Crossfading Backgrounds */}
-        <div className="sxl-hero-bg-img sxl-bg-1" />
-        <div className="sxl-hero-bg-img sxl-bg-2" />
-        <div className="sxl-hero-bg-img sxl-bg-3" />
+        {/* Dynamic Crossfading Backgrounds (12 images mapped) */}
+        {HERO_IMAGES.map((src, i) => (
+          <div
+            key={i}
+            className="sxl-hero-bg-img"
+            style={{
+              backgroundImage: `url('${src}')`,
+              animationDelay: `${i * 6}s`,
+            }}
+          />
+        ))}
+        
         <div className="sxl-hero-overlay" />
 
         <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 3 }}>
@@ -283,7 +293,7 @@ export default function Home() {
             marginBottom: '15px',
             letterSpacing: '-1px',
             lineHeight: 1.1,
-            textShadow: '0 2px 10px rgba(0,0,0,0.3)'
+            textShadow: '0 2px 10px rgba(0,0,0,0.5)'
           }}>
             Ship <span style={{ color: '#FF6B00' }}>Faster.</span> Track <span style={{ color: '#FF6B00' }}>Smarter.</span>
           </h1>
@@ -294,7 +304,7 @@ export default function Home() {
             maxWidth: '700px',
             marginLeft: 'auto',
             marginRight: 'auto',
-            textShadow: '0 1px 5px rgba(0,0,0,0.2)'
+            textShadow: '0 1px 5px rgba(0,0,0,0.4)'
           }}>
             Courier, Air &amp; Sea Freight, and Internal Cargo — worldwide delivery you can trust.
           </p>
@@ -357,7 +367,8 @@ export default function Home() {
               color: '#FFE5E5',
               fontSize: '0.95rem',
               maxWidth: '700px',
-              margin: '15px auto 0'
+              margin: '15px auto 0',
+              backdropFilter: 'blur(4px)'
             }}>
               ❌ {error}
             </div>
