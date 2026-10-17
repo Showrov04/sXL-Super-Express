@@ -1543,8 +1543,8 @@ export default function BillingPanel() {
 
 function StatCard({ num, label, color }) {
   return (
-    <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', borderLeft: '4px solid ' + color }}>
-      <div style={{ fontSize: '2rem', fontWeight: 800, color: '#003366' }}>{num}</div>
+    <div className="sxl-stat-card" style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', borderLeft: '4px solid ' + color }}>
+      <div className="sxl-stat-num" style={{ fontSize: '2rem', fontWeight: 800, color: '#003366' }}>{num}</div>
       <div style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#6C757D', marginTop: '5px' }}>{label}</div>
     </div>
   );
