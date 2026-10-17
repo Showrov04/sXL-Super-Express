@@ -554,3 +554,23 @@ button[style*="textAlign: 'left'"]:hover {
   padding-left: 20px !important; /* Slight slide effect */
   background-color: #F8F9FA !important;
 }
+/* ============================================================
+   PREMIUM UI EFFECTS - TASK 5
+   ============================================================ */
+
+/* 13. Premium Toast Notification (Slide Down & Spring) */
+@keyframes sxlToastIn {
+  0% { 
+    opacity: 0; 
+    transform: translate(-50%, -20px) scale(0.95); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: translate(-50%, 0) scale(1); 
+  }
+}
+
+/* Target the toast specifically using its high z-index */
+div[style*="zIndex: 99999"] {
+  animation: sxlToastIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+}
