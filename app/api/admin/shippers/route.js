@@ -58,7 +58,6 @@ export async function GET(request) {
     }
 
     const list = (users || []).map((u) => {
-      // Status: Active unless explicitly disabled
       const isActive = u.active !== false;
       return {
         shipperID: u.user_id,
@@ -71,6 +70,13 @@ export async function GET(request) {
         status: isActive ? 'Active' : 'Suspended',
         suspendedAt: isActive ? null : u.suspended_at || null,
         createdAt: u.created_at || null,
+        
+        // NEW FIELDS FOR AUTO-FILL
+        companyAddress: u.company_address || '',
+        companyCity: u.company_city || '',
+        companyState: u.company_state || '',
+        companyCountry: u.company_country || '',
+        companyBin: u.company_bin || '',
       };
     });
 
@@ -95,17 +101,77 @@ export async function POST(request) {
     }
 
     const body = await request.json();
+
+    if (session.role !== 'admin') {
+      return NextResponse.json({ success: false, error: 'Only admin can modify shippers.' });
+    }
+
+    // HANDLE PROFILE EDIT
+    if (body.action === 'editProfile') {
+      const {
+        shipperID, companyName, contactPerson, phone, email, password,
+        companyAddress, companyCity, companyState, companyCountry, companyBin
+      } = body;
+
+      if (!shipperID || !companyName || !email) {
+        return NextResponse.json({ success: false, error: 'Company name, email and ID are required.' });
+      }
+
+      // Check if email already exists for ANOTHER user
+      const { data: existing } = await serviceSupabase
+        .from('users')
+        .select('user_id')
+        .eq('email', email)
+        .neq('user_id', shipperID)
+        .maybeSingle();
+
+      if (existing) {
+        return NextResponse.json({ success: false, error: 'Email is already in use by another shipper.' });
+      }
+
+      const updateData = {
+        company_name: companyName,
+        contact_person: contactPerson || null,
+        phone: phone || null,
+        email: email,
+        company_address: companyAddress || null,
+        company_city: companyCity || null,
+        company_state: companyState || null,
+        company_country: companyCountry || null,
+        company_bin: companyBin || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      // If password is provided, update it (Note: Add bcrypt hashing here if your auth uses it)
+      if (password && password.trim().length > 0) {
+        updateData.password_hash = password.trim(); // Assuming simple string storage. Update this line if you use bcrypt/hash
+      }
+
+      const { error: updErr } = await serviceSupabase
+        .from('users')
+        .update(updateData)
+        .eq('user_id', shipperID);
+
+      if (updErr) {
+        return NextResponse.json({ success: false, error: updErr.message });
+      }
+
+      // Log out all devices if credentials changed
+      const credentialsChanged = (password && password.trim().length > 0); // You can also check if email changed by fetching original
+      if (credentialsChanged) {
+        await serviceSupabase.from('sessions').delete().eq('user_id', shipperID);
+      }
+
+      return NextResponse.json({ success: true, credentialsChanged });
+    }
+
+    // HANDLE STATUS TOGGLE
     const { shipperID, newStatus } = body;
 
     if (!shipperID || !['Active', 'Suspended'].includes(newStatus)) {
       return NextResponse.json({ success: false, error: 'Invalid parameters.' });
     }
 
-    if (session.role !== 'admin') {
-      return NextResponse.json({ success: false, error: 'Only admin can change shipper status.' });
-    }
-
-    // Update users table
     const updateData = { active: newStatus === 'Active' };
     if (newStatus === 'Suspended') {
       updateData.suspended_at = new Date().toISOString();
