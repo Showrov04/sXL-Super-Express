@@ -184,7 +184,6 @@ export async function GET(request) {
       });
     }
 
-    // 1. Fetch all invoices for this shipper (both types)
     const { data: invoices, error: invErr } = await serviceSupabase
       .from('invoices')
       .select('*')
@@ -198,16 +197,11 @@ export async function GET(request) {
       });
     }
 
-    // 2. Filter to invoices that have at least one shipment in that month
-    //    (by booked_at). Then gather all TNs from matched invoices.
     const allInvoices = invoices || [];
     const allTns = new Set();
 
     allInvoices.forEach((inv) => {
-      const list = String(inv.tracking_numbers || '')
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean);
+      const list = String(inv.tracking_numbers || '').split(',').map((t) => t.trim()).filter(Boolean);
       list.forEach((tn) => allTns.add(tn));
     });
 
@@ -220,7 +214,6 @@ export async function GET(request) {
 
     const tnArray = Array.from(allTns);
 
-    // 3. Fetch shipments for those TNs
     const { data: shipments, error: shipErr } = await serviceSupabase
       .from('shipments')
       .select('*')
@@ -236,7 +229,6 @@ export async function GET(request) {
     const shipmentsByTn = {};
     (shipments || []).forEach((s) => { shipmentsByTn[s.tracking_number] = s; });
 
-    // 4. Filter shipments to this month
     const monthShipments = [];
     tnArray.forEach((tn) => {
       const s = shipmentsByTn[tn];
@@ -258,15 +250,11 @@ export async function GET(request) {
       });
     }
 
-    // 5. Map each shipment back to the invoice that contains it
     const invoiceByTn = {};
     allInvoices.forEach((inv) => {
-      const list = String(inv.tracking_numbers || '')
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean);
+      const list = String(inv.tracking_numbers || '').split(',').map((t) => t.trim()).filter(Boolean);
       list.forEach((tn) => {
-        if (!invoiceByTn[tn]) {
+        if (!invoiceByTn[tn] || inv.type === 'individual') {
           invoiceByTn[tn] = {
             invoiceNumber: inv.invoice_number,
             invoiceType: inv.type,
@@ -276,10 +264,31 @@ export async function GET(request) {
       });
     });
 
-    // 6. Build rows
+    let localTotal = 0;
+    let localCurrency = '';
+
     const rows = monthShipments.map((s) => {
       const inv = invoiceByTn[s.tracking_number] || {};
       const amount = parseFloat(s.shipping_cost) || 0;
+      
+      let locAmt = 0;
+      let locCur = '';
+      try {
+        const bd = s.cost_breakdown;
+        if (bd) {
+          const parsed = typeof bd === 'string' ? JSON.parse(bd) : bd;
+          locAmt = parseFloat(parsed.localAmount) || 0;
+          locCur = String(parsed.localCurrency || '').trim().toUpperCase();
+        }
+      } catch(e) {}
+      
+      if (locAmt > 0 && locCur) {
+        if (!localCurrency) localCurrency = locCur;
+        if (locCur === localCurrency) {
+          localTotal += locAmt;
+        }
+      }
+
       return {
         shipperRef: s.shipper_ref || '',
         shipmentDate: s.shipment_date || s.booked_at,
@@ -296,24 +305,23 @@ export async function GET(request) {
       };
     });
 
-    // Sort rows by shipment date ascending
     rows.sort((a, b) => {
       const da = new Date(a.shipmentDate || 0).getTime() || 0;
       const db = new Date(b.shipmentDate || 0).getTime() || 0;
       return da - db;
     });
 
+    localTotal = Math.round(localTotal * 100) / 100;
     const total = Math.round(rows.reduce((sum, r) => sum + r.amount, 0) * 100) / 100;
     const uniqueInvoiceNumbers = new Set(rows.map((r) => r.invoiceNumber).filter(Boolean));
     const invoiceCount = uniqueInvoiceNumbers.size;
 
     const safeShipper = shipperName.replace(/[^a-zA-Z0-9._-]/g, '_');
 
-    // 7. Handle CSV Format
     if (format === 'csv') {
       const headers = [
         'Shipper Ref', 'Shipment Date', 'Tracking #', 'Mode', 'Route', 
-        'Recipient', 'Weight (kg)', 'CBM', 'Amount', 'Currency', 'Invoice #'
+        'Recipient', 'Invoice #', 'Weight (kg)', 'CBM', 'Amount', 'Currency'
       ];
       let csv = headers.map(escapeCsv).join(',') + '\n';
 
@@ -325,25 +333,31 @@ export async function GET(request) {
           r.mode,
           r.route,
           r.recipient,
+          r.invoiceNumber,
           r.actualWeight,
           r.actualCbm > 0 ? r.actualCbm : '',
           r.amount.toFixed(2),
-          r.currency,
-          r.invoiceNumber
+          r.currency
         ];
         csv += rowData.map(escapeCsv).join(',') + '\n';
       });
 
-      // Add Total row
       csv += [
-        '', '', '', '', '', '', '', '',
+        'Total USD', '', '', '', '', '', '', '', '',
         total.toFixed(2),
-        'USD',
-        ''
+        'USD'
       ].map(escapeCsv).join(',') + '\n';
 
+      if (localCurrency && localTotal > 0) {
+        csv += [
+          'Total Local', '', '', '', '', '', '', '', '',
+          localTotal.toFixed(2),
+          localCurrency
+        ].map(escapeCsv).join(',') + '\n';
+      }
+
       const filename = 'sXL_Monthly_Summary_' + safeShipper + '_' + month + '.csv';
-      const buffer = Buffer.from('\uFEFF' + csv, 'utf-8'); // BOM for Excel UTF-8
+      const buffer = Buffer.from('\uFEFF' + csv, 'utf-8');
 
       return new NextResponse(buffer, {
         status: 200,
@@ -355,7 +369,6 @@ export async function GET(request) {
       });
     }
 
-    // 8. Handle PDF Format (Default)
     const contact = await loadCompanyContact();
     const summary = {
       shipperName,
@@ -364,6 +377,8 @@ export async function GET(request) {
       generatedAt: new Date().toISOString(),
       currency: 'USD',
       total,
+      localCurrency,
+      localTotal,
       invoiceCount,
       rows,
     };
