@@ -94,8 +94,17 @@ const SERVICES = [
   }
 ];
 
-// Your selected 12 images with types assigned for specific animations
+// Combined array: 6 NEW Supabase images first, followed by the 12 previous images
 const HERO_IMAGES = [
+  // --- NEW SUPABASE IMAGES (VIEW 1ST) ---
+  { src: 'https://zmaytrondymbautpldrc.supabase.co/storage/v1/object/public/booking-docs/website%20background/1%20copy.jpg', type: 'sea' },
+  { src: 'https://zmaytrondymbautpldrc.supabase.co/storage/v1/object/public/booking-docs/website%20background/Plane%20and%20Ship-01%20(1).jpg', type: 'air' },
+  { src: 'https://zmaytrondymbautpldrc.supabase.co/storage/v1/object/public/booking-docs/website%20background/air-cargo-2_1024x576.avif', type: 'air' },
+  { src: 'https://zmaytrondymbautpldrc.supabase.co/storage/v1/object/public/booking-docs/website%20background/basics-in-air-freight-2600x0-c-default.png.webp', type: 'air' },
+  { src: 'https://zmaytrondymbautpldrc.supabase.co/storage/v1/object/public/booking-docs/website%20background/International-Freight-Forwarding-Air-Freight--scaled.jpg', type: 'air' },
+  { src: 'https://zmaytrondymbautpldrc.supabase.co/storage/v1/object/public/booking-docs/website%20background/logistics-service.jpg', type: 'sea' },
+
+  // --- PREVIOUS 12 IMAGES ---
   { src: 'https://images.unsplash.com/photo-1559297434-fae8a1916a79?auto=format&fit=crop&w=2070&q=80&v=6', type: 'air' },
   { src: 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg?auto=compress&cs=tinysrgb&w=1920&v=6', type: 'sea' },
   { src: 'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?auto=format&fit=crop&w=2070&q=80&v=6', type: 'sea' },
@@ -171,7 +180,7 @@ export default function Home() {
       <style>{`
         html { scroll-behavior: smooth; }
 
-        /* ---------- Hero Background Crossfade & Pan (12 Images) ---------- */
+        /* ---------- Hero Background Crossfade & Pan (18 Images) ---------- */
         .sxl-hero-section {
           position: relative;
           overflow: hidden;
@@ -188,35 +197,35 @@ export default function Home() {
         
         /* Distinct Animations for Sea and Air */
         .sxl-hero-sea {
-          animation: sxl-sail-sea 96s infinite;
+          animation: sxl-sail-sea 144s infinite;
         }
         .sxl-hero-air {
-          animation: sxl-fly-air 96s infinite;
+          animation: sxl-fly-air 144s infinite;
         }
 
-        /* Sea: Gentle vertical bob and zoom (Sailing effect) */
+        /* Sea: Gentle vertical bob and zoom */
         @keyframes sxl-sail-sea {
           0% { opacity: 0; transform: scale(1.05) translateY(-2%); }
-          1% { opacity: 1; }
-          7.33% { opacity: 1; transform: scale(1.1) translateY(2%); }
-          8.33% { opacity: 0; transform: scale(1.1) translateY(2%); }
+          0.5% { opacity: 1; }
+          5.05% { opacity: 1; transform: scale(1.1) translateY(2%); }
+          5.55% { opacity: 0; transform: scale(1.1) translateY(2%); }
           100% { opacity: 0; transform: scale(1.05) translateY(-2%); }
         }
 
-        /* Air: Smooth horizontal pan (Flying effect) */
+        /* Air: Smooth horizontal pan */
         @keyframes sxl-fly-air {
-          0% { opacity: 0; transform: scale(1.05) translateX(4%); }
-          1% { opacity: 1; }
-          7.33% { opacity: 1; transform: scale(1.05) translateX(-4%); }
-          8.33% { opacity: 0; transform: scale(1.05) translateX(-4%); }
-          100% { opacity: 0; transform: scale(1.05) translateX(4%); }
+          0% { opacity: 0; transform: scale(1.05) translateX(3%); }
+          0.5% { opacity: 1; }
+          5.05% { opacity: 1; transform: scale(1.05) translateX(-3%); }
+          5.55% { opacity: 0; transform: scale(1.05) translateX(-3%); }
+          100% { opacity: 0; transform: scale(1.05) translateX(3%); }
         }
 
         .sxl-hero-overlay {
           position: absolute;
           top: 0; left: 0; width: 100%; height: 100%;
-          /* VERY LIGHT overlay so the images are bright and visible */
-          background: linear-gradient(to bottom, rgba(0, 15, 30, 0.15) 0%, rgba(0, 20, 40, 0.4) 100%);
+          /* Light overlay for clear visibility */
+          background: linear-gradient(to bottom, rgba(0, 15, 30, 0.2) 0%, rgba(0, 20, 40, 0.5) 100%);
           z-index: 2;
         }
 
@@ -288,7 +297,7 @@ export default function Home() {
         color: 'white',
         padding: '110px 20px',
       }}>
-        {/* Dynamic Crossfading Backgrounds with alternating animations */}
+        {/* Dynamic Crossfading Backgrounds */}
         {HERO_IMAGES.map((img, i) => (
           <div
             key={i}
@@ -296,6 +305,8 @@ export default function Home() {
             style={{
               backgroundImage: `url('${img.src}')`,
               animationDelay: `${i * 8}s`,
+              /* Ensure the first image is visible immediately on load */
+              ...(i === 0 ? { opacity: 1, animationDelay: '0s' } : {})
             }}
           />
         ))}
