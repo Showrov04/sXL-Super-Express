@@ -78,15 +78,16 @@ export async function GET(request, { params }) {
     }
 
     // --- AUTO-DETECT REVISED STATUS ---
-    // It is revised if the cost was saved AFTER the invoice was sent.
-    const triggerTime = invoice.sent_at 
-      ? new Date(invoice.sent_at).getTime() 
-      : new Date(invoice.issue_date || 0).getTime();
+    // We compare against the ISSUE DATE, not the last sent date.
+    // If the cost was saved AFTER the invoice was issued, it is permanently revised.
+    const issueTime = invoice.issue_date 
+      ? new Date(invoice.issue_date).getTime() 
+      : 0;
       
     let isRevised = shipments.some((s) => {
       if (!s.cost_saved_at) return false;
       const costTime = new Date(s.cost_saved_at).getTime();
-      return costTime > (triggerTime + 1000); // 1 second tolerance
+      return costTime > (issueTime + 1000); // 1 second tolerance
     });
 
     // Also check URL parameter just in case we force it
