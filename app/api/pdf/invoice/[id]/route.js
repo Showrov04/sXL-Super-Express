@@ -19,12 +19,7 @@ const NO_CACHE_HEADERS = {
 };
 
 const COMPANY_KEYS = [
-  'company_phone',
-  'company_email',
-  'company_website',
-  'company_wechat',
-  'company_whatsapp',
-  'company_wechat_qr_url',
+  'company_phone', 'company_email', 'company_website', 'company_wechat', 'company_whatsapp', 'company_wechat_qr_url',
 ];
 
 async function loadCompanyContact() {
@@ -43,7 +38,6 @@ async function loadCompanyContact() {
     });
     return out;
   } catch (e) {
-    console.error('[PDF Invoice] Contact load failed:', e.message);
     return {};
   }
 }
@@ -55,7 +49,6 @@ export async function GET(request, { params }) {
       return new NextResponse('Invoice ID required.', { status: 400, headers: NO_CACHE_HEADERS });
     }
 
-    // 1. Load invoice
     const { data: invoice, error } = await serviceSupabase
       .from('invoices')
       .select('*')
@@ -69,8 +62,6 @@ export async function GET(request, { params }) {
       return new NextResponse('Invoice not found.', { status: 404, headers: NO_CACHE_HEADERS });
     }
 
-    // 2. Load each shipment INDIVIDUALLY by tracking number
-    //    (avoids any weird .in() ordering / partial-match behaviour)
     const tns = String(invoice.tracking_numbers || '')
       .split(',')
       .map((t) => t.trim())
@@ -86,30 +77,25 @@ export async function GET(request, { params }) {
       if (row) shipments.push(row);
     }
 
-    // 3. Log what we actually pulled — visible in Vercel → Logs (Function tab)
-    console.log('[PDF Invoice]', JSON.stringify({
-      invoiceId,
-      invoiceNumber: invoice.invoice_number,
-      storedAmount: invoice.amount,
-      tns,
-      shipmentCosts: shipments.map((s) => ({
-        tn: s.tracking_number,
-        shipping_cost: s.shipping_cost,
-        actual_weight: s.actual_weight,
-        cost_saved_at: s.cost_saved_at,
-      })),
-    }));
-
-            // Compare against sent_at, but fall back to issue_date if it wasn't emailed
+    // --- REVISION DETECTION LOGIC ---
     const triggerTime = invoice.sent_at 
       ? new Date(invoice.sent_at).getTime() 
       : new Date(invoice.issue_date || 0).getTime();
       
     const isRevised = shipments.some((s) => {
-      const costTime = new Date(s.cost_saved_at || 0).getTime();
-      // If cost was saved more than 5 seconds after the invoice was triggered
-      return costTime > (triggerTime + 5000);
+      if (!s.cost_saved_at) return false;
+      const costTime = new Date(s.cost_saved_at).getTime();
+      // If cost was saved more than 1 second after the invoice was triggered
+      return costTime > (triggerTime + 1000);
     });
+
+    console.log('[PDF Invoice] Revision Check:', { 
+      invoiceId, 
+      triggerTime, 
+      isRevised,
+      shipments: shipments.map(s => ({ tn: s.tracking_number, cost_saved_at: s.cost_saved_at }))
+    });
+    // --------------------------------
 
     const invoiceForPDF = {
       invoice_number: invoice.invoice_number,
@@ -124,14 +110,12 @@ export async function GET(request, { params }) {
       currency: invoice.currency,
       local_currency: invoice.local_currency,
       local_amount: invoice.local_amount,
-      isRevised: isRevised,
+      isRevised: isRevised, // Passed to PDF
     };
 
     const contact = await loadCompanyContact();
-
     const pdfBytes = await generateInvoicePDF(invoiceForPDF, shipments, contact);
 
-    // 4. Unique filename on EVERY request — no PDF viewer can serve a stale copy
     const stamp = Date.now();
     const safeInv = String(invoice.invoice_number || 'invoice').replace(/[^a-zA-Z0-9._-]/g, '_');
 
