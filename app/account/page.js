@@ -550,13 +550,18 @@ export default function AccountPage() {
                   ))}
                 </select>
               </div>
-              <div>
+                            <div>
                 <label style={labelStyle}>BIN</label>
                 <input type="text" value={companyBin}
                   onChange={(e) => setCompanyBin(e.target.value)}
                   disabled={!editMode}
                   autoComplete="off"
                   style={editMode ? inputStyle : readOnlyStyle} />
+                {editMode && (
+                  <div style={{ fontSize: '0.75rem', color: '#6C757D', marginTop: '4px', fontStyle: 'italic' }}>
+                    ℹ️ If you don't have a BIN, please enter 0.
+                  </div>
+                )}
               </div>
             </div>
 
