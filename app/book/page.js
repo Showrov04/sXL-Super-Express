@@ -1194,7 +1194,10 @@ export default function BookPage() {
                   <SelectField label="Country *" value={consignee.country} onChange={(v) => setConsigneeField('country', v)} countries={countries} error={fieldErrors['consignee.country']} />
                   <Field label="Email *" value={consignee.email} onChange={(v) => setConsigneeField('email', v)} type="email" error={fieldErrors['consignee.email']} />
                   <Field label="Phone *" value={consignee.phone} onChange={(v) => setConsigneeField('phone', v)} type="tel" error={fieldErrors['consignee.phone']} />
-                  <Field label="BIN *" value={consignee.bin} onChange={(v) => setConsigneeField('bin', v)} placeholder="Business Identification Number" error={fieldErrors['consignee.bin']} />
+                                    <Field label="BIN *" value={consignee.bin} onChange={(v) => setConsigneeField('bin', v)} placeholder="Business Identification Number" error={fieldErrors['consignee.bin']} />
+                  <div style={{ fontSize: '0.75rem', color: '#6C757D', marginTop: '-8px', marginBottom: '15px', fontStyle: 'italic' }}>
+                    ℹ️ If you don't have a BIN, please enter 0.
+                  </div>
 
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer', marginTop: '5px' }}>
                     <input type="checkbox" checked={saveConsignee} onChange={(e) => setSaveConsignee(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#FF6B00', cursor: 'pointer' }} />
