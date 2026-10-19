@@ -1162,8 +1162,18 @@ export default function BillingPanel() {
                               ⋯
                             </button>
                           </div>
-                        ) : isPaidTab ? (
+                                                ) : isPaidTab ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                            {(s.individualInvoice || s.monthlyInvoice) && (
+                              <a
+                                href={'/api/pdf/invoice/' + (s.individualInvoice?.invoiceId || s.monthlyInvoice?.invoiceId) + '?_v=' + Date.now()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ ...MENU_ACTION_STYLE, background: '#0D6EFD', color: 'white' }}
+                              >
+                                🧾 Invoice
+                              </a>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleMarkUnpaid(s.trackingNumber)}
