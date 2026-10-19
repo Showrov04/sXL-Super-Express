@@ -861,6 +861,16 @@ export default function DashboardPage() {
                           <td style={{ ...TD_STYLE, width: 300 }}>
                             <Link href={'/track?tn=' + s.trackingNumber} style={{ padding: '5px 10px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>View</Link>
                                                         <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>📄 Booking PDF</a>
+                            {tab === 'awaiting' && (s.individualInvoice || s.monthlyInvoice) && (
+                              <a
+                                href={'/api/pdf/invoice/' + (s.individualInvoice?.invoiceId || s.monthlyInvoice?.invoiceId)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ padding: '5px 10px', background: '#0D6EFD', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}
+                              >
+                                🧾 Invoice
+                              </a>
+                            )}
                             {rowHasFiles && (
                               <button type="button" onClick={() => openFiles(s)} style={{ padding: '5px 10px', background: '#8B5CF6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'inherit', marginRight: '4px' }}>📎 Files</button>
                             )}
