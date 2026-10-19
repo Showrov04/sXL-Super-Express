@@ -100,14 +100,16 @@ export async function GET(request, { params }) {
       })),
     }));
 
-        let isRevised = false;
-    if (invoice.sent_at) {
-      const sentTime = new Date(invoice.sent_at).getTime();
-      isRevised = shipments.some((s) => {
-        const costTime = new Date(s.cost_saved_at || 0).getTime();
-        return costTime > sentTime;
-      });
-    }
+            // Compare against sent_at, but fall back to issue_date if it wasn't emailed
+    const triggerTime = invoice.sent_at 
+      ? new Date(invoice.sent_at).getTime() 
+      : new Date(invoice.issue_date || 0).getTime();
+      
+    const isRevised = shipments.some((s) => {
+      const costTime = new Date(s.cost_saved_at || 0).getTime();
+      // If cost was saved more than 5 seconds after the invoice was triggered
+      return costTime > (triggerTime + 5000);
+    });
 
     const invoiceForPDF = {
       invoice_number: invoice.invoice_number,
