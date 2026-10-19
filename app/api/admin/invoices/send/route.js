@@ -31,11 +31,6 @@ async function requireAdmin(request) {
   return { userId: session.user_id, role: session.role };
 }
 
-/**
- * POST — send invoice email to customer
- * Body: { trackingNumber }
- * Requires an invoice to already exist for this shipment.
- */
 export async function POST(request) {
   try {
     const session = await requireAdmin(request);
@@ -50,7 +45,6 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Tracking number required.' });
     }
 
-    // Fetch shipment
     const { data: shipment, error: shipErr } = await serviceSupabase
       .from('shipments')
       .select('*')
@@ -64,7 +58,6 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Shipper has no email.' });
     }
 
-    // Find invoice for this shipment — prefer individual, then monthly
     const { data: relatedInvoices } = await serviceSupabase
       .from('invoices')
       .select('*')
@@ -74,16 +67,14 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'No invoice found. Please issue an invoice first.' });
     }
 
-    // Prefer individual over monthly
     const invoice =
       relatedInvoices.find((inv) => inv.type === 'individual') ||
       relatedInvoices.find((inv) => inv.type === 'monthly-summary') ||
       relatedInvoices[0];
 
-        // Detect if this is a resend (already sent before)
-    const isRevised = !!invoice.sent_at;
+    // DETECT RESEND: If invoice was already sent, OR if the shipment was already sent
+    const isRevised = !!invoice.sent_at || !!shipment.invoice_sent_at;
 
-    // Send the email (pass isRevised to the email function)
     const result = await sendInvoiceEmail(shipment, invoice, isRevised);
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error || 'Failed to send email.' });
@@ -91,16 +82,11 @@ export async function POST(request) {
 
     const now = new Date().toISOString();
 
-    // Update shipment
     await serviceSupabase
       .from('shipments')
-      .update({
-        invoice_sent_at: now,
-        last_update: now,
-      })
+      .update({ invoice_sent_at: now, last_update: now })
       .eq('tracking_number', trackingNumber);
 
-    // Update the invoice
     await serviceSupabase
       .from('invoices')
       .update({ sent_at: now })
