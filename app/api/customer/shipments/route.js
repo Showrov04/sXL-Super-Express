@@ -58,7 +58,6 @@ function countryName(code) {
   return COUNTRY_NAMES[upper] || code;
 }
 
-// G.40c — Include parcel type in the mode string
 function buildShipmentType(shipment) {
   const mode = String(shipment.ship_mode || '').toUpperCase();
   const load = String(shipment.sea_load_type || '').toUpperCase();
@@ -76,9 +75,22 @@ function buildShipmentType(shipment) {
   return mode || '—';
 }
 
-/* ============================================================
- *  G.53 — Status-based sort (matches admin G.52)
- * ============================================================ */
+function normalizeInvoiceSummary(inv) {
+  if (!inv) return null;
+  return {
+    invoiceId: inv.invoice_id,
+    invoiceNumber: inv.invoice_number,
+    type: inv.type,
+    status: inv.status,
+    issueDate: inv.issue_date || null,
+    dueDate: inv.due_date || null,
+    issuedAt: inv.issue_date,
+    sentAt: inv.sent_at,
+    amount: parseFloat(inv.amount) || 0,
+    currency: inv.currency || 'USD',
+  };
+}
+
 const STATUS_RANK = {
   'booked': 1,
   'picked up': 2,
@@ -178,7 +190,6 @@ export async function GET(request) {
 
     const shipments = all || [];
 
-    // Counts (already aligned with admin)
     const counts = { active: 0, awaiting: 0, paid: 0, cancelled: 0, total: shipments.length };
     shipments.forEach((s) => {
       const status = String(s.status || '').toLowerCase();
@@ -211,19 +222,46 @@ export async function GET(request) {
       return true;
     });
 
-    // ============================================================
-    //  G.53 — Sort
-    //  Active tab → status → mode → booked_at DESC
-    //  Other tabs → booked_at DESC
-    // ============================================================
     if (tab === 'active') {
       filtered = sortByStatusThenModeThenBooked(filtered);
     } else {
       filtered = sortByBookedDesc(filtered);
     }
 
+    // FETCH INVOICES FOR THESE SHIPMENTS
+    const tns = filtered.map((s) => s.tracking_number).filter(Boolean);
+    let invoiceMap = {};
+    if (tns.length > 0) {
+      const { data: invoices } = await serviceSupabase
+        .from('invoices')
+        .select('invoice_id, invoice_number, type, tracking_numbers, status, issue_date, due_date, sent_at, amount, currency')
+        .or(tns.map((tn) => `tracking_numbers.ilike.%${tn}%`).join(','));
+
+      (invoices || []).forEach((inv) => {
+        const list = String(inv.tracking_numbers || '').split(',').map((x) => x.trim()).filter(Boolean);
+        list.forEach((tn) => {
+          if (!invoiceMap[tn]) invoiceMap[tn] = [];
+          invoiceMap[tn].push(inv);
+        });
+      });
+    }
+
     const list = filtered.map((s) => {
       const cost = parseFloat(s.shipping_cost) || 0;
+      
+      const tnsList = invoiceMap[s.tracking_number] || [];
+      const byNewest = (a, b) => {
+        const da = new Date(a.issue_date || 0).getTime() || 0;
+        const db = new Date(b.issue_date || 0).getTime() || 0;
+        return db - da;
+      };
+
+      const individualInvoices = tnsList.filter((inv) => inv.type === 'individual').sort(byNewest);
+      const monthlyInvoices = tnsList.filter((inv) => inv.type === 'monthly-summary').sort(byNewest);
+
+      const individualInvoice = normalizeInvoiceSummary(individualInvoices[0] || null);
+      const monthlyInvoice = normalizeInvoiceSummary(monthlyInvoices[0] || null);
+
       return {
         trackingNumber: s.tracking_number,
         shipMode: s.ship_mode,
@@ -234,15 +272,13 @@ export async function GET(request) {
         status: s.status,
         origin: countryName(s.origin),
         destination: countryName(s.destination),
-                senderName: s.sender_name,
+        senderName: s.sender_name,
         shipperRef: s.shipper_ref || null,
         recipientName: s.recipient_name,
         bookingWeight: s.total_weight,
         bookingCbm: parseFloat(s.total_cbm) || 0,
         actualWeight: s.actual_weight,
         actualCbm: (() => {
-          // Same gate as admin: expose CBM only after admin has acted
-          // on the shipment (cost saved OR status moved past "Booked").
           const statusLower = String(s.status || '').toLowerCase();
           const adminHasActed = !!s.cost_saved_at || statusLower !== 'booked';
           if (!adminHasActed) return 0;
@@ -271,6 +307,12 @@ export async function GET(request) {
         customService: s.custom_service || null,
         deliveryService: s.delivery_service || null,
         uploadedDocuments: s.uploaded_documents || null,
+        
+        // NEW INVOICE DATA
+        individualInvoice,
+        monthlyInvoice,
+        latestInvoice: individualInvoice || monthlyInvoice,
+        invoiceSentAt: s.invoice_sent_at || null,
       };
     });
 
