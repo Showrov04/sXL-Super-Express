@@ -2981,10 +2981,13 @@ function ShippersPanel() {
                 </div>
               </div>
 
-              <div>
+                            <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#343A40', marginBottom: '5px' }}>BIN</label>
                 <input type="text" value={editShipperFields.companyBin || ''} onChange={(e) => setEditShipperField('companyBin', e.target.value)} placeholder="Business Identification Number"
                   style={{ width: '100%', padding: '10px 14px', border: '2px solid #E9ECEF', borderRadius: '8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <div style={{ fontSize: '0.75rem', color: '#6C757D', marginTop: '4px', fontStyle: 'italic' }}>
+                  ℹ️ If the shipper doesn't have a BIN, enter 0.
+                </div>
               </div>
             </div>
 
