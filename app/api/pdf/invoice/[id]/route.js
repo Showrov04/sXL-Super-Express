@@ -49,6 +49,11 @@ export async function GET(request, { params }) {
       return new NextResponse('Invoice ID required.', { status: 400, headers: NO_CACHE_HEADERS });
     }
 
+    // --- READ URL PARAMETER FOR REVISION ---
+    const url = new URL(request.url);
+    const isRevised = url.searchParams.get('revised') === 'true';
+    // ----------------------------------------
+
     const { data: invoice, error } = await serviceSupabase
       .from('invoices')
       .select('*')
@@ -77,26 +82,6 @@ export async function GET(request, { params }) {
       if (row) shipments.push(row);
     }
 
-    // --- REVISION DETECTION LOGIC ---
-    const triggerTime = invoice.sent_at 
-      ? new Date(invoice.sent_at).getTime() 
-      : new Date(invoice.issue_date || 0).getTime();
-      
-    const isRevised = shipments.some((s) => {
-      if (!s.cost_saved_at) return false;
-      const costTime = new Date(s.cost_saved_at).getTime();
-      // If cost was saved more than 1 second after the invoice was triggered
-      return costTime > (triggerTime + 1000);
-    });
-
-    console.log('[PDF Invoice] Revision Check:', { 
-      invoiceId, 
-      triggerTime, 
-      isRevised,
-      shipments: shipments.map(s => ({ tn: s.tracking_number, cost_saved_at: s.cost_saved_at }))
-    });
-    // --------------------------------
-
     const invoiceForPDF = {
       invoice_number: invoice.invoice_number,
       type: invoice.type,
@@ -110,7 +95,7 @@ export async function GET(request, { params }) {
       currency: invoice.currency,
       local_currency: invoice.local_currency,
       local_amount: invoice.local_amount,
-      isRevised: isRevised, // Passed to PDF
+      isRevised: isRevised, // Passed to PDF from URL
     };
 
     const contact = await loadCompanyContact();
