@@ -791,7 +791,7 @@ export default function DashboardPage() {
                       <HeaderCell col="payment" label="Payment" width={120} />
                       <HeaderCell col="none" label="Booked" width={120} />
                       <HeaderCell col="none" label="ETA" width={125} />
-                      <HeaderCell col="none" label="Actions" width={300} />
+                                           <HeaderCell col="none" label="Actions" width={420} />
                     </tr>
                   </thead>
                   <tbody>
@@ -858,7 +858,7 @@ export default function DashboardPage() {
                               {s.estimatedDelivery ? formatDate(s.estimatedDelivery) : 'Pending'}
                             </span>
                           </td>
-                          <td style={{ ...TD_STYLE, width: 300 }}>
+                                                    <td style={{ ...TD_STYLE, width: 420, overflow: 'visible' }}>
                             <Link href={'/track?tn=' + s.trackingNumber} style={{ padding: '5px 10px', background: 'transparent', color: '#003366', border: '2px solid #E9ECEF', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>View</Link>
                                                         <a href={'/api/pdf/booking/' + s.trackingNumber} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 10px', background: '#00A86B', color: 'white', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'none', marginRight: '4px' }}>📄 Booking PDF</a>
                             {tab === 'awaiting' && (s.individualInvoice || s.monthlyInvoice) && (
