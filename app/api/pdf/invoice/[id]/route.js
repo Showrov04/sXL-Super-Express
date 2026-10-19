@@ -100,6 +100,15 @@ export async function GET(request, { params }) {
       })),
     }));
 
+        let isRevised = false;
+    if (invoice.sent_at) {
+      const sentTime = new Date(invoice.sent_at).getTime();
+      isRevised = shipments.some((s) => {
+        const costTime = new Date(s.cost_saved_at || 0).getTime();
+        return costTime > sentTime;
+      });
+    }
+
     const invoiceForPDF = {
       invoice_number: invoice.invoice_number,
       type: invoice.type,
@@ -113,6 +122,7 @@ export async function GET(request, { params }) {
       currency: invoice.currency,
       local_currency: invoice.local_currency,
       local_amount: invoice.local_amount,
+      isRevised: isRevised,
     };
 
     const contact = await loadCompanyContact();
