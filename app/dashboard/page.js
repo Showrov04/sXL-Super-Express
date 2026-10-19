@@ -556,7 +556,7 @@ export default function DashboardPage() {
   }
 
   const showShipperRef = tab === 'awaiting' || tab === 'paid';
-  const tableMinWidth = showShipperRef ? 1780 : 1650;
+    const tableMinWidth = showShipperRef ? 1900 : 1770;
 
   return (
     <>
