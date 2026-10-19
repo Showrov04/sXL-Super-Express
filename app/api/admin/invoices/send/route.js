@@ -80,8 +80,11 @@ export async function POST(request) {
       relatedInvoices.find((inv) => inv.type === 'monthly-summary') ||
       relatedInvoices[0];
 
-    // Send the email
-    const result = await sendInvoiceEmail(shipment, invoice);
+        // Detect if this is a resend (already sent before)
+    const isRevised = !!invoice.sent_at;
+
+    // Send the email (pass isRevised to the email function)
+    const result = await sendInvoiceEmail(shipment, invoice, isRevised);
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error || 'Failed to send email.' });
     }
