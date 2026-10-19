@@ -1259,12 +1259,17 @@ function ShipmentsPanel() {
     };
   }
 
-  function openActionMenu(e, trackingNumber) {
+    function openActionMenu(e, trackingNumber) {
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const menuHeightEstimate = 350; 
+    const openUpwards = spaceBelow < menuHeightEstimate && rect.top > menuHeightEstimate;
+
     setActionMenu({
       trackingNumber,
-      top: rect.bottom + 4,
+      top: openUpwards ? undefined : rect.bottom + 4,
+      bottom: openUpwards ? window.innerHeight - rect.top + 4 : undefined,
       right: Math.max(8, window.innerWidth - rect.right),
     });
   }
@@ -1551,10 +1556,11 @@ function ShipmentsPanel() {
             onClick={() => setActionMenu(null)}
             style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'transparent' }}
           />
-          <div
+                    <div
             style={{
               position: 'fixed',
               top: actionMenu.top,
+              bottom: actionMenu.bottom,
               right: actionMenu.right,
               zIndex: 9999,
               background: 'white',
@@ -1562,7 +1568,8 @@ function ShipmentsPanel() {
               borderRadius: '10px',
               boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
               minWidth: '270px',
-              overflow: 'hidden',
+              maxHeight: '85vh',
+              overflowY: 'auto',
             }}
           >
             <div style={{ padding: '10px 14px', borderBottom: '1px solid #F1F3F5', background: '#F8F9FA' }}>
