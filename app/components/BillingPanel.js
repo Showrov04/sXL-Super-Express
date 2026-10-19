@@ -790,11 +790,13 @@ export default function BillingPanel() {
     return <span style={{ color: '#0D6EFD', fontWeight: 700 }}>{parseFloat(weight).toFixed(2)} kg</span>;
   }
 
-  function getPrimaryAction(s) {
+    function getPrimaryAction(s) {
     const tn = s.trackingNumber;
     const hasCost = s.shippingCost && parseFloat(s.shippingCost) > 0;
     const hasIndividual = !!s.individualInvoice;
-    const displayInvoice = s.individualInvoice;
+    const hasMonthly = !!s.monthlyInvoice;
+    const hasInvoice = hasIndividual || hasMonthly;
+    const displayInvoice = s.individualInvoice || s.monthlyInvoice;
     const isSent = !!(s.invoiceSentAt || (displayInvoice && displayInvoice.sentAt));
     const isPaid = String(s.paymentStatus || '').toLowerCase() === 'paid';
 
@@ -804,9 +806,19 @@ export default function BillingPanel() {
     if (!hasCost) {
       return { label: '🔄 Add Cost', bg: '#FF6B00', color: 'white', onClick: () => openCostModal(s) };
     }
-    if (!hasIndividual) {
+    if (!hasInvoice) {
       return { label: '🧾 Issue Invoice', bg: '#0D6EFD', color: 'white', onClick: () => handleIssueInvoice(s) };
     }
+
+    // Check if cost was updated AFTER the invoice was sent
+    const sentDate = new Date(s.invoiceSentAt || (displayInvoice && displayInvoice.sentAt) || 0).getTime();
+    const costDate = new Date(s.costSavedAt || 0).getTime();
+    const isRevised = isSent && costDate > sentDate;
+
+    if (isRevised) {
+      return { label: '⚠️ Resend Invoice', bg: '#FF6B00', color: 'white', onClick: () => handleSendInvoice(tn) };
+    }
+
     if (!isSent) {
       return { label: '📤 Send Invoice', bg: '#DC3545', color: 'white', onClick: () => handleSendInvoice(tn) };
     }
