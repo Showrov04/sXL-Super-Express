@@ -407,11 +407,11 @@ export default function BookPage() {
     setParcelType(p);
     clearFields(['parcelType', 'parcelTypeCustom', 'shipment.deliveryTimeline', 'shipment.hsCode', 'shipment.totalValue']);
 
-    // G.31 — auto-fill HS Code & Customs Value for Document / Special Parcel
-    const autoFill = (p === 'Document' || p === 'Special Parcel');
+        // G.31 — auto-fill HS Code & Customs Value for Document only
+    const autoFill = (p === 'Document');
     setShipment((s) => ({
       ...s,
-      hsCode: autoFill ? 'N/A' : (p !== 'Document' && p !== 'Special Parcel' ? s.hsCode : ''),
+      hsCode: autoFill ? 'N/A' : (p !== 'Document' ? s.hsCode : ''),
       totalValue: autoFill ? '0' : s.totalValue,
     }));
 
@@ -425,7 +425,7 @@ export default function BookPage() {
   const isSpecialParcel = parcelType === 'Special Parcel';
   const showBillingParty = !(!isSea && isSpecialParcel);
 
-  const isAutoLocked = parcelType === 'Document' || parcelType === 'Special Parcel';
+  const isAutoLocked = parcelType === 'Document';
 
   const steps = isSea
     ? ['Ship Mode', 'Shipper & Consignee', 'Shipment Details', 'Select Packaging', 'Pickup Service', 'Custom & Delivery', 'Payment', 'Review']
@@ -1056,7 +1056,7 @@ export default function BookPage() {
               </div>
               <FieldError message={fieldErrors.parcelType} />
 
-              {(parcelType === 'Document' || parcelType === 'Special Parcel') && (
+              {parcelType === 'Document' && (
                 <div style={{
                   background: '#E8F7EF', borderLeft: '4px solid #28A745',
                   borderRadius: '8px', padding: '12px 16px', marginBottom: '15px',
