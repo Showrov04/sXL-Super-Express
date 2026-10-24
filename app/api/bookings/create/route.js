@@ -71,7 +71,7 @@ function mapServiceType(shipMode) {
 // G.32 — Auto-lock rule: Document & Special Parcel → HS Code N/A, Value 0
 function isAutoLockedParcelType(parcelType) {
   const p = String(parcelType || '').trim();
-  return p === 'Document' || p === 'Special Parcel';
+  return p === 'Document';
 }
 
 // F.4 — is Special Parcel service currently enabled by admin?
