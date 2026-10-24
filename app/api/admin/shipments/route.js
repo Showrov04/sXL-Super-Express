@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sendAdminEditNotification } from '@/lib/email';
 import { sendAdminEditNotification, sendDeliveryNotification } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
