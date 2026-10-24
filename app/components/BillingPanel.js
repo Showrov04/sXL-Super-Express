@@ -1177,15 +1177,15 @@ export default function BillingPanel() {
                                                 ) : isPaidTab ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
                             {(s.individualInvoice || s.monthlyInvoice) && (
-                              <a
-                                href={'/api/pdf/invoice/' + (s.individualInvoice?.invoiceId || s.monthlyInvoice?.invoiceId) + '?_v=' + Date.now()}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{ ...MENU_ACTION_STYLE, background: '#0D6EFD', color: 'white' }}
-                              >
-                                🧾 Invoice
-                              </a>
-                            )}
+  <a
+    href={'/api/pdf/invoice/' + (s.individualInvoice?.invoiceId || s.monthlyInvoice?.invoiceId) + ((s.costSavedAt && s.invoiceSentAt && new Date(s.costSavedAt) > new Date(s.invoiceSentAt)) ? '?revised=true&_v=' : '?_v=') + Date.now()}
+    target="_blank"
+    rel="noopener noreferrer"
+    style={{ ...MENU_ACTION_STYLE, background: '#0D6EFD', color: 'white' }}
+  >
+    🧾 Invoice
+  </a>
+)}
                             <button
                               type="button"
                               onClick={() => handleMarkUnpaid(s.trackingNumber)}
@@ -1259,13 +1259,14 @@ export default function BillingPanel() {
             {menuShipment.individualInvoice ? (
               <>
                 <MenuItem
-                  label="📄 Individual Invoice PDF"
-                  sub={menuShipment.individualInvoice.invoiceNumber}
-                  onClick={() => {
-                    setActionMenu(null);
-                    window.open('/api/pdf/invoice/' + menuShipment.individualInvoice.invoiceId + '?_v=' + Date.now(), '_blank', 'noopener');
-                  }}
-                />
+  label="📄 Individual Invoice PDF"
+  sub={menuShipment.individualInvoice.invoiceNumber}
+  onClick={() => {
+    setActionMenu(null);
+    const isRev = menuShipment.costSavedAt && menuShipment.invoiceSentAt && new Date(menuShipment.costSavedAt) > new Date(menuShipment.invoiceSentAt);
+    window.open('/api/pdf/invoice/' + menuShipment.individualInvoice.invoiceId + (isRev ? '?revised=true&_v=' : '?_v=') + Date.now(), '_blank', 'noopener');
+  }}
+/>
                 <MenuItem
                   label="✏️ Edit Invoice Dates"
                   sub="Change issue / due dates"
