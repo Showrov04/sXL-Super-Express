@@ -50,9 +50,9 @@ export default function FinanceDashboard() {
         }
       });
       
-      if (res.status === 403) {
-        // Not the owner, redirect away
-        router.push('/dashboard');
+            if (res.status === 403) {
+        setError("API returned 403 Forbidden. Your login token is missing, expired, or your database role is not 'owner'.");
+        setLoading(false);
         return;
       }
       
