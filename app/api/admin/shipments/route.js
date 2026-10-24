@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendAdminEditNotification } from '@/lib/email';
+import { sendAdminEditNotification, sendDeliveryNotification } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -480,13 +481,46 @@ export async function POST(request) {
         historyNotes = (historyNotes ? historyNotes + ' · ' : '') + extraBits.join(' · ');
       }
 
-      await serviceSupabase.from('tracking_history').insert({
+            await serviceSupabase.from('tracking_history').insert({
         tracking_number: trackingNumber,
         status: newStatus,
         location: location || '',
         notes: historyNotes,
         updated_by: session.userId,
       });
+
+      // --- NEW: Trigger Delivery Email ---
+      if (String(newStatus).toLowerCase() === 'delivered') {
+        try {
+          const { data: fullShipment } = await serviceSupabase.from('shipments').select('*').eq('tracking_number', trackingNumber).single();
+          
+          let extraEmails = '';
+          let invoiceUrl = null;
+          let packingListUrls = [];
+
+          if (fullShipment) {
+            // Get customer's extra emails
+            const { data: userData } = await serviceSupabase.from('users').select('notification_emails').eq('user_id', fullShipment.booked_by).maybeSingle();
+            extraEmails = userData?.notification_emails || '';
+
+            // Get invoice link
+            const { data: invData } = await serviceSupabase.from('invoices').select('invoice_id').ilike('tracking_numbers', '%' + trackingNumber + '%').maybeSingle();
+            if (invData) invoiceUrl = 'https://sxl-logistics.com/api/pdf/invoice/' + invData.invoice_id;
+
+            // Get packing list links
+            if (fullShipment.uploaded_documents && fullShipment.uploaded_documents.packingLists) {
+              packingListUrls = fullShipment.uploaded_documents.packingLists.map((f) => f.url);
+            }
+
+            // Send the email
+            await sendDeliveryNotification(fullShipment, extraEmails, invoiceUrl, packingListUrls);
+            console.log('[Delivery Email] Sent successfully to', fullShipment.sender_email, extraEmails);
+          }
+        } catch (emailErr) {
+          console.error('[Delivery Email] Exception:', emailErr.message);
+        }
+      }
+      // -----------------------------------
 
       return NextResponse.json({ success: true });
     }
