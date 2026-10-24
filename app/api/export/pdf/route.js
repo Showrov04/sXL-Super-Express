@@ -250,16 +250,15 @@ export async function GET(request) {
         function drawBanner(titleText) {
       page.drawRectangle({ x: MARGIN, y: y - BANNER_H, width: totalW, height: BANNER_H, color: ORANGE });
 
-      // 1. Draw the sXL Logo Box
-      const logoX = MARGIN + 10;
-      const logoY = y - 23; // Centered vertically in the banner
-      const path = 'M 3 0 L 10 0 Q 13 0 13 3 L 13 10 Q 13 13 10 13 L 3 13 Q 0 13 0 10 L 0 3 Q 0 0 3 0 Z';
-      page.drawSvgPath(path, { x: logoX, y: logoY, color: WHITE });
-      page.drawText('sXL', { x: logoX + 3, y: logoY + 3.5, size: 5.5, font: fontBold, color: ORANGE });
+            // 1. Draw the sXL Logo (Circle)
+      const logoX = MARGIN + 12;
+      const logoCenterY = y - 16;
+      page.drawCircle({ x: logoX + 8, y: logoCenterY, size: 9, color: WHITE });
+      page.drawText('sXL', { x: logoX + 3.5, y: logoCenterY - 2.5, size: 7, font: fontBold, color: ORANGE });
 
       // 2. Draw the Company Name and Subtitle
-      page.drawText('SUPER EXPRESS', { x: logoX + 20, y: y - 11, size: 10, font: fontBold, color: WHITE });
-      page.drawText('LOGISTICS CENTER', { x: logoX + 20, y: y - 22, size: 6, font, color: WHITE });
+      page.drawText('SUPER EXPRESS', { x: logoX + 24, y: y - 11, size: 10, font: fontBold, color: WHITE });
+      page.drawText('LOGISTICS CENTER', { x: logoX + 24, y: y - 22, size: 6, font, color: WHITE });
 
       // 3. Draw the Title (Awaiting Payment, Active Shipments, etc.)
       if (titleText) {
