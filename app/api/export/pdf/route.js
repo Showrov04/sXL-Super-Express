@@ -247,18 +247,30 @@ export async function GET(request) {
     let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
     let y = PAGE_H - MARGIN;
 
-    function drawBanner(subtitle) {
+        function drawBanner(titleText) {
       page.drawRectangle({ x: MARGIN, y: y - BANNER_H, width: totalW, height: BANNER_H, color: ORANGE });
-      page.drawText('SUPER EXPRESS', { x: MARGIN + 10, y: y - 14, size: 11, font: fontBold, color: WHITE });
-      page.drawText('SHIPMENTS REPORT', { x: MARGIN + 10, y: y - 25, size: FONT_SMALL, font: fontBold, color: WHITE });
 
-      const tabLabel = subtitle;
-      const labelW = fontBold.widthOfTextAtSize(tabLabel, 10);
-      page.drawText(tabLabel, { x: PAGE_W - MARGIN - 10 - labelW, y: y - 14, size: 10, font: fontBold, color: WHITE });
+      // 1. Draw the sXL Logo Box
+      const logoX = MARGIN + 10;
+      const logoY = y - 23; // Centered vertically in the banner
+      const path = 'M 3 0 L 10 0 Q 13 0 13 3 L 13 10 Q 13 13 10 13 L 3 13 Q 0 13 0 10 L 0 3 Q 0 0 3 0 Z';
+      page.drawSvgPath(path, { x: logoX, y: logoY, color: WHITE });
+      page.drawText('sXL', { x: logoX + 3, y: logoY + 3.5, size: 5.5, font: fontBold, color: ORANGE });
 
+      // 2. Draw the Company Name and Subtitle
+      page.drawText('SUPER EXPRESS', { x: logoX + 20, y: y - 11, size: 10, font: fontBold, color: WHITE });
+      page.drawText('LOGISTICS CENTER', { x: logoX + 20, y: y - 22, size: 6, font, color: WHITE });
+
+      // 3. Draw the Title (Awaiting Payment, Active Shipments, etc.)
+      if (titleText) {
+        const labelW = fontBold.widthOfTextAtSize(titleText, 10);
+        page.drawText(titleText, { x: PAGE_W - MARGIN - 10 - labelW, y: y - 13, size: 10, font: fontBold, color: WHITE });
+      }
+
+      // 4. Draw the Shipment Count
       const countLabel = filtered.length + ' shipment' + (filtered.length !== 1 ? 's' : '');
       const countW = font.widthOfTextAtSize(countLabel, FONT_SMALL);
-      page.drawText(countLabel, { x: PAGE_W - MARGIN - 10 - countW, y: y - 25, size: FONT_SMALL, font, color: WHITE });
+      page.drawText(countLabel, { x: PAGE_W - MARGIN - 10 - countW, y: y - 24, size: FONT_SMALL, font, color: WHITE });
 
       y -= BANNER_H + 8;
     }
