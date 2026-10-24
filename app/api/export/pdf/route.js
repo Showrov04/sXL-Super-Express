@@ -248,29 +248,31 @@ export async function GET(request) {
     let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
     let y = PAGE_H - MARGIN;
 
-        function drawBanner(titleText) {
+            function drawBanner(titleText) {
       page.drawRectangle({ x: MARGIN, y: y - BANNER_H, width: totalW, height: BANNER_H, color: ORANGE });
 
-            // 1. Draw the sXL Logo (Circle)
+      // 1. Draw the sXL Logo Box (Rounded Square)
       const logoX = MARGIN + 12;
-      const logoCenterY = y - 16;
-      page.drawCircle({ x: logoX + 8, y: logoCenterY, size: 9, color: WHITE });
-      page.drawText('sXL', { x: logoX + 3.5, y: logoCenterY - 2.5, size: 7, font: fontBold, color: ORANGE });
+      const logoY = y - 55; // Bottom of the 40x40 box
+      const path = 'M 10 0 L 30 0 Q 40 0 40 10 L 40 30 Q 40 40 30 40 L 10 40 Q 0 40 0 30 L 0 10 Q 0 0 10 0 Z';
+      page.drawSvgPath(path, { x: logoX, y: logoY, color: WHITE });
+      page.drawText('sXL', { x: logoX + 9, y: logoY + 13, size: 16, font: fontBold, color: ORANGE });
 
-      // 2. Draw the Company Name and Subtitle
-      page.drawText('SUPER EXPRESS', { x: logoX + 24, y: y - 11, size: 10, font: fontBold, color: WHITE });
-      page.drawText('LOGISTICS CENTER', { x: logoX + 24, y: y - 22, size: 6, font, color: WHITE });
+      // 2. Draw the Company Name, Subtitle, and Address
+      page.drawText('SUPER EXPRESS', { x: logoX + 52, y: y - 22, size: 14, font: fontBold, color: WHITE });
+      page.drawText('LOGISTICS CENTER', { x: logoX + 52, y: y - 34, size: 8, font, color: WHITE });
+      page.drawText(OFFICE_ADDRESS_LINE, { x: logoX + 52, y: y - 46, size: 7, font, color: WHITE });
 
-      // 3. Draw the Title (Awaiting Payment, Active Shipments, etc.)
+      // 3. Draw the Title
       if (titleText) {
-        const labelW = fontBold.widthOfTextAtSize(titleText, 10);
-        page.drawText(titleText, { x: PAGE_W - MARGIN - 10 - labelW, y: y - 13, size: 10, font: fontBold, color: WHITE });
+        const labelW = fontBold.widthOfTextAtSize(titleText, 12);
+        page.drawText(titleText, { x: PAGE_W - MARGIN - 12 - labelW, y: y - 28, size: 12, font: fontBold, color: WHITE });
       }
 
       // 4. Draw the Shipment Count
       const countLabel = filtered.length + ' shipment' + (filtered.length !== 1 ? 's' : '');
-      const countW = font.widthOfTextAtSize(countLabel, FONT_SMALL);
-      page.drawText(countLabel, { x: PAGE_W - MARGIN - 10 - countW, y: y - 24, size: FONT_SMALL, font, color: WHITE });
+      const countW = font.widthOfTextAtSize(countLabel, 9);
+      page.drawText(countLabel, { x: PAGE_W - MARGIN - 12 - countW, y: y - 44, size: 9, font, color: WHITE });
 
       y -= BANNER_H + 8;
     }
