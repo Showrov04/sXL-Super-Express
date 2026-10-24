@@ -296,7 +296,8 @@ export async function GET(request) {
       page.drawRectangle({ x: MARGIN, y: y - ROW_H, width: totalW, height: ROW_H, color: rowBg });
 
       const cost = parseFloat(s.shipping_cost) || 0;
-      const rowValues = {
+            const rowValues = {
+        shipperRef: clip(s.shipper_ref, 12, font, FONT_SMALL),
         tracking: clip(s.tracking_number, 18, font, FONT_SMALL),
         mode: clip(buildShipmentType(s), 9, font, FONT_SMALL),
         route: clip(countryName(s.origin) + ' -> ' + countryName(s.destination), 24, font, FONT_SMALL),
