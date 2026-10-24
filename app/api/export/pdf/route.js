@@ -221,7 +221,8 @@ export async function GET(request) {
     const HEADER_H = 18;
     const BANNER_H = 32;
 
-    const cols = [
+        const cols = [
+      { key: 'shipperRef', header: 'Shipper Ref', w: 75, align: 'left', maxChars: 12 },
       { key: 'tracking', header: 'Tracking #', w: 110, align: 'left', maxChars: 18 },
       { key: 'mode', header: 'Mode', w: 55, align: 'left', maxChars: 9 },
       { key: 'route', header: 'Route', w: 145, align: 'left', maxChars: 24 },
