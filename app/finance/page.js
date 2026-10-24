@@ -3,10 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const CURRENCY = 'USD';
 const fmt = new Intl.NumberFormat('en-US', {
   style: 'currency',
-  currency: CURRENCY,
+  currency: 'USD',
   maximumFractionDigits: 2,
 });
 
@@ -18,15 +17,6 @@ const num = (v) => {
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
-
-// Helper to find cookies
-const getCookie = (name) => {
-  if (typeof document === 'undefined') return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
-  return null;
-};
 
 export default function FinanceDashboard() {
   const router = useRouter();
@@ -45,33 +35,27 @@ export default function FinanceDashboard() {
     expense_date: today(),
   });
 
-  // Get token from LocalStorage OR Cookies
-  const getToken = () => {
-    return localStorage.getItem('token') || 
-           localStorage.getItem('session_token') || 
-           localStorage.getItem('session') ||
-           getCookie('token') || 
-           getCookie('session_token') ||
-           getCookie('session');
-  };
-
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const token = getToken();
+      // 1. Get the correct token name
+      const token = localStorage.getItem('sxl_token');
       
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
       const res = await fetch('/api/finance', {
         cache: 'no-store',
-        headers: {
-          'Authorization': `Bearer ${token || ''}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       const json = await res.json();
       
       if (res.status === 403) {
-        setError(`API returned 403 Forbidden. Could not find valid token. (Token found: ${token ? 'Yes' : 'No'})`);
+        setError("Access Denied. Are you sure you are logged in as the Owner?");
         setLoading(false);
         return;
       }
@@ -94,7 +78,7 @@ export default function FinanceDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -136,12 +120,12 @@ export default function FinanceDashboard() {
     setSaving(true);
     setError('');
     try {
-      const token = getToken();
+      const token = localStorage.getItem('sxl_token');
       const res = await fetch('/api/finance', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || ''}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           shipment_id: form.shipment_id || null,
@@ -174,10 +158,10 @@ export default function FinanceDashboard() {
     if (!confirm('Delete this expense?')) return;
     setDeletingId(id);
     try {
-      const token = getToken();
+      const token = localStorage.getItem('sxl_token');
       const res = await fetch(`/api/finance?id=${encodeURIComponent(id)}`, { 
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token || ''}` }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       const data = await res.json();
@@ -191,161 +175,169 @@ export default function FinanceDashboard() {
     }
   }
 
+  // --- INLINE STYLES (Matching your login page look) ---
+  const s = {
+    container: { maxWidth: '1200px', margin: '0 auto', padding: '40px 20px', fontFamily: 'system-ui, -apple-system, sans-serif' },
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '2px solid #E9ECEF', paddingBottom: '15px' },
+    title: { fontSize: '1.8rem', color: '#003366', margin: 0, fontWeight: 800 },
+    kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' },
+    kpiCard: { padding: '20px', borderRadius: '10px', border: '1px solid #E9ECEF', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' },
+    section: { background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '25px', marginBottom: '30px' },
+    table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
+    th: { padding: '12px', borderBottom: '2px solid #E9ECEF', color: '#6C757D', fontSize: '0.85rem', textTransform: 'uppercase' },
+    td: { padding: '12px', borderBottom: '1px solid #E9ECEF', fontSize: '0.95rem' },
+    input: { width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '6px', boxSizing: 'border-box' },
+    btn: { padding: '10px 20px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
+    error: { padding: '15px', background: '#F8D7DA', color: '#721C24', borderRadius: '8px', marginBottom: '20px', borderLeft: '4px solid #DC3545' }
+  };
+
+  const getToneColors = (tone) => {
+    if (tone === 'blue') return { bg: '#EBF8FF', color: '#2B6CB0', border: '#90CDF4' };
+    if (tone === 'amber') return { bg: '#FFFFF0', color: '#B7791F', border: '#F6E05E' };
+    if (tone === 'green') return { bg: '#F0FFF4', color: '#276749', border: '#9AE6B4' };
+    return { bg: '#FFF5F5', color: '#C53030', border: '#FEB2B2' };
+  };
+
   return (
-    <div className="mx-auto max-w-7xl p-6 space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <div style={s.container}>
+      <div style={s.header}>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Owner Dashboard — Profit &amp; Loss</h1>
-          <p className="text-sm text-slate-500">sXL Super Express Logistics Center</p>
+          <h1 style={s.title}>Owner Dashboard — Profit &amp; Loss</h1>
+          <p style={{ margin: '5px 0 0 0', color: '#6C757D' }}>sXL Super Express Logistics Center</p>
         </div>
-        <button onClick={load} className="rounded bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800">
-          Refresh Data
-        </button>
-      </header>
+        <button onClick={load} style={{ ...s.btn, background: '#003366' }}>Refresh Data</button>
+      </div>
 
-      {error && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      {error && <div style={s.error}>{error}</div>}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPI Cards */}
+      <div style={s.kpiGrid}>
         <Kpi label="Total Revenue" value={fmt.format(totals.revenue)} tone="blue" loading={loading} />
         <Kpi label="Total Expenses" value={fmt.format(totals.expenses)} tone="amber" loading={loading} />
         <Kpi label="Net Profit" value={fmt.format(totals.profit)} tone={totals.profit >= 0 ? 'green' : 'red'} loading={loading} />
         <Kpi label="Profit Margin" value={`${totals.margin.toFixed(1)}%`} tone={totals.margin >= 0 ? 'green' : 'red'} loading={loading} />
       </div>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">Record New Expense</h2>
-        <form onSubmit={handleAddExpense} className="grid grid-cols-1 gap-3 md:grid-cols-6">
-          <select value={form.shipment_id} onChange={(e) => setForm({ ...form, shipment_id: e.target.value })}
-            className="rounded border border-slate-300 px-2 py-1.5 text-sm md:col-span-2">
-            <option value="">— No shipment (overhead) —</option>
-            {shipments.map((s) => (
-              <option key={s.id} value={s.id}>{s.tracking_number}</option>
-            ))}
-          </select>
-
-          <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-            className="rounded border border-slate-300 px-2 py-1.5 text-sm">
-            {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-          </select>
-
-          <input placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className="rounded border border-slate-300 px-2 py-1.5 text-sm md:col-span-2" />
-
-          <input type="number" step="0.01" min="0" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
-            className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-
-          <input type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })}
-            className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
-
-          <button type="submit" disabled={saving}
-            className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 md:col-span-2">
-            {saving ? 'Saving…' : 'Add Expense'}
+      {/* Expense Form */}
+      <div style={s.section}>
+        <h2 style={{ marginTop: 0, marginBottom: '20px', color: '#003366', fontSize: '1.2rem' }}>Record New Expense</h2>
+        <form onSubmit={handleAddExpense} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', alignItems: 'end' }}>
+          <div>
+            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#6C757D', display: 'block', marginBottom: '5px' }}>Shipment</label>
+            <select value={form.shipment_id} onChange={(e) => setForm({ ...form, shipment_id: e.target.value })} style={s.input}>
+              <option value="">— Overhead —</option>
+              {shipments.map((sh) => (
+                <option key={sh.id} value={sh.id}>{sh.tracking_number}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#6C757D', display: 'block', marginBottom: '5px' }}>Category</label>
+            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} style={s.input}>
+              {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#6C757D', display: 'block', marginBottom: '5px' }}>Description</label>
+            <input placeholder="Note..." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={s.input} />
+          </div>
+          <div>
+            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#6C757D', display: 'block', marginBottom: '5px' }}>Amount</label>
+            <input type="number" step="0.01" min="0" placeholder="0.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} style={s.input} />
+          </div>
+          <div>
+            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#6C757D', display: 'block', marginBottom: '5px' }}>Date</label>
+            <input type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} style={s.input} />
+          </div>
+          <button type="submit" disabled={saving} style={{ ...s.btn, opacity: saving ? 0.6 : 1, height: '40px' }}>
+            {saving ? 'Saving...' : '+ Add Expense'}
           </button>
         </form>
-      </section>
+      </div>
 
-      <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-800">Shipment Profit Margins ({shipmentProfits.length})</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+      {/* Shipment Profit Table */}
+      <div style={s.section}>
+        <h2 style={{ marginTop: 0, marginBottom: '20px', color: '#003366', fontSize: '1.2rem' }}>Shipment Profit Margins ({shipmentProfits.length})</h2>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={s.table}>
+            <thead>
               <tr>
-                <Th>Tracking</Th><Th>Customer</Th><Th>Status</Th>
-                <Th right>Revenue</Th><Th right>Expenses</Th><Th right>Profit</Th><Th right>Margin</Th>
+                <th style={s.th}>Tracking</th><th style={s.th}>Customer</th><th style={s.th}>Status</th>
+                <th style={{ ...s.th, textAlign: 'right' }}>Revenue</th>
+                <th style={{ ...s.th, textAlign: 'right' }}>Expenses</th>
+                <th style={{ ...s.th, textAlign: 'right' }}>Profit</th>
+                <th style={{ ...s.th, textAlign: 'right' }}>Margin</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading && <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">Loading…</td></tr>}
-              {!loading && shipmentProfits.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">No shipments found.</td></tr>
-              )}
-              {shipmentProfits.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50">
-                  <Td className="font-mono text-xs">{s.tracking_number}</Td>
-                  <Td>{s.customer}</Td>
-                  <Td>{s.status}</Td>
-                  <Td right>{fmt.format(s.revenue)}</Td>
-                  <Td right>{fmt.format(s.expenses)}</Td>
-                  <Td right className={s.profit >= 0 ? 'text-emerald-700 font-medium' : 'text-red-600 font-medium'}>
-                    {fmt.format(s.profit)}
-                  </Td>
-                  <Td right className={s.margin >= 0 ? 'text-emerald-700' : 'text-red-600'}>
-                    {s.margin.toFixed(1)}%
-                  </Td>
+            <tbody>
+              {loading && <tr><td colSpan={7} style={{ ...s.td, textAlign: 'center' }}>Loading...</td></tr>}
+              {!loading && shipmentProfits.length === 0 && <tr><td colSpan={7} style={{ ...s.td, textAlign: 'center' }}>No shipments found.</td></tr>}
+              {shipmentProfits.map((sh) => (
+                <tr key={sh.id}>
+                  <td style={{ ...s.td, fontWeight: 'bold' }}>{sh.tracking_number}</td>
+                  <td style={s.td}>{sh.customer}</td>
+                  <td style={s.td}><span style={{ background: '#E9ECEF', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>{sh.status}</span></td>
+                  <td style={{ ...s.td, textAlign: 'right' }}>{fmt.format(sh.revenue)}</td>
+                  <td style={{ ...s.td, textAlign: 'right', color: '#DC3545' }}>{fmt.format(sh.expenses)}</td>
+                  <td style={{ ...s.td, textAlign: 'right', fontWeight: 'bold', color: sh.profit >= 0 ? '#28A745' : '#DC3545' }}>{fmt.format(sh.profit)}</td>
+                  <td style={{ ...s.td, textAlign: 'right', color: sh.margin >= 0 ? '#28A745' : '#DC3545' }}>{sh.margin.toFixed(1)}%</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
 
-      <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-        <h2 className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800">
-          Expense Ledger ({expenses.length})
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+      {/* Expense Ledger */}
+      <div style={s.section}>
+        <h2 style={{ marginTop: 0, marginBottom: '20px', color: '#003366', fontSize: '1.2rem' }}>Expense Ledger ({expenses.length})</h2>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={s.table}>
+            <thead>
               <tr>
-                <Th>Date</Th><Th>Shipment</Th><Th>Category</Th><Th>Description</Th>
-                <Th right>Amount</Th><Th right> </Th>
+                <th style={s.th}>Date</th><th style={s.th}>Shipment</th><th style={s.th}>Category</th><th style={s.th}>Description</th>
+                <th style={{ ...s.th, textAlign: 'right' }}>Amount</th><th style={{ ...s.th, textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {expenses.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">No expenses recorded.</td></tr>
-              )}
+            <tbody>
+              {expenses.length === 0 && <tr><td colSpan={6} style={{ ...s.td, textAlign: 'center' }}>No expenses recorded.</td></tr>}
               {expenses.map((e) => {
-                const ship = shipments.find((s) => s.id === e.shipment_id);
+                const sh = shipments.find((x) => x.id === e.shipment_id);
                 return (
-                  <tr key={e.id} className="hover:bg-slate-50">
-                    <Td>{e.expense_date ? e.expense_date.slice(0, 10) : '—'}</Td>
-                    <Td className="font-mono text-xs">{ship ? ship.tracking_number : '—'}</Td>
-                    <Td>{e.category}</Td>
-                    <Td>{e.description || '—'}</Td>
-                    <Td right>{fmt.format(e.amount)}</Td>
-                    <Td right>
-                      <button onClick={() => handleDeleteExpense(e.id)} disabled={deletingId === e.id}
-                        className="text-xs text-red-600 hover:underline disabled:opacity-50">
-                        {deletingId === e.id ? 'Deleting…' : 'Delete'}
+                  <tr key={e.id}>
+                    <td style={s.td}>{e.expense_date?.slice(0, 10)}</td>
+                    <td style={{ ...s.td, fontWeight: 'bold' }}>{sh ? sh.tracking_number : '—'}</td>
+                    <td style={s.td}>{e.category}</td>
+                    <td style={s.td}>{e.description || '—'}</td>
+                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 'bold' }}>{fmt.format(e.amount)}</td>
+                    <td style={{ ...s.td, textAlign: 'right' }}>
+                      <button onClick={() => handleDeleteExpense(e.id)} disabled={deletingId === e.id} style={{ background: 'none', border: 'none', color: '#DC3545', cursor: 'pointer', textDecoration: 'underline' }}>
+                        {deletingId === e.id ? 'Deleting...' : 'Delete'}
                       </button>
-                    </Td>
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
 
 function Kpi({ label, value, tone, loading }) {
-  const tones = {
-    blue:  'border-blue-200 bg-blue-50 text-blue-900',
-    amber: 'border-amber-200 bg-amber-50 text-amber-900',
-    green: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-    red:   'border-red-200 bg-red-50 text-red-900',
+  const colors = {
+    blue: { bg: '#EBF8FF', color: '#2B6CB0', border: '#90CDF4' },
+    amber: { bg: '#FFFFF0', color: '#B7791F', border: '#F6E05E' },
+    green: { bg: '#F0FFF4', color: '#276749', border: '#9AE6B4' },
+    red: { bg: '#FFF5F5', color: '#C53030', border: '#FEB2B2' },
   };
+  const c = colors[tone] || colors.blue;
   return (
-    <div className={`rounded-lg border p-4 shadow-sm ${tones[tone]}`}>
-      <div className="text-xs uppercase tracking-wide opacity-70">{label}</div>
-      <div className="mt-1 text-2xl font-bold">{loading ? <span className="opacity-40">…</span> : value}</div>
+    <div style={{ padding: '20px', borderRadius: '10px', border: `1px solid ${c.border}`, background: c.bg, color: c.color }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', opacity: 0.8 }}>{label}</div>
+      <div style={{ fontSize: '1.8rem', fontWeight: '800', marginTop: '5px' }}>{loading ? '...' : value}</div>
     </div>
   );
-}
-
-function Th({ children, right }) {
-  return <th className={`px-4 py-2 font-medium ${right ? 'text-right' : ''}`}>{children}</th>;
-}
-
-function Td({ children, right, colSpan, className = '' }) {
-  return <td colSpan={colSpan} className={`px-4 py-2 ${right ? 'text-right' : ''} ${className}`}>{children}</td>;
 }
