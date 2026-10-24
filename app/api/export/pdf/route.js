@@ -57,6 +57,7 @@ const NAVY = rgb(0, 0.2, 0.4);
 const GRAY = rgb(0.4, 0.4, 0.4);
 const LIGHT = rgb(0.96, 0.97, 0.98);
 const WHITE = rgb(1, 1, 1);
+const OFFICE_ADDRESS_LINE = 'Unit 704B, 7th Floor  \u00B7  Well Fung Industrial Centre  \u00B7  68 Ta Chuen Ping Street, Kwai Chung  \u00B7  Hong Kong';
 const BLACK = rgb(0.1, 0.1, 0.1);
 
 function sanitizeForPDF(text) {
@@ -219,7 +220,7 @@ export async function GET(request) {
     const FONT_HEADER = 7.5;
     const ROW_H = 14;
     const HEADER_H = 18;
-    const BANNER_H = 32;
+    const BANNER_H = 65;
 
         const cols = [
       { key: 'shipperRef', header: 'Shipper Ref', w: 75, align: 'left', maxChars: 12 },
