@@ -248,20 +248,23 @@ export async function GET(request) {
     let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
     let y = PAGE_H - MARGIN;
 
-            function drawBanner(titleText) {
+                function drawBanner(titleText) {
       page.drawRectangle({ x: MARGIN, y: y - BANNER_H, width: totalW, height: BANNER_H, color: ORANGE });
 
-      // 1. Draw the sXL Logo Box (Rounded Square)
-      const logoX = MARGIN + 12;
-      const logoY = y - 55; // Bottom of the 40x40 box
-      const path = 'M 10 0 L 30 0 Q 40 0 40 10 L 40 30 Q 40 40 30 40 L 10 40 Q 0 40 0 30 L 0 10 Q 0 0 10 0 Z';
+      // 1. Draw the sXL Logo Box
+      const logoX = MARGIN + 10;
+      const logoY = y - 10; // Start near the top of the banner
+      const path = 'M 12 0 L 33 0 Q 45 0 45 12 L 45 33 Q 45 45 33 45 L 12 45 Q 0 45 0 33 L 0 12 Q 0 0 12 0 Z';
       page.drawSvgPath(path, { x: logoX, y: logoY, color: WHITE });
-      page.drawText('sXL', { x: logoX + 9, y: logoY + 13, size: 16, font: fontBold, color: ORANGE });
+      
+      // Draw the orange sXL text perfectly centered inside the box
+      const sxlWidth = fontBold.widthOfTextAtSize('sXL', 18);
+      page.drawText('sXL', { x: logoX + (45 - sxlWidth) / 2, y: logoY - 28, size: 18, font: fontBold, color: ORANGE });
 
       // 2. Draw the Company Name, Subtitle, and Address
-      page.drawText('SUPER EXPRESS', { x: logoX + 52, y: y - 22, size: 14, font: fontBold, color: WHITE });
-      page.drawText('LOGISTICS CENTER', { x: logoX + 52, y: y - 34, size: 8, font, color: WHITE });
-      page.drawText(OFFICE_ADDRESS_LINE, { x: logoX + 52, y: y - 46, size: 7, font, color: WHITE });
+      page.drawText('SUPER EXPRESS', { x: logoX + 60, y: y - 26, size: 15, font: fontBold, color: WHITE });
+      page.drawText('LOGISTICS CENTER', { x: logoX + 60, y: y - 38, size: 8, font, color: WHITE });
+      page.drawText(OFFICE_ADDRESS_LINE, { x: logoX + 60, y: y - 50, size: 7, font, color: WHITE });
 
       // 3. Draw the Title
       if (titleText) {
