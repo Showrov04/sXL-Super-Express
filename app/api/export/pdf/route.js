@@ -290,7 +290,13 @@ export async function GET(request) {
       y -= HEADER_H;
     }
 
-    drawBanner(tab.charAt(0).toUpperCase() + tab.slice(1) + ' Shipments');
+        let titleText = 'Shipments';
+    if (tab === 'active') titleText = 'Active Shipments';
+    if (tab === 'awaiting') titleText = 'Awaiting Payment';
+    if (tab === 'paid') titleText = 'Paid & Completed';
+    if (tab === 'cancelled') titleText = 'Cancelled Shipments';
+
+    drawBanner(titleText);
     drawTableHeader();
 
     filtered.forEach((s, idx) => {
