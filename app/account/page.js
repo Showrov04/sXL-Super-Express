@@ -61,6 +61,7 @@ export default function AccountPage() {
   const [companyName, setCompanyName] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
+    const [notificationEmails, setNotificationEmails] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
   const [companyCity, setCompanyCity] = useState('');
   const [companyState, setCompanyState] = useState('');
@@ -136,6 +137,7 @@ export default function AccountPage() {
       setCompanyName(p.companyName || '');
       setContactPerson(p.contactPerson || '');
       setPhone(p.phone || '');
+            setNotificationEmails(p.notificationEmails || '');
       setCompanyAddress(p.companyAddress || '');
       setCompanyCity(p.companyCity || '');
       setCompanyState(p.companyState || '');
@@ -163,7 +165,7 @@ export default function AccountPage() {
 
   function startEdit() {
     setBackup({
-      companyName, contactPerson, phone,
+            companyName, contactPerson, phone, notificationEmails,
       companyAddress, companyCity, companyState, companyCountry, companyBin,
     });
     setEditMode(true);
@@ -176,6 +178,7 @@ export default function AccountPage() {
       setCompanyName(backup.companyName || '');
       setContactPerson(backup.contactPerson || '');
       setPhone(backup.phone || '');
+            setNotificationEmails(backup.notificationEmails || '');
       setCompanyAddress(backup.companyAddress || '');
       setCompanyCity(backup.companyCity || '');
       setCompanyState(backup.companyState || '');
@@ -207,7 +210,8 @@ export default function AccountPage() {
           action: 'saveInfo',
           companyName: companyName.trim(),
           contactPerson: contactPerson.trim(),
-          phone: phone.trim(),
+                    phone: phone.trim(),
+          notificationEmails: notificationEmails.trim(),
           companyAddress: companyAddress.trim(),
           companyCity: companyCity.trim(),
           companyState: companyState.trim(),
