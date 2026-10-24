@@ -1095,9 +1095,9 @@ export default function BookPage() {
                       background: 'white', fontFamily: 'inherit', boxSizing: 'border-box'
                     }}>
                     <option value="">-- Select Delivery Timeline --</option>
-                    <option value="1 Day Express — China (Guangzhou) ↔ Bangladesh">1 Day Express — China (Guangzhou) ↔ Bangladesh</option>
-                    <option value="1-2 Days — Hong Kong ↔ Bangladesh">1-2 Days — Hong Kong ↔ Bangladesh</option>
-                    <option value="3-4 Days — Hong Kong ↔ Bangladesh">3-4 Days — Hong Kong ↔ Bangladesh</option>
+<option value="1 Day Express — China (Guangzhou) ↔ Bangladesh">1 Day Express — China (Guangzhou) ↔ Bangladesh</option>
+<option value="1 Day Express — Hong Kong ↔ Bangladesh">1 Day Express — Hong Kong ↔ Bangladesh</option>
+<option value="3-4 Days — Hong Kong ↔ Bangladesh">3-4 Days — Hong Kong ↔ Bangladesh</option>
                   </select>
                   <div style={{ fontSize: '0.8rem', color: '#8B4500', marginTop: '8px', fontStyle: 'italic' }}>
                     💡 Choose the delivery speed that matches your route
