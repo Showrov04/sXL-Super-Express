@@ -300,13 +300,10 @@ export async function GET(request) {
     drawTableHeader();
 
     filtered.forEach((s, idx) => {
-      if (y - ROW_H < MARGIN + 25) {
+            if (y - ROW_H < MARGIN + 25) {
         page = pdfDoc.addPage([PAGE_W, PAGE_H]);
         y = PAGE_H - MARGIN;
-        page.drawRectangle({ x: MARGIN, y: y - BANNER_H, width: totalW, height: BANNER_H, color: ORANGE });
-        page.drawText('SUPER EXPRESS', { x: MARGIN + 10, y: y - 14, size: 11, font: fontBold, color: WHITE });
-        page.drawText('SHIPMENTS REPORT (continued)', { x: MARGIN + 10, y: y - 25, size: FONT_SMALL, font: fontBold, color: WHITE });
-        y -= BANNER_H + 8;
+        drawBanner(titleText + ' (continued)');
         drawTableHeader();
       }
 
