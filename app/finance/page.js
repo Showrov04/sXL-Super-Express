@@ -19,6 +19,15 @@ const num = (v) => {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+// Helper to find cookies
+const getCookie = (name) => {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return null;
+};
+
 export default function FinanceDashboard() {
   const router = useRouter();
   const [shipments, setShipments] = useState([]);
@@ -36,30 +45,39 @@ export default function FinanceDashboard() {
     expense_date: today(),
   });
 
+  // Get token from LocalStorage OR Cookies
+  const getToken = () => {
+    return localStorage.getItem('token') || 
+           localStorage.getItem('session_token') || 
+           localStorage.getItem('session') ||
+           getCookie('token') || 
+           getCookie('session_token') ||
+           getCookie('session');
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      // Get the token from local storage (adjust if you store it in cookies)
-      const token = localStorage.getItem('token') || localStorage.getItem('session_token');
+      const token = getToken();
       
       const res = await fetch('/api/finance', {
         cache: 'no-store',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token || ''}`
         }
       });
       
-            if (res.status === 403) {
-        setError("API returned 403 Forbidden. Your login token is missing, expired, or your database role is not 'owner'.");
+      const json = await res.json();
+      
+      if (res.status === 403) {
+        setError(`API returned 403 Forbidden. Could not find valid token. (Token found: ${token ? 'Yes' : 'No'})`);
         setLoading(false);
         return;
       }
-      
-      const json = await res.json();
+
       if (!json.success) throw new Error(json.error || 'Failed to load');
 
-      // Map shipments for revenue calculation
       const mappedShipments = (json.shipments || []).map(s => ({
         id: s.id,
         tracking_number: s.tracking_number,
@@ -76,14 +94,12 @@ export default function FinanceDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // Combine shipments and expenses to calculate profit per shipment
   const shipmentProfits = useMemo(() => {
     return shipments.map(ship => {
-      // Find all expenses linked to this shipment
       const shipExpenses = expenses.filter(e => e.shipment_id === ship.id);
       const totalExpense = shipExpenses.reduce((sum, e) => sum + num(e.amount), 0);
       const profit = ship.revenue - totalExpense;
@@ -97,7 +113,6 @@ export default function FinanceDashboard() {
     });
   }, [shipments, expenses]);
 
-  // Overall Totals (including unlinked overhead expenses)
   const totals = useMemo(() => {
     const revenue = shipments.reduce((sum, s) => sum + s.revenue, 0);
     const totalExpenses = expenses.reduce((sum, e) => sum + num(e.amount), 0);
@@ -121,12 +136,12 @@ export default function FinanceDashboard() {
     setSaving(true);
     setError('');
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('session_token');
+      const token = getToken();
       const res = await fetch('/api/finance', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token || ''}`
         },
         body: JSON.stringify({
           shipment_id: form.shipment_id || null,
@@ -159,10 +174,10 @@ export default function FinanceDashboard() {
     if (!confirm('Delete this expense?')) return;
     setDeletingId(id);
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('session_token');
+      const token = getToken();
       const res = await fetch(`/api/finance?id=${encodeURIComponent(id)}`, { 
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token || ''}` }
       });
       
       const data = await res.json();
@@ -194,7 +209,6 @@ export default function FinanceDashboard() {
         </div>
       )}
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Total Revenue" value={fmt.format(totals.revenue)} tone="blue" loading={loading} />
         <Kpi label="Total Expenses" value={fmt.format(totals.expenses)} tone="amber" loading={loading} />
@@ -202,7 +216,6 @@ export default function FinanceDashboard() {
         <Kpi label="Profit Margin" value={`${totals.margin.toFixed(1)}%`} tone={totals.margin >= 0 ? 'green' : 'red'} loading={loading} />
       </div>
 
-      {/* Add Expense Form */}
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold text-slate-800">Record New Expense</h2>
         <form onSubmit={handleAddExpense} className="grid grid-cols-1 gap-3 md:grid-cols-6">
@@ -235,7 +248,6 @@ export default function FinanceDashboard() {
         </form>
       </section>
 
-      {/* Shipment Profit Margins */}
       <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-800">Shipment Profit Margins ({shipmentProfits.length})</h2>
@@ -273,7 +285,6 @@ export default function FinanceDashboard() {
         </div>
       </section>
 
-      {/* Expense Ledger */}
       <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <h2 className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800">
           Expense Ledger ({expenses.length})
