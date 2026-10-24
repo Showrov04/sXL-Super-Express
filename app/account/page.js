@@ -506,6 +506,18 @@ export default function AccountPage() {
                 autoComplete="off"
                 style={editMode ? inputStyle : readOnlyStyle} />
             </div>
+                        <div style={{ marginBottom: '18px' }}>
+              <label style={labelStyle}>Extra Notification Emails (optional)</label>
+              <input type="text" value={notificationEmails}
+                onChange={(e) => setNotificationEmails(e.target.value)}
+                disabled={!editMode}
+                autoComplete="off"
+                placeholder="email1@example.com, email2@example.com"
+                style={editMode ? inputStyle : readOnlyStyle} />
+              <div style={{ fontSize: '0.75rem', color: '#6C757D', marginTop: '4px' }}>
+                Separate multiple emails with commas. You will receive delivery updates and invoice links here.
+              </div>
+            </div>
 
             <div style={{ marginBottom: '18px' }}>
               <label style={labelStyle}>Full Address</label>
